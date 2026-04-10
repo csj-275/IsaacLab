@@ -709,6 +709,7 @@ class NewtonManager(PhysicsManager):
 
             cls._num_envs = len(env_paths)
 
+        cls._apply_sdf_config(builder)
         cls.set_builder(builder)
 
     @classmethod
@@ -725,6 +726,17 @@ class NewtonManager(PhysicsManager):
                     cls._collision_pipeline = CollisionPipeline(cls._model, **cls._collision_cfg.to_pipeline_args())
                 else:
                     cls._collision_pipeline = CollisionPipeline(cls._model, broad_phase="explicit")
+
+                # Warn if hydroelastic was requested but no shapes qualify
+                hydro_requested = (
+                    cls._collision_cfg is not None and cls._collision_cfg.sdf_hydroelastic_config is not None
+                )
+                if hydro_requested and cls._collision_pipeline.hydroelastic_sdf is None:
+                    logger.warning(
+                        "HydroelasticSDFCfg was set but no hydroelastic shape pairs found. "
+                        "Ensure shapes have SDF built (via SDFCfg with k_hydro set) and that "
+                        "both shapes in each contact pair have the HYDROELASTIC flag."
+                    )
 
             if cls._contacts is None:
                 cls._contacts = cls._collision_pipeline.contacts()
@@ -800,6 +812,21 @@ class NewtonManager(PhysicsManager):
                         " Either set use_mujoco_contacts=False or remove collision_cfg."
                     )
             else:
+                cls._needs_collision_pipeline = True
+
+            # Force Newton pipeline when collision_cfg or SDF is configured
+            if cfg.collision_cfg is not None and not cls._needs_collision_pipeline:
+                logger.warning("collision_cfg set — enabling Newton collision pipeline.")
+                cls._needs_collision_pipeline = True
+
+            sdf_cfg = getattr(cfg, "sdf_cfg", None)
+            has_sdf = (
+                sdf_cfg is not None
+                and (sdf_cfg.body_patterns is not None or sdf_cfg.shape_patterns is not None)
+                and (sdf_cfg.max_resolution is not None or sdf_cfg.target_voxel_size is not None)
+            )
+            if has_sdf and not cls._needs_collision_pipeline:
+                logger.warning("SDF collision requires Newton collision pipeline. Overriding use_mujoco_contacts.")
                 cls._needs_collision_pipeline = True
 
             # Initialize contacts and collision pipeline
