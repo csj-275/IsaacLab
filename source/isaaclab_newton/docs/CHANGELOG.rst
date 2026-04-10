@@ -7,7 +7,8 @@ Changelog
 Added
 ^^^^^
 
-* Added :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` to expose Newton collision pipeline parameters via :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg`.
+* Added :class:`~isaaclab_newton.physics.NewtonCollisionPipelineCfg` to expose Newton collision pipeline parameters via
+  :attr:`~isaaclab_newton.physics.NewtonCfg.collision_cfg`.
 
 
 0.5.10 (2026-04-05)
