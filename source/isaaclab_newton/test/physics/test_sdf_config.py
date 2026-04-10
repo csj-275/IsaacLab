@@ -325,3 +325,163 @@ class TestApplySdfConfig:
         with patch("isaaclab_newton.physics.newton_manager.PhysicsManager") as pm:
             pm._cfg = cfg
             NewtonManager._apply_sdf_config(builder)
+
+
+class TestCreateSdfCollisionFromVisual:
+    """Tests for NewtonManager._create_sdf_collision_from_visual."""
+
+    @staticmethod
+    def _make_builder(bodies, shapes):
+        """Create a minimal ModelBuilder-like mock."""
+        builder = MagicMock(spec=ModelBuilder)
+        builder.body_label = bodies
+        builder.shape_count = len(shapes)
+        builder.shape_type = [s["geo_type"] for s in shapes]
+        builder.shape_body = [s["body_idx"] for s in shapes]
+        builder.shape_label = [s["label"] for s in shapes]
+        builder.shape_flags = [s["flags"] for s in shapes]
+        builder.shape_source = [s.get("source") for s in shapes]
+        builder.shape_transform = [s.get("xform", (0, 0, 0, 0, 0, 0, 1)) for s in shapes]
+        builder.shape_scale = [s.get("scale", (1, 1, 1)) for s in shapes]
+        builder.shape_margin = [0.0] * len(shapes)
+        builder.shape_material_kh = [0.0] * len(shapes)
+        return builder
+
+    @staticmethod
+    def _make_sdf_cfg(k_hydro=None, margin=None):
+        cfg = MagicMock()
+        cfg.max_resolution = 256
+        cfg.target_voxel_size = None
+        cfg.narrow_band_range = (-0.1, 0.1)
+        cfg.margin = margin
+        cfg.k_hydro = k_hydro
+        return cfg
+
+    def test_creates_collision_from_visual_mesh(self):
+        """A body with only a visual mesh (no COLLIDE_SHAPES) gets a new collision shape."""
+        from isaaclab_newton.physics.newton_manager import NewtonManager
+
+        bodies = ["/World/Robot/arm"]
+        mesh = MagicMock(sdf=None)
+        shapes = [
+            {
+                "body_idx": 0,
+                "label": "/World/Robot/arm/visual",
+                "geo_type": GeoType.MESH,
+                "flags": 0,
+                "source": mesh,
+            },
+        ]
+        builder = self._make_builder(bodies, shapes)
+        sdf_cfg = self._make_sdf_cfg()
+
+        num_added, num_hydro = NewtonManager._create_sdf_collision_from_visual(builder, {0}, sdf_cfg, None)
+
+        assert num_added == 1
+        assert num_hydro == 0
+        builder.add_shape_mesh.assert_called_once()
+        mesh.build_sdf.assert_called_once()
+
+    def test_skips_body_with_existing_collision(self):
+        """A body that already has a COLLIDE_SHAPES shape is not given a visual-mesh collision."""
+        from isaaclab_newton.physics.newton_manager import NewtonManager
+
+        bodies = ["/World/Robot/arm"]
+        shapes = [
+            {
+                "body_idx": 0,
+                "label": "/World/Robot/arm/collision",
+                "geo_type": GeoType.MESH,
+                "flags": ShapeFlags.COLLIDE_SHAPES,
+                "source": MagicMock(sdf=None),
+            },
+        ]
+        builder = self._make_builder(bodies, shapes)
+        sdf_cfg = self._make_sdf_cfg()
+
+        num_added, _ = NewtonManager._create_sdf_collision_from_visual(builder, {0}, sdf_cfg, None)
+
+        assert num_added == 0
+        builder.add_shape_mesh.assert_not_called()
+
+    def test_warns_when_no_visual_mesh_source(self):
+        """A body with no mesh source logs a warning and is skipped."""
+        from isaaclab_newton.physics.newton_manager import NewtonManager
+
+        bodies = ["/World/Robot/arm"]
+        shapes = [
+            {
+                "body_idx": 0,
+                "label": "/World/Robot/arm/visual",
+                "geo_type": GeoType.MESH,
+                "flags": 0,
+                "source": None,
+            },
+        ]
+        builder = self._make_builder(bodies, shapes)
+        sdf_cfg = self._make_sdf_cfg()
+
+        with patch("isaaclab_newton.physics.newton_manager.logger") as mock_logger:
+            num_added, _ = NewtonManager._create_sdf_collision_from_visual(builder, {0}, sdf_cfg, None)
+            mock_logger.warning.assert_called()
+
+        assert num_added == 0
+
+    def test_k_hydro_sets_hydroelastic_on_new_shape(self):
+        """When k_hydro is set, the new collision shape gets is_hydroelastic=True."""
+        from isaaclab_newton.physics.newton_manager import NewtonManager
+
+        bodies = ["/World/Robot/arm"]
+        mesh = MagicMock(sdf=None)
+        shapes = [
+            {
+                "body_idx": 0,
+                "label": "/World/Robot/arm/visual",
+                "geo_type": GeoType.MESH,
+                "flags": 0,
+                "source": mesh,
+            },
+        ]
+        builder = self._make_builder(bodies, shapes)
+        sdf_cfg = self._make_sdf_cfg(k_hydro=1e10)
+
+        num_added, num_hydro = NewtonManager._create_sdf_collision_from_visual(builder, {0}, sdf_cfg, None)
+
+        assert num_added == 1
+        assert num_hydro == 1
+        call_kwargs = builder.add_shape_mesh.call_args[1]
+        assert call_kwargs["cfg"].is_hydroelastic is True
+
+    def test_hydro_patterns_filter_respected(self):
+        """hydroelastic patterns filter which visual-mesh shapes get HYDROELASTIC."""
+        from isaaclab_newton.physics.newton_manager import NewtonManager
+
+        bodies = ["/World/Robot/arm", "/World/Robot/leg"]
+        mesh_arm = MagicMock(sdf=None)
+        mesh_leg = MagicMock(sdf=None)
+        shapes = [
+            {
+                "body_idx": 0,
+                "label": "/World/Robot/arm/visual",
+                "geo_type": GeoType.MESH,
+                "flags": 0,
+                "source": mesh_arm,
+            },
+            {
+                "body_idx": 1,
+                "label": "/World/Robot/leg/visual",
+                "geo_type": GeoType.MESH,
+                "flags": 0,
+                "source": mesh_leg,
+            },
+        ]
+        builder = self._make_builder(bodies, shapes)
+        sdf_cfg = self._make_sdf_cfg(k_hydro=1e10)
+        hydro_patterns = [re.compile(".*arm.*")]
+
+        num_added, num_hydro = NewtonManager._create_sdf_collision_from_visual(
+            builder, {0, 1}, sdf_cfg, None, hydro_patterns
+        )
+
+        assert num_added == 2
+        assert num_hydro == 1  # only arm matches hydro pattern
