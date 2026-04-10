@@ -814,11 +814,7 @@ class NewtonManager(PhysicsManager):
             else:
                 cls._needs_collision_pipeline = True
 
-            # Force Newton pipeline when collision_cfg or SDF is configured
-            if cfg.collision_cfg is not None and not cls._needs_collision_pipeline:
-                logger.warning("collision_cfg set — enabling Newton collision pipeline.")
-                cls._needs_collision_pipeline = True
-
+            # Force Newton pipeline when SDF is configured
             sdf_cfg = getattr(cfg, "sdf_cfg", None)
             has_sdf = (
                 sdf_cfg is not None

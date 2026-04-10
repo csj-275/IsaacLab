@@ -241,8 +241,10 @@ class SDFCfg:
     max_resolution: int | None = None
     """Maximum voxel dimension for the SDF grid.
 
-    Must be divisible by 8. Typical values: 128, 256, 512.
-    Ignored when :attr:`target_voxel_size` is set.
+    Must be divisible by 8. Typical values: 128, 256, 512. When both this
+    and :attr:`target_voxel_size` are set, both are forwarded to Newton's
+    ``mesh.build_sdf()``; Newton uses :attr:`target_voxel_size` to derive
+    the actual resolution.
 
     Defaults to ``None``.
     """
@@ -250,7 +252,8 @@ class SDFCfg:
     target_voxel_size: float | None = None
     """Target voxel size [m] for the SDF grid.
 
-    When set, takes precedence over :attr:`max_resolution`.
+    When both this and :attr:`max_resolution` are set, both are forwarded to
+    Newton and this value is used to derive the actual resolution.
 
     Defaults to ``None``.
     """
