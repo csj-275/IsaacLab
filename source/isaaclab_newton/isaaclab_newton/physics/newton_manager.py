@@ -393,7 +393,7 @@ class NewtonManager(PhysicsManager):
         cls._model_changes.add(change)
 
     @staticmethod
-    def _build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, label: str):
+    def _build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, label: str) -> bool:
         """Build SDF on a mesh, resolving per-pattern resolution overrides.
 
         Args:
@@ -401,9 +401,13 @@ class NewtonManager(PhysicsManager):
             sdf_cfg: The active :class:`SDFCfg` instance.
             res_overrides: Compiled ``(pattern, resolution)`` pairs, or ``None``.
             label: Shape label used for pattern resolution matching.
+
+        Returns:
+            ``True`` if SDF was built, ``False`` if skipped (no mesh source).
         """
         if mesh is None:
-            return
+            logger.warning(f"SDF: shape '{label}' matched but has no mesh source. Skipping SDF build.")
+            return False
         if mesh.sdf is not None:
             mesh.clear_sdf()
         resolution = sdf_cfg.max_resolution
@@ -418,10 +422,11 @@ class NewtonManager(PhysicsManager):
         if sdf_cfg.target_voxel_size is not None:
             sdf_kwargs["target_voxel_size"] = sdf_cfg.target_voxel_size
         mesh.build_sdf(**sdf_kwargs)
+        return True
 
     @classmethod
     def _create_sdf_collision_from_visual(
-        cls, builder: ModelBuilder, sdf_shape_indices: set[int], sdf_cfg, res_overrides
+        cls, builder: ModelBuilder, sdf_shape_indices: set[int], sdf_cfg, res_overrides, hydro_patterns=None
     ):
         """Create collision shapes from visual meshes for matched bodies lacking collision geometry.
 
@@ -430,6 +435,8 @@ class NewtonManager(PhysicsManager):
             sdf_shape_indices: Shape indices that matched SDF patterns.
             sdf_cfg: The active :class:`SDFCfg` instance.
             res_overrides: Compiled ``(pattern, resolution)`` pairs, or ``None``.
+            hydro_patterns: Compiled hydroelastic shape patterns, or ``None``
+                (meaning all shapes get hydroelastic if ``k_hydro`` is set).
 
         Returns:
             Tuple of ``(num_added, num_hydro)`` counts.
@@ -441,19 +448,6 @@ class NewtonManager(PhysicsManager):
         for si in range(builder.shape_count):
             if builder.shape_flags[si] & ShapeFlags.COLLIDE_SHAPES and builder.shape_body[si] in matched_bodies:
                 bodies_with_collision.add(builder.shape_body[si])
-
-        shape_cfg_kwargs: dict = dict(
-            density=0.0,
-            has_shape_collision=True,
-            has_particle_collision=True,
-            is_visible=False,
-        )
-        if sdf_cfg.margin is not None:
-            shape_cfg_kwargs["margin"] = sdf_cfg.margin
-        if sdf_cfg.k_hydro is not None:
-            shape_cfg_kwargs["is_hydroelastic"] = True
-            shape_cfg_kwargs["kh"] = sdf_cfg.k_hydro
-        sdf_shape_cfg = ModelBuilder.ShapeConfig(**shape_cfg_kwargs)
 
         num_added = 0
         num_hydro = 0
@@ -471,17 +465,35 @@ class NewtonManager(PhysicsManager):
             mesh = builder.shape_source[visual_si]
             cls._build_sdf_on_mesh(mesh, sdf_cfg, res_overrides, builder.shape_label[visual_si])
 
+            # Determine hydroelastic for this shape (respecting pattern filter)
+            shape_lbl = builder.shape_label[visual_si]
+            enable_hydro = False
+            if sdf_cfg.k_hydro is not None:
+                enable_hydro = hydro_patterns is None or any(p.search(shape_lbl) for p in hydro_patterns)
+
+            shape_cfg_kwargs: dict = dict(
+                density=0.0,
+                has_shape_collision=True,
+                has_particle_collision=True,
+                is_visible=False,
+            )
+            if sdf_cfg.margin is not None:
+                shape_cfg_kwargs["margin"] = sdf_cfg.margin
+            if enable_hydro:
+                shape_cfg_kwargs["is_hydroelastic"] = True
+                shape_cfg_kwargs["kh"] = sdf_cfg.k_hydro
+
             body_lbl = builder.body_label[body_idx]
             builder.add_shape_mesh(
                 body=body_idx,
                 xform=builder.shape_transform[visual_si],
                 mesh=mesh,
                 scale=builder.shape_scale[visual_si],
-                cfg=sdf_shape_cfg,
+                cfg=ModelBuilder.ShapeConfig(**shape_cfg_kwargs),
                 label=f"{body_lbl}/sdf_collision",
             )
             num_added += 1
-            if sdf_cfg.k_hydro is not None:
+            if enable_hydro:
                 num_hydro += 1
 
         return num_added, num_hydro
@@ -490,7 +502,7 @@ class NewtonManager(PhysicsManager):
     def _apply_sdf_config(cls, builder: ModelBuilder):
         """Apply SDF collision and optional hydroelastic flags to matching mesh shapes.
 
-        Reads :attr:`SDFCfg` from the active physics config. Collects shapes
+        Reads :class:`SDFCfg` from the active physics config. Collects shapes
         matching body/shape regex patterns, builds SDF on their meshes, and
         optionally sets the ``HYDROELASTIC`` flag with :attr:`SDFCfg.k_hydro`.
 
@@ -502,7 +514,7 @@ class NewtonManager(PhysicsManager):
         cfg = PhysicsManager._cfg
         if cfg is None:
             return
-        sdf_cfg = getattr(cfg, "sdf_cfg", None)
+        sdf_cfg = cfg.sdf_cfg  # type: ignore[union-attr]
         if sdf_cfg is None:
             return
 
@@ -510,17 +522,31 @@ class NewtonManager(PhysicsManager):
             logger.warning("SDFCfg provided but neither max_resolution nor target_voxel_size is set. SDF disabled.")
             return
 
-        # Compile patterns
-        body_patterns = [re.compile(p) for p in sdf_cfg.body_patterns] if sdf_cfg.body_patterns else None
-        shape_patterns = [re.compile(p) for p in sdf_cfg.shape_patterns] if sdf_cfg.shape_patterns else None
-        res_overrides = (
-            [(re.compile(p), r) for p, r in sdf_cfg.pattern_resolutions.items()]
-            if sdf_cfg.pattern_resolutions
-            else None
-        )
+        # Compile patterns (with validation)
+        def _compile(patterns: list[str] | None, field: str) -> list[re.Pattern] | None:
+            if not patterns:
+                return None
+            compiled = []
+            for i, p in enumerate(patterns):
+                try:
+                    compiled.append(re.compile(p))
+                except re.error as e:
+                    raise ValueError(f"Invalid regex in SDFCfg.{field}[{i}]: {p!r} — {e}") from e
+            return compiled
+
+        body_patterns = _compile(sdf_cfg.body_patterns, "body_patterns")
+        shape_patterns = _compile(sdf_cfg.shape_patterns, "shape_patterns")
+        res_overrides = None
+        if sdf_cfg.pattern_resolutions:
+            res_overrides = []
+            for p, r in sdf_cfg.pattern_resolutions.items():
+                try:
+                    res_overrides.append((re.compile(p), r))
+                except re.error as e:
+                    raise ValueError(f"Invalid regex in SDFCfg.pattern_resolutions key {p!r} — {e}") from e
         hydro_patterns = None
-        if sdf_cfg.k_hydro is not None and sdf_cfg.hydroelastic_shape_patterns is not None:
-            hydro_patterns = [re.compile(p) for p in sdf_cfg.hydroelastic_shape_patterns]
+        if sdf_cfg.k_hydro is not None:
+            hydro_patterns = _compile(sdf_cfg.hydroelastic_shape_patterns, "hydroelastic_shape_patterns")
 
         if body_patterns is None and shape_patterns is None:
             logger.warning("SDFCfg has no body_patterns or shape_patterns set. No shapes will receive SDF.")
@@ -551,7 +577,8 @@ class NewtonManager(PhysicsManager):
         for si in sdf_shape_indices:
             if not (builder.shape_flags[si] & ShapeFlags.COLLIDE_SHAPES):
                 continue
-            cls._build_sdf_on_mesh(builder.shape_source[si], sdf_cfg, res_overrides, builder.shape_label[si])
+            if not cls._build_sdf_on_mesh(builder.shape_source[si], sdf_cfg, res_overrides, builder.shape_label[si]):
+                continue
             if sdf_cfg.margin is not None:
                 builder.shape_margin[si] = sdf_cfg.margin
             if sdf_cfg.k_hydro is not None:
@@ -566,7 +593,7 @@ class NewtonManager(PhysicsManager):
         num_added = 0
         if sdf_cfg.use_visual_meshes:
             num_added, hydro_from_visual = cls._create_sdf_collision_from_visual(
-                builder, sdf_shape_indices, sdf_cfg, res_overrides
+                builder, sdf_shape_indices, sdf_cfg, res_overrides, hydro_patterns
             )
             num_hydro += hydro_from_visual
 
@@ -815,7 +842,7 @@ class NewtonManager(PhysicsManager):
                 cls._needs_collision_pipeline = True
 
             # Force Newton pipeline when SDF is configured
-            sdf_cfg = getattr(cfg, "sdf_cfg", None)
+            sdf_cfg = cfg.sdf_cfg  # type: ignore[union-attr]
             has_sdf = (
                 sdf_cfg is not None
                 and (sdf_cfg.body_patterns is not None or sdf_cfg.shape_patterns is not None)

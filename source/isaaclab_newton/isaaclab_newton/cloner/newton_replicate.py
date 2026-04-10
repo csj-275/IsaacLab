@@ -21,6 +21,17 @@ from isaaclab.physics.scene_data_requirements import VisualizerPrebuiltArtifacts
 from isaaclab_newton.physics import NewtonManager
 
 
+def _compile_sdf_patterns(patterns: list[str]) -> list[re.Pattern]:
+    """Compile regex patterns with validation, raising on invalid regex."""
+    compiled = []
+    for i, p in enumerate(patterns):
+        try:
+            compiled.append(re.compile(p))
+        except re.error as e:
+            raise ValueError(f"Invalid regex in SDFCfg pattern[{i}]: {p!r} — {e}") from e
+    return compiled
+
+
 def _build_newton_builder_from_mapping(
     stage: Usd.Stage,
     sources: list[str],
@@ -70,9 +81,9 @@ def _build_newton_builder_from_mapping(
     # matching SDF patterns must be excluded from approximation here.
     # _apply_sdf_config() builds the SDF on each prototype after approximation.
     cfg = PhysicsManager._cfg
-    sdf_cfg = getattr(cfg, "sdf_cfg", None) if cfg is not None else None
-    body_pats = [re.compile(x) for x in sdf_cfg.body_patterns] if sdf_cfg and sdf_cfg.body_patterns else None
-    shape_pats = [re.compile(x) for x in sdf_cfg.shape_patterns] if sdf_cfg and sdf_cfg.shape_patterns else None
+    sdf_cfg = cfg.sdf_cfg if cfg is not None else None  # type: ignore[union-attr]
+    body_pats = _compile_sdf_patterns(sdf_cfg.body_patterns) if sdf_cfg and sdf_cfg.body_patterns else None
+    shape_pats = _compile_sdf_patterns(sdf_cfg.shape_patterns) if sdf_cfg and sdf_cfg.shape_patterns else None
     has_sdf_patterns = body_pats is not None or shape_pats is not None
 
     protos: dict[str, ModelBuilder] = {}
