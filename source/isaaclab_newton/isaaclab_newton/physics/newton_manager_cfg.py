@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils import configclass
 
-from .newton_collision_cfg import NewtonCollisionPipelineCfg
+from .newton_collision_cfg import NewtonCollisionPipelineCfg, SDFCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
@@ -256,4 +256,16 @@ class NewtonCfg(PhysicsCfg):
 
     .. note::
         Must not be set when ``use_mujoco_contacts=True`` (raises :class:`ValueError`).
+    """
+
+    sdf_cfg: SDFCfg | None = None
+    """SDF collision configuration.
+
+    When set, mesh collision shapes matching the configured patterns will have
+    SDF built via Newton's ``mesh.build_sdf()`` at simulation start.  This
+    also forces Newton's collision pipeline to be active (overriding
+    ``use_mujoco_contacts=True`` if necessary).
+
+    See :class:`~isaaclab_newton.physics.newton_collision_cfg.SDFCfg` for
+    available parameters.
     """
