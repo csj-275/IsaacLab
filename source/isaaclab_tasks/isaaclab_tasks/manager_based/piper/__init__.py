@@ -11,7 +11,6 @@ from . import agents
 # Register Gym environments.
 ##
 
-
 gym.register(
     id="Isaac-Piper-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",

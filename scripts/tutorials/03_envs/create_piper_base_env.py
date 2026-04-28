@@ -49,27 +49,26 @@ from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.piper.piper_env_cfg import PiperSceneCfg
 
-
 @configclass
 class ActionsCfg:
     """Action specifications for the environment."""
 
-    arm_efforts = mdp.JointEffortActionCfg(
+    arm_actions = mdp.JointPositionActionCfg(
         asset_name="robot", 
         joint_names=["joint[1-6]"],
-        scale=5.0
+        scale=1.0,
     )
 
     gripper_action = mdp.BinaryJointPositionActionCfg(
         asset_name="robot",
         joint_names=["joint[7-8]"],        
         open_command_expr={
-            "joint7": 1.0,
-            "joint8": -1.0,
+            "joint7": 0.1,
+            "joint8": -0.1,
         },
         close_command_expr={
-            "joint7": -1.0,
-            "joint8": 1.0,
+            "joint7": -0.1,
+            "joint8": 0.1,
         },
     )
 
@@ -169,13 +168,13 @@ def main():
                 close_str = 'CLOSE' if gripper_state < 0 else 'OPEN'
                 print(f"[INFO]: Gripper command value = {gripper_state} ({close_str})")
             # sample random actions
-            arm_efforts = torch.randn(env.num_envs, 6, device=device)
+            arm_actions = torch.randn(env.num_envs, 6, device=device)
 
-            gripper_action = torch.full((env.num_envs, 1), gripper_state, device=device)
-            joint_efforts = torch.cat([arm_efforts, gripper_action], dim=1)
+            gripper_action = 10*torch.full((env.num_envs, 1), gripper_state, device=device)
+            joint_actions = torch.cat([arm_actions, gripper_action], dim=1)
 
             # step the environment
-            obs, _ = env.step(joint_efforts)
+            obs, _ = env.step(joint_actions)
 
             current_joint_pos = robot.data.joint_pos
             gripper_pos = current_joint_pos[:, -2:] 

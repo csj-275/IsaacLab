@@ -13,8 +13,8 @@
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.envs import ManagerBasedEnvCfg # classic
-# from isaaclab.envs import ManagerBasedRLEnvCfg # RL
+# from isaaclab.envs import ManagerBasedEnvCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -46,8 +46,6 @@ class PiperSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
     )
 
-    
-
     # robot
     robot: ArticulationCfg = PIPER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     
@@ -61,22 +59,22 @@ class PiperSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the environment."""
 
-    arm_efforts = mdp.JointEffortActionCfg(
+    arm_actions = mdp.JointPositionActionCfg(
         asset_name="robot", 
         joint_names=["joint[1-6]"],
-        scale=5.0
+        scale=1.0,
     )
 
     gripper_action = mdp.BinaryJointPositionActionCfg(
         asset_name="robot",
         joint_names=["joint[7-8]"],        
         open_command_expr={
-            "joint7": 1.0,
-            "joint8": -1.0,
+            "joint7": 0.1,
+            "joint8": -0.1,
         },
         close_command_expr={
-            "joint7": -1.0,
-            "joint8": 1.0,
+            "joint7": -0.1,
+            "joint8": 0.1,
         },
     )
 
@@ -127,71 +125,38 @@ class EventCfg:
         },
     )
 
-
-##
-# MDP settings
-##
-
-
-# @configclass
-# class RewardsCfg:
-#     """Reward terms for the MDP."""
-
-#     # (1) Constant running reward
-#     alive = RewTerm(func=mdp.is_alive, weight=1.0)
-#     # (2) Failure penalty
-#     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
-#     # (3) Primary task: keep pole upright
-#     pole_pos = RewTerm(
-#         func=mdp.joint_pos_target_l2,
-#         weight=-1.0,
-#         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]), "target": 0.0},
-#     )
-#     # (4) Shaping tasks: lower cart velocity
-#     cart_vel = RewTerm(
-#         func=mdp.joint_vel_l1,
-#         weight=-0.01,
-#         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
-#     )
-#     # (5) Shaping tasks: lower pole angular velocity
-#     pole_vel = RewTerm(
-#         func=mdp.joint_vel_l1,
-#         weight=-0.005,
-#         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
-#     )
+@configclass
+class RewardsCfg:
+    """Reward terms for the MDP."""
+    alive = RewTerm(func=mdp.is_alive, weight=1.0)
 
 
-# @configclass
-# class TerminationsCfg:
-#     """Termination terms for the MDP."""
-
-#     # (1) Time out
-#     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-#     # (2) Cart out of bounds
-#     cart_out_of_bounds = DoneTerm(
-#         func=mdp.joint_pos_out_of_manual_limit,
-#         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
-#     )
+@configclass
+class TerminationsCfg:
+    """Termination terms for the MDP."""
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 ##
 # Environment configuration
 ##
 
-# class PiperEnvCfg(ManagerBasedRLEnvCfg):
 @configclass
-class PiperEnvCfg(ManagerBasedEnvCfg):
-    """Configuration for the cartpole environment."""
+class PiperEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the piper environment."""
 
     # Scene settings
-    scene = PiperSceneCfg(num_envs=1024, env_spacing=2.5)
+    scene: PiperSceneCfg = PiperSceneCfg(num_envs=1024, env_spacing=2.5)
     # Basic settings
-    observations = ObservationsCfg()
-    actions = ActionsCfg()
-    events = EventCfg()
+    observations: ObservationsCfg = ObservationsCfg()
+    actions: ActionsCfg = ActionsCfg()
+    events: EventCfg = EventCfg()
 
-#     # MDP settings
-#     rewards: RewardsCfg = RewardsCfg()
-#     terminations: TerminationsCfg = TerminationsCfg()
+    # MDP settings
+    # rewards: RewardsCfg = RewardsCfg()
+    # terminations: TerminationsCfg = TerminationsCfg()
+    episode_length_s = 20.0 
+    rewards = None
+    terminations = None
 
     def __post_init__(self):
         """Post initialization."""

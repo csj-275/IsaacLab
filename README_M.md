@@ -20,4 +20,5 @@
 - 注意`ManagerBasedEnvCfg`和`ManagerBasedRLEnvCfg`的修改，一个是面向传统控制，一个是面向RL，通常创建的环境是`ManagerBasedRLEnvCfg`，我们在`create_xxx_base_env.py`中一般是用`ManagerBasedEnvCfg`，根据自己的需求。
 - 检查环境注册，在创建任务的包的__init__.py中，通常预先注册好了一个环境
 ---
-## [B]强化学习训练
+## [B]机械臂末端控制
+`DifferentialInverseKinematicsActionCfg()`逆运动学控制，包括相对模式和绝对模式，相对模式给的是6维向量(位置增量+欧拉角增量)，绝对模式给的是7维向量(位置+四元数)
