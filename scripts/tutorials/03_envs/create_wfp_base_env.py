@@ -8,7 +8,7 @@
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_cartpole_base_env.py --num_envs 32
+    ./isaaclab.sh -p scripts/tutorials/03_envs/create_wfp_base_env.py --num_envs 32
 
 """
 
@@ -56,7 +56,7 @@ class ActionsCfg:
     joint_efforts = mdp.JointEffortActionCfg(
         asset_name="robot", 
         joint_names=["wheel_joint"], 
-        scale=1.0) # 根据电机扭矩调整
+        scale=100.0) # 根据电机扭矩调整
 
 
 @configclass
@@ -82,39 +82,15 @@ class ObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for events."""
-
-    # on startup
-    add_pole_mass = EventTerm(
-        func=mdp.randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=["pole"]),
-            "mass_distribution_params": (0.1, 0.5),
-            "operation": "add",
-        },
-    )
-
-    # on reset
-    reset_cart_position = EventTerm(
+    reset_joints = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
-            "position_range": (-1.0, 1.0),
-            "velocity_range": (-0.1, 0.1),
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]", "wheel_joint"]),
+            "position_range": (0.2, 0.2),  
+            "velocity_range": (0.5, 0.5), 
         },
     )
-
-    reset_pole_position = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
-            "position_range": (-0.125 * math.pi, 0.125 * math.pi),
-            "velocity_range": (-0.01 * math.pi, 0.01 * math.pi),
-        },
-    )
-
 
 @configclass
 class WheelFuturaPendulumEnvCfg(ManagerBasedEnvCfg):
@@ -158,11 +134,17 @@ def main():
                 print("-" * 80)
                 print("[INFO]: Resetting environment...")
             # sample random actions
-            joint_efforts = torch.randn_like(env.action_manager.action)
+            # joint_efforts = torch.randn_like(env.action_manager.action)
+            # sine input
+            time = count * env_cfg.sim.dt * env_cfg.decimation  # 仿真时间 (秒)
+            amplitude = 5.0          # 力矩幅值，根据你的电机实际情况调整
+            frequency = 0.5          # 频率 (Hz)
+            sine_value = amplitude * math.sin(2.0 * math.pi * frequency * time)
+            joint_efforts = torch.full_like(env.action_manager.action, sine_value)
             # step the environment
             obs, _ = env.step(joint_efforts)
-            # print current orientation of pole
-            print("[Env 0]: Pole joint: ", obs["policy"][0][1].item())
+            # print current joint wheel
+            print("[Env 0]: wheel joint: ", obs["policy"][0][2].item())
             # update counter
             count += 1
 
