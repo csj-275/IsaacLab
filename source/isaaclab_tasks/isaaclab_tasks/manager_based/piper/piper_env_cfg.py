@@ -3,7 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
+"""
+    Author: csj
+    Created: 26-04-27
+    Modified: 26-04-27
+    Description: Configuration the env for the piper robot.
+"""
+
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -42,6 +48,7 @@ class PiperSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
     )
 
+    
 
     # robot
     robot: ArticulationCfg = PIPER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
