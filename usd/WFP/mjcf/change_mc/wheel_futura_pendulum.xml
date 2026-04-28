@@ -1,0 +1,62 @@
+<mujoco model="wheel_urdf">
+  <compiler angle="radian" meshdir="./meshes" autolimits="true"/>
+  
+  <asset>
+    <mesh file="base_link.STL" name="base_link_mesh"/>
+    <mesh file="link1.STL" name="link1_mesh"/>
+    <mesh file="link2.STL" name="link2_mesh"/>
+    <mesh file="wheel_link.STL" name="wheel_link_mesh"/>
+  </asset>
+
+  <worldbody>
+    <!-- Base Link -->
+    <body name="base_link" pos="0 0 0">
+      <inertial pos="-3.8995E-05 -3.8995E-05 0.085394" 
+               mass="0.256678" 
+               diaginertia="0.0010715 0.0010951 0.00014309"/>
+      <geom type="mesh" mesh="base_link_mesh" rgba="1 1 1 1"/>
+      
+      <!-- Link1 -->
+      <body name="link1" pos="-0.0001 -0.0001 0.3168">
+        <inertial pos="7.2065E-15 0.0091204 0.0288697" 
+                 mass="0.038469" 
+                 diaginertia="1.3425E-05 5.2069E-06 1.6547E-05"/>
+        <geom type="mesh" mesh="link1_mesh" rgba="1 1 1 1"/>
+        <joint name="joint1" type="hinge" axis="0 0 1" limited="false"/>
+        
+        <!-- Link2 -->
+        <body name="link2" pos="0 0.034 0.0462">
+          <inertial pos="2.8170E-05 0.034703 -0.021907" 
+                   mass="0.288149" 
+                   diaginertia="0.00080174 0.00085541 7.8586E-05"/>
+          <geom type="mesh" mesh="link2_mesh" rgba="0.592 0.667 0.682 1"/>
+          <joint name="joint2" type="hinge" axis="0 1 0" limited="false"/>
+          
+          <!-- Wheel Link -->
+          <body name="wheel_link" pos="0 0.073146 -0.13735" euler="-2.0944 0 0">
+            <inertial pos="0 0 -3.6927E-06" 
+                     mass="0.51812" 
+                     diaginertia="0.0010938 0.0010938 0.0021789"/>
+            <geom type="mesh" mesh="wheel_link_mesh" rgba="0.647 0.620 0.588 1"/>
+            <joint name="wheel_joint" type="hinge" axis="0 0 -1" limited="false"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor joint="wheel_joint" gear="1" ctrllimited="false"/>
+  </actuator>
+  <sensor>
+    <!-- 位置传感器 -->
+    <jointpos name="q1" joint="joint1" />
+    <jointpos name="q2" joint="joint2" />
+    <jointpos name="q3" joint="wheel_joint" />
+
+    <!-- 速度传感器 -->
+    <jointvel name="dq1" joint="joint1" />
+    <jointvel name="dq2" joint="joint2" />
+    <jointvel name="dq3" joint="wheel_joint" />
+  </sensor>
+</mujoco>
