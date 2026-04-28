@@ -42,7 +42,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
     )
 
-    # plane
+    # planez
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),

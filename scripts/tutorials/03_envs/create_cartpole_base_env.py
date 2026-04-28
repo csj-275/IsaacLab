@@ -54,7 +54,10 @@ from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import Cartp
 class ActionsCfg:
     """Action specifications for the environment."""
 
-    joint_efforts = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=5.0)
+    joint_efforts = mdp.JointEffortActionCfg(
+        asset_name="robot", 
+        joint_names=["slider_to_cart"], 
+        scale=5.0)
 
 
 @configclass
