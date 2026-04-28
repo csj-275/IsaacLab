@@ -32,11 +32,9 @@ from . import mdp
 
 from isaaclab_assets.robots.piper import PIPER_CFG  # isort:skip
 
-
 ##
 # Scene definition
 ##
-
 
 @configclass
 class PiperSceneCfg(InteractiveSceneCfg):
