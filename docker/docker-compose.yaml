@@ -90,12 +90,21 @@ services:
     build:
       context: ../
       dockerfile: docker/Dockerfile.base
+      network: host
       args:
         - ISAACSIM_BASE_IMAGE_ARG=${ISAACSIM_BASE_IMAGE}
         - ISAACSIM_VERSION_ARG=${ISAACSIM_VERSION}
         - ISAACSIM_ROOT_PATH_ARG=${DOCKER_ISAACSIM_ROOT_PATH}
         - ISAACLAB_PATH_ARG=${DOCKER_ISAACLAB_PATH}
         - DOCKER_USER_HOME_ARG=${DOCKER_USER_HOME}
+        - HTTP_PROXY=${HTTPS_PROXY:-}
+        - HTTPS_PROXY=${HTTPS_PROXY:-}
+        - ALL_PROXY=${HTTPS_PROXY:-}
+        - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1}
+        - http_proxy=${HTTPS_PROXY:-}
+        - https_proxy=${HTTPS_PROXY:-}
+        - all_proxy=${HTTPS_PROXY:-}
+        - no_proxy=${NO_PROXY:-localhost,127.0.0.1,::1}
     image: isaac-lab-base${DOCKER_NAME_SUFFIX-}
     container_name: isaac-lab-base${DOCKER_NAME_SUFFIX-}
     environment: *default-isaac-lab-environment
@@ -117,6 +126,7 @@ services:
     build:
       context: ../
       dockerfile: docker/Dockerfile.ros2
+      network: host
       args:
         # ROS2_APT_PACKAGE will default to NONE. This is to
         # avoid a warning message when building only the base profile
@@ -125,6 +135,14 @@ services:
         # Make sure that the correct Docker Name Suffix is being passed to the dockerfile, to know which base image to
         # start from.
         - DOCKER_NAME_SUFFIX=${DOCKER_NAME_SUFFIX-}
+        - HTTP_PROXY=${HTTPS_PROXY:-}
+        - HTTPS_PROXY=${HTTPS_PROXY:-}
+        - ALL_PROXY=${HTTPS_PROXY:-}
+        - NO_PROXY=${NO_PROXY:-localhost,127.0.0.1,::1}
+        - http_proxy=${HTTPS_PROXY:-}
+        - https_proxy=${HTTPS_PROXY:-}
+        - all_proxy=${HTTPS_PROXY:-}
+        - no_proxy=${NO_PROXY:-localhost,127.0.0.1,::1}
     image: isaac-lab-ros2${DOCKER_NAME_SUFFIX-}
     container_name: isaac-lab-ros2${DOCKER_NAME_SUFFIX-}
     environment: *default-isaac-lab-environment

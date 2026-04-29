@@ -32,6 +32,15 @@ ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
 # Mirrors used during image build
 ARG UBUNTU_APT_MIRROR_ARG=https://mirrors.cernet.edu.cn/ubuntu/
 ARG PYPI_INDEX_URL_ARG=https://mirrors.cernet.edu.cn/pypi/web/simple
+# Build-time proxy args. These are intentionally ARGs, not runtime ENVs.
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG ALL_PROXY
+ARG NO_PROXY
+ARG http_proxy
+ARG https_proxy
+ARG all_proxy
+ARG no_proxy
 
 # Set environment variables
 ENV LANG=C.UTF-8
