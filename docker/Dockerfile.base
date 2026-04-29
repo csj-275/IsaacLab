@@ -29,12 +29,24 @@ ENV ISAACLAB_PATH=${ISAACLAB_PATH_ARG}
 # Home dir of docker user, typically '/root'
 ARG DOCKER_USER_HOME_ARG
 ENV DOCKER_USER_HOME=${DOCKER_USER_HOME_ARG}
+# Mirrors used during image build
+ARG UBUNTU_APT_MIRROR_ARG=https://mirrors.cernet.edu.cn/ubuntu/
+ARG PYPI_INDEX_URL_ARG=https://mirrors.cernet.edu.cn/pypi/web/simple
 
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_INDEX_URL=${PYPI_INDEX_URL_ARG}
+ENV UV_INDEX_URL=${PYPI_INDEX_URL_ARG}
+ENV UV_DEFAULT_INDEX=${PYPI_INDEX_URL_ARG}
 
 USER root
+
+# Replace Ubuntu apt sources before the first apt update.
+RUN find /etc/apt -type f \( -name "*.list" -o -name "*.sources" \) -print0 \
+    | xargs -0 -r sed -i -E \
+        -e "s|https?://archive.ubuntu.com/ubuntu/?|${UBUNTU_APT_MIRROR_ARG}|g" \
+        -e "s|https?://security.ubuntu.com/ubuntu/?|${UBUNTU_APT_MIRROR_ARG}|g"
 
 # Install dependencies and remove cache
 RUN --mount=type=cache,target=/var/cache/apt \
