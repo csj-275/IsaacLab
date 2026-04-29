@@ -84,6 +84,9 @@ class ContainerInterface:
         # except make sure that the docker name suffix is set from the script
         self.environ = os.environ.copy()
         self.environ["DOCKER_NAME_SUFFIX"] = self.suffix
+        # Use plain progress so long Dockerfile RUN steps stream their logs instead of only showing a spinner.
+        self.environ.setdefault("BUILDKIT_PROGRESS", "plain")
+        self.environ.setdefault("COMPOSE_PROGRESS", "plain")
 
         # resolve the image extension through the passed yamls and envs
         self._resolve_image_extension(yamls, envs)
@@ -143,6 +146,7 @@ class ContainerInterface:
         # build the image for the base profile
         cmd = (
             ["docker", "compose"]
+            + ["--progress", self.environ["COMPOSE_PROGRESS"]]
             + ["--file", "docker-compose.yaml"]
             + ["--profile", "base"]
             + ["--env-file", ".env.base"]
@@ -156,6 +160,7 @@ class ContainerInterface:
             print(f"[INFO] Building the docker image for the profile '{self.profile}'...\n")
             cmd = (
                 ["docker", "compose"]
+                + ["--progress", self.environ["COMPOSE_PROGRESS"]]
                 + self.add_yamls
                 + self.add_profiles
                 + self.add_env_files
@@ -176,24 +181,17 @@ class ContainerInterface:
             # Create the file with sticky bit on the group
             container_history_file.touch(mode=0o2644, exist_ok=True)
 
-        # build the image for the base profile if not running base (up will build base already if profile is base)
-        if self.profile != "base":
-            cmd = (
-                ["docker", "compose"]
-                + ["--file", "docker-compose.yaml"]
-                + ["--profile", "base"]
-                + ["--env-file", ".env.base"]
-                + ["build", self.base_service_name]
-            )
-            subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
+        # build explicitly so the build output uses the configured progress mode
+        self.build()
 
-        # start the container and build the image if not available
+        # start the container after the explicit build step
         cmd = (
             ["docker", "compose"]
+            + ["--progress", self.environ["COMPOSE_PROGRESS"]]
             + self.add_yamls
             + self.add_profiles
             + self.add_env_files
-            + ["up", "--detach", "--build", "--remove-orphans"]
+            + ["up", "--detach", "--no-build", "--remove-orphans"]
         )
         subprocess.run(cmd, check=False, cwd=self.context_dir, env=self.environ)
 
