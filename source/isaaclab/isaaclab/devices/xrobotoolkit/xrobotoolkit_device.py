@@ -17,12 +17,21 @@ import torch
 from ..device_base import DeviceBase, DeviceCfg
 
 
+OPENXR_TO_ROBOT_BASE_AXIS_MAP = (
+    (0.0, 0.0, -1.0),
+    (-1.0, 0.0, 0.0),
+    (0.0, 1.0, 0.0),
+)
+"""Default axis map from OpenXR coordinates to Isaac/Piper robot-base coordinates."""
+
+
 class XRoboToolkitDevice(DeviceBase):
     """XRoboToolkit controller device for Isaac Lab SE(3) + gripper teleoperation.
 
     The command layout is ``[dx, dy, dz, rx, ry, rz, gripper]``. Translation is in meters,
     rotation is a rotation vector in radians, and the gripper command is ``+1.0`` for open
-    or ``-1.0`` for close.
+    or ``-1.0`` for close. By default, OpenXR axes ``[right, up, back]`` are mapped into
+    Isaac/Piper robot-base axes ``[forward, left, up]`` as ``[-z, -x, y]``.
     """
 
     def __init__(self, cfg: XRoboToolkitDeviceCfg):
@@ -42,6 +51,8 @@ class XRoboToolkitDevice(DeviceBase):
         self.gripper_threshold = cfg.gripper_threshold
         self.gripper_term = cfg.gripper_term
         self._sim_device = cfg.sim_device
+        self._delta_pos_axis_map = _axis_mapping_to_array(cfg.delta_pos_axis_map, "delta_pos_axis_map")
+        self._delta_rot_axis_map = _axis_mapping_to_array(cfg.delta_rot_axis_map, "delta_rot_axis_map")
         self._xr_client = cfg.xr_client if cfg.xr_client is not None else self._create_xr_client()
         self._additional_callbacks: dict[str, Callable] = {}
         self._prev_active = False
@@ -103,6 +114,8 @@ class XRoboToolkitDevice(DeviceBase):
         delta_pos = (pos - self._ref_pos) * self.pos_sensitivity
         delta_quat = _quat_multiply(quat, _quat_conjugate(self._ref_quat))
         delta_rot = _quat_to_rotvec(delta_quat) * self.rot_sensitivity
+        delta_pos = self._delta_pos_axis_map @ delta_pos
+        delta_rot = self._delta_rot_axis_map @ delta_rot
 
         return self._command(delta_pos, delta_rot, self._read_gripper())
 
@@ -183,9 +196,22 @@ class XRoboToolkitDeviceCfg(DeviceCfg):
     activation_threshold: float = 0.5
     gripper_threshold: float = 0.5
     gripper_term: bool = True
+    delta_pos_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
+        OPENXR_TO_ROBOT_BASE_AXIS_MAP
+    )
+    delta_rot_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
+        OPENXR_TO_ROBOT_BASE_AXIS_MAP
+    )
     retargeters: None = None
     xr_client: Any | None = None
     class_type: type[DeviceBase] = XRoboToolkitDevice
+
+
+def _axis_mapping_to_array(mapping: Any, name: str) -> np.ndarray:
+    array = np.asarray(mapping, dtype=float)
+    if array.shape != (3, 3) or not np.all(np.isfinite(array)):
+        raise ValueError(f"{name} must be a finite 3x3 matrix, got shape {array.shape}")
+    return array
 
 
 def _normalize_quat(quat: np.ndarray) -> np.ndarray | None:

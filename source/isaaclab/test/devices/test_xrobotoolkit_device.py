@@ -22,6 +22,9 @@ import torch
 from isaaclab.devices.xrobotoolkit.xrobotoolkit_device import XRoboToolkitDevice, XRoboToolkitDeviceCfg
 
 
+IDENTITY_AXIS_MAP = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+
+
 class FakeXrClient:
     """Minimal XR client stub for deterministic device tests."""
 
@@ -39,6 +42,17 @@ class FakeXrClient:
 
     def get_button_state_by_name(self, name: str) -> bool:
         return self.buttons[name]
+
+
+def _pose(pos, rotvec=(0.0, 0.0, 0.0)) -> np.ndarray:
+    rotvec = np.asarray(rotvec, dtype=float)
+    angle = np.linalg.norm(rotvec)
+    if angle < 1.0e-12:
+        quat = np.array([0.0, 0.0, 0.0, 1.0])
+    else:
+        axis = rotvec / angle
+        quat = np.concatenate([axis * np.sin(angle / 2.0), [np.cos(angle / 2.0)]])
+    return np.concatenate([np.asarray(pos, dtype=float), quat])
 
 
 def test_xrobotoolkit_device_control_edges_and_action_mapping():
@@ -59,12 +73,12 @@ def test_xrobotoolkit_device_control_edges_and_action_mapping():
     assert events == ["START"]
     np.testing.assert_allclose(action.cpu().numpy(), np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]))
 
-    client.pose = np.array([0.1, -0.2, 0.3, 0.0, 0.0, np.sin(np.pi / 4.0), np.cos(np.pi / 4.0)])
+    client.pose = _pose([0.0, 0.0, -0.1], [np.pi / 2.0, 0.0, 0.0])
     client.keys["right_trigger"] = 1.0
     action = device.advance()
     np.testing.assert_allclose(
         action.cpu().numpy(),
-        np.array([0.1, -0.2, 0.3, 0.0, 0.0, np.pi / 2.0, -1.0]),
+        np.array([0.1, 0.0, 0.0, 0.0, -np.pi / 2.0, 0.0, -1.0]),
         atol=1.0e-6,
     )
 
@@ -77,3 +91,45 @@ def test_xrobotoolkit_device_control_edges_and_action_mapping():
     action = device.advance()
     assert events == ["START", "RESET", "STOP"]
     np.testing.assert_allclose(action.cpu().numpy(), np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]))
+
+
+def test_xrobotoolkit_device_default_openxr_axis_mapping():
+    client = FakeXrClient()
+    device = XRoboToolkitDevice(XRoboToolkitDeviceCfg(xr_client=client))
+
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    client.pose = _pose([0.1, 0.0, 0.0])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.0, -0.1, 0.0]), atol=1.0e-6)
+
+    client.pose = _pose([0.0, 0.1, 0.0])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.0, 0.0, 0.1]), atol=1.0e-6)
+
+    client.pose = _pose([0.0, 0.0, -0.1])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.1, 0.0, 0.0]), atol=1.0e-6)
+
+    client.pose = _pose([0.0, 0.0, 0.0], [0.1, 0.2, -0.3])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[3:6], np.array([0.3, -0.1, 0.2]), atol=1.0e-6)
+
+
+def test_xrobotoolkit_device_axis_mapping_can_be_overridden():
+    client = FakeXrClient()
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            xr_client=client,
+            delta_pos_axis_map=IDENTITY_AXIS_MAP,
+            delta_rot_axis_map=IDENTITY_AXIS_MAP,
+        )
+    )
+
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    client.pose = _pose([0.1, 0.2, -0.3], [0.1, 0.2, -0.3])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[:6], np.array([0.1, 0.2, -0.3, 0.1, 0.2, -0.3]), atol=1.0e-6)

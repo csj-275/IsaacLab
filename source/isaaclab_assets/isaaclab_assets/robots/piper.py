@@ -11,8 +11,6 @@ The following configurations are available:
 * :obj:`PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG`: Piper standard arm with stiffer PD control for IK.
 """
 
-import os
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -21,46 +19,24 @@ from isaaclab.assets.articulation import ArticulationCfg
 # Configuration
 ##
 
-PIPER_ISAAC_SIM_ROOT = os.environ.get("PIPER_ISAAC_SIM_ROOT", "/workspace/piper_isaac_sim")
-"""Root directory of the mounted piper_isaac_sim checkout."""
-
-PIPER_STANDARD_WITH_GRIPPER_USD = os.path.join(PIPER_ISAAC_SIM_ROOT, "USD", "piper_v2.usd")
-"""USD path for the standard Piper variant with gripper."""
-
-PIPER_STANDARD_WITH_GRIPPER_WRAPPED_USD = os.environ.get(
-    "PIPER_STANDARD_WITH_GRIPPER_WRAPPED_USD",
-    os.path.join(os.environ.get("ISAACLAB_PIPER_WRAPPER_DIR", "/tmp/isaaclab_piper_assets"), "piper.usda"),
+PIPER_STANDARD_WITH_GRIPPER_URDF = (
+    "/workspace/piper_isaac_sim/piper_description/urdf/piper_description_v100_realsense_camera_v2.urdf"
 )
-"""Thin wrapper USD path that exposes Piper's /piper_camera prim as defaultPrim."""
+"""URDF path for the standard Piper variant with gripper and RealSense camera links."""
 
-
-def _ensure_piper_wrapper(source_usd: str, wrapper_usd: str):
-    """Create a defaultPrim wrapper for the upstream Piper USD, which has no defaultPrim."""
-    os.makedirs(os.path.dirname(wrapper_usd), exist_ok=True)
-    source_usd = os.path.abspath(source_usd)
-    with open(wrapper_usd, "w", encoding="utf-8") as f:
-        f.write(
-            '#usda 1.0\n'
-            '(\n'
-            '    defaultPrim = "piper"\n'
-            '    metersPerUnit = 1\n'
-            '    upAxis = "Z"\n'
-            ')\n'
-            '\n'
-            'def Xform "piper" (\n'
-            f'    references = @{source_usd}@</piper_camera>\n'
-            ')\n'
-            '{\n'
-            '}\n'
-        )
-
-
-_ensure_piper_wrapper(PIPER_STANDARD_WITH_GRIPPER_USD, PIPER_STANDARD_WITH_GRIPPER_WRAPPED_USD)
+PIPER_USD_CONVERSION_DIR = "/tmp/isaaclab_piper_assets"
+"""Output directory for the generated Piper USD."""
 
 
 PIPER_STANDARD_WITH_GRIPPER_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
-        usd_path=PIPER_STANDARD_WITH_GRIPPER_WRAPPED_USD,
+    spawn=sim_utils.UrdfFileCfg(
+        asset_path=PIPER_STANDARD_WITH_GRIPPER_URDF,
+        usd_dir=PIPER_USD_CONVERSION_DIR,
+        usd_file_name="piper_description_v100_realsense_camera_v2.usd",
+        fix_base=True,
+        root_link_name="arm_base",
+        merge_fixed_joints=False,
+        make_instanceable=False,
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -71,6 +47,9 @@ PIPER_STANDARD_WITH_GRIPPER_CFG = ArticulationCfg(
             solver_position_iteration_count=8,
             solver_velocity_iteration_count=0,
         ),
+        joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
+            gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
+        ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
@@ -80,8 +59,8 @@ PIPER_STANDARD_WITH_GRIPPER_CFG = ArticulationCfg(
             "joint4": 0.0,
             "joint5": 0.8,
             "joint6": 0.0,
-            "joint7": 0.035,
-            "joint8": -0.035,
+            "joint7": 0.05,
+            "joint8": -0.05,
         },
     ),
     actuators={

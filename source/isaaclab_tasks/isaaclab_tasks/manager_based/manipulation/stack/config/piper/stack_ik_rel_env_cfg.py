@@ -33,7 +33,7 @@ class EventCfg:
     init_piper_arm_pose = EventTerm(
         func=franka_stack_events.set_default_joint_pose,
         mode="reset",
-        params={"default_pose": [0.0, 1.0, -1.2, 0.0, 0.8, 0.0, 0.035, -0.035]},
+        params={"default_pose": [0.0, 1.0, -1.2, 0.0, 0.8, 0.0, 0.05, -0.05]},
     )
 
     randomize_piper_joint_state = EventTerm(
@@ -77,17 +77,17 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             body_name="link6",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=0.5,
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.1358]),
+            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.13503]),
         )
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
             joint_names=["joint[7-8]"],
-            open_command_expr={"joint7": 0.035, "joint8": -0.035},
+            open_command_expr={"joint7": 0.05, "joint8": -0.05},
             close_command_expr={"joint7": 0.0, "joint8": 0.0},
         )
         self.gripper_joint_names = ["joint[7-8]"]
-        self.gripper_open_val = 0.035
-        self.gripper_open_vals = [0.035, -0.035]
+        self.gripper_open_val = 0.05
+        self.gripper_open_vals = [0.05, -0.05]
         self.gripper_threshold = 0.005
 
         # Listen to the end-effector frame used by differential IK and stack observations.
@@ -102,7 +102,7 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                 FrameTransformerCfg.FrameCfg(
                     prim_path="{ENV_REGEX_NS}/Robot/link6",
                     name="end_effector",
-                    offset=OffsetCfg(pos=[0.0, 0.0, 0.1358]),
+                    offset=OffsetCfg(pos=[0.0, 0.0, 0.13503]),
                 ),
             ],
         )
