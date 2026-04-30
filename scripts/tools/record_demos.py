@@ -41,7 +41,7 @@ parser.add_argument(
     help=(
         "Teleop device. Set here (legacy) or via the environment config. If using the environment config, pass the"
         " device key/name defined under 'teleop_devices' (it can be a custom name, not necessarily 'handtracking')."
-        " Built-ins: keyboard, spacemouse, gamepad. Not all tasks support all built-ins."
+        " Built-ins: keyboard, spacemouse, gamepad, xrobotoolkit. Not all tasks support all built-ins."
     ),
 )
 parser.add_argument(
@@ -100,7 +100,14 @@ import torch
 
 import omni.ui as ui
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices import (
+    Se3Keyboard,
+    Se3KeyboardCfg,
+    Se3SpaceMouse,
+    Se3SpaceMouseCfg,
+    XRoboToolkitDevice,
+    XRoboToolkitDeviceCfg,
+)
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 
@@ -289,9 +296,11 @@ def setup_teleop_device(callbacks: dict[str, Callable]) -> object:
                 teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
             elif args_cli.teleop_device.lower() == "spacemouse":
                 teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
+            elif args_cli.teleop_device.lower() == "xrobotoolkit":
+                teleop_interface = XRoboToolkitDevice(XRoboToolkitDeviceCfg())
             else:
                 logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
-                logger.error("Supported devices: keyboard, spacemouse, handtracking")
+                logger.error("Supported devices: keyboard, spacemouse, handtracking, xrobotoolkit")
                 exit(1)
 
             # Add callbacks to fallback device
@@ -417,7 +426,7 @@ def run_simulation_loop(
     current_recorded_demo_count = 0
     success_step_count = 0
     should_reset_recording_instance = False
-    running_recording_instance = not args_cli.xr
+    running_recording_instance = not (args_cli.xr or args_cli.teleop_device.lower() == "xrobotoolkit")
 
     # Callback closures for the teleop device
     def reset_recording_instance():

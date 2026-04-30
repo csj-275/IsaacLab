@@ -26,7 +26,7 @@ parser.add_argument(
     help=(
         "Teleop device. Set here (legacy) or via the environment config. If using the environment config, pass the"
         " device key/name defined under 'teleop_devices' (it can be a custom name, not necessarily 'handtracking')."
-        " Built-ins: keyboard, spacemouse, gamepad. Not all tasks support all built-ins."
+        " Built-ins: keyboard, spacemouse, gamepad, xrobotoolkit. Not all tasks support all built-ins."
     ),
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
@@ -64,7 +64,16 @@ import logging
 import gymnasium as gym
 import torch
 
-from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices import (
+    Se3Gamepad,
+    Se3GamepadCfg,
+    Se3Keyboard,
+    Se3KeyboardCfg,
+    Se3SpaceMouse,
+    Se3SpaceMouseCfg,
+    XRoboToolkitDevice,
+    XRoboToolkitDeviceCfg,
+)
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -178,9 +187,8 @@ def main() -> None:
         "RESET": reset_recording_instance,
     }
 
-    # For hand tracking devices, add additional callbacks
-    if args_cli.xr:
-        # Default to inactive for hand tracking
+    # Devices with explicit START/STOP events begin inactive.
+    if args_cli.xr or args_cli.teleop_device.lower() == "xrobotoolkit":
         teleoperation_active = False
     else:
         # Always active for other devices
@@ -211,9 +219,13 @@ def main() -> None:
                 teleop_interface = Se3Gamepad(
                     Se3GamepadCfg(pos_sensitivity=0.1 * sensitivity, rot_sensitivity=0.1 * sensitivity)
                 )
+            elif args_cli.teleop_device.lower() == "xrobotoolkit":
+                teleop_interface = XRoboToolkitDevice(
+                    XRoboToolkitDeviceCfg(pos_sensitivity=sensitivity, rot_sensitivity=sensitivity)
+                )
             else:
                 logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
-                logger.error("Configure the teleop device in the environment config.")
+                logger.error("Supported devices: keyboard, spacemouse, gamepad, handtracking, xrobotoolkit")
                 env.close()
                 simulation_app.close()
                 return
