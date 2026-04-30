@@ -22,7 +22,7 @@ import torch
 from isaaclab.devices.xrobotoolkit.xrobotoolkit_device import XRoboToolkitDevice, XRoboToolkitDeviceCfg
 
 
-CUSTOM_AXIS_MAP = ((0.0, 0.0, -1.0), (-1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+IDENTITY_AXIS_MAP = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 
 
 class FakeXrClient:
@@ -61,6 +61,7 @@ def test_xrobotoolkit_device_cfg_defaults_to_absolute_control_mode():
     device = XRoboToolkitDevice(cfg)
 
     assert cfg.control_mode == "absolute"
+    assert cfg.debug_mapping is False
     assert device.command_dim == 8
     action = device.advance()
     assert action.shape == (8,)
@@ -90,7 +91,7 @@ def test_xrobotoolkit_device_control_edges_and_action_mapping():
     action = device.advance()
     np.testing.assert_allclose(
         action.cpu().numpy(),
-        np.array([0.0, 0.0, -0.1, np.pi / 2.0, 0.0, 0.0, -1.0]),
+        np.array([0.1, 0.0, 0.0, 0.0, -np.pi / 2.0, 0.0, -1.0]),
         atol=1.0e-6,
     )
 
@@ -133,7 +134,7 @@ def test_xrobotoolkit_device_absolute_control_mode_anchors_robot_pose():
     action = device.advance()
     np.testing.assert_allclose(
         action.cpu().numpy(),
-        np.array([0.4, 0.1, 0.1, np.cos(np.pi / 4.0), np.sin(np.pi / 4.0), 0.0, 0.0, -1.0]),
+        np.array([0.5, 0.1, 0.2, np.cos(np.pi / 4.0), 0.0, -np.sin(np.pi / 4.0), 0.0, -1.0]),
         atol=1.0e-6,
     )
 
@@ -147,19 +148,19 @@ def test_xrobotoolkit_device_default_openxr_axis_mapping():
 
     client.pose = _pose([0.1, 0.0, 0.0])
     action = device.advance()
-    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.1, 0.0, 0.0]), atol=1.0e-6)
+    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.0, -0.1, 0.0]), atol=1.0e-6)
 
     client.pose = _pose([0.0, 0.1, 0.0])
     action = device.advance()
-    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.0, 0.1, 0.0]), atol=1.0e-6)
+    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.0, 0.0, 0.1]), atol=1.0e-6)
 
-    client.pose = _pose([0.0, 0.0, -0.1])
+    client.pose = _pose([0.0, 0.0, 0.1])
     action = device.advance()
-    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.0, 0.0, -0.1]), atol=1.0e-6)
+    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([-0.1, 0.0, 0.0]), atol=1.0e-6)
 
     client.pose = _pose([0.0, 0.0, 0.0], [0.1, 0.2, -0.3])
     action = device.advance()
-    np.testing.assert_allclose(action.cpu().numpy()[3:6], np.array([0.1, 0.2, -0.3]), atol=1.0e-6)
+    np.testing.assert_allclose(action.cpu().numpy()[3:6], np.array([0.3, -0.1, 0.2]), atol=1.0e-6)
 
 
 def test_xrobotoolkit_device_axis_mapping_can_be_overridden():
@@ -168,8 +169,8 @@ def test_xrobotoolkit_device_axis_mapping_can_be_overridden():
         XRoboToolkitDeviceCfg(
             control_mode="relative",
             xr_client=client,
-            delta_pos_axis_map=CUSTOM_AXIS_MAP,
-            delta_rot_axis_map=CUSTOM_AXIS_MAP,
+            delta_pos_axis_map=IDENTITY_AXIS_MAP,
+            delta_rot_axis_map=IDENTITY_AXIS_MAP,
         )
     )
 
@@ -178,4 +179,32 @@ def test_xrobotoolkit_device_axis_mapping_can_be_overridden():
 
     client.pose = _pose([0.1, 0.2, -0.3], [0.1, 0.2, -0.3])
     action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[:6], np.array([0.1, 0.2, -0.3, 0.1, 0.2, -0.3]), atol=1.0e-6)
+
+
+def test_xrobotoolkit_device_debug_mapping_does_not_change_action(capsys):
+    client = FakeXrClient()
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            control_mode="relative",
+            debug_mapping=True,
+            debug_mapping_interval=0.0,
+            xr_client=client,
+        )
+    )
+
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+    capsys.readouterr()
+
+    client.pose = _pose([0.1, 0.2, -0.3], [0.1, 0.2, -0.3])
+    action = device.advance()
+
     np.testing.assert_allclose(action.cpu().numpy()[:6], np.array([0.3, -0.1, 0.2, 0.3, -0.1, 0.2]), atol=1.0e-6)
+    output = capsys.readouterr().out
+    assert "[XRoboToolkit mapping]" in output
+    assert "mode=relative" in output
+    assert "raw_pos=" in output
+    assert "mapped_pos=" in output
+    assert "raw_rot=" in output
+    assert "mapped_rot=" in output

@@ -39,6 +39,13 @@ parser.add_argument(
     help="XRoboToolkit control mode. If omitted, the environment device config is used.",
 )
 parser.add_argument(
+    "--xrobotoolkit_debug_mapping",
+    "--xrobotoolkit-debug-mapping",
+    action="store_true",
+    default=False,
+    help="Print XRoboToolkit raw and mapped controller deltas for coordinate calibration.",
+)
+parser.add_argument(
     "--enable_pinocchio",
     action="store_true",
     default=False,
@@ -111,6 +118,8 @@ def _configure_xrobotoolkit_control_mode(env_cfg: ManagerBasedRLEnvCfg) -> str:
     control_mode = args_cli.xrobotoolkit_control_mode or cfg_mode
     if device_cfg is not None:
         device_cfg.control_mode = control_mode
+        if args_cli.xrobotoolkit_debug_mapping:
+            device_cfg.debug_mapping = True
 
     arm_action = getattr(env_cfg.actions, "arm_action", None)
     if arm_action is None or not hasattr(arm_action, "controller"):
@@ -286,6 +295,7 @@ def main() -> None:
                         pos_sensitivity=sensitivity,
                         rot_sensitivity=sensitivity,
                         control_mode=xrobotoolkit_control_mode or "absolute",
+                        debug_mapping=args_cli.xrobotoolkit_debug_mapping,
                     )
                 )
             else:

@@ -22,6 +22,8 @@ optional arguments:
                               (default: 10)
     --xrobotoolkit_control_mode
                               XRoboToolkit control mode: relative or absolute.
+    --xrobotoolkit_debug_mapping
+                              Print XRoboToolkit raw and mapped controller deltas.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -65,6 +67,13 @@ parser.add_argument(
     choices=("relative", "absolute"),
     default=None,
     help="XRoboToolkit control mode. If omitted, the environment device config is used.",
+)
+parser.add_argument(
+    "--xrobotoolkit_debug_mapping",
+    "--xrobotoolkit-debug-mapping",
+    action="store_true",
+    default=False,
+    help="Print XRoboToolkit raw and mapped controller deltas for coordinate calibration.",
 )
 parser.add_argument(
     "--enable_pinocchio",
@@ -157,6 +166,8 @@ def _configure_xrobotoolkit_control_mode(env_cfg: ManagerBasedRLEnvCfg | DirectR
     control_mode = args_cli.xrobotoolkit_control_mode or cfg_mode
     if device_cfg is not None:
         device_cfg.control_mode = control_mode
+        if args_cli.xrobotoolkit_debug_mapping:
+            device_cfg.debug_mapping = True
 
     arm_action = getattr(env_cfg.actions, "arm_action", None)
     if arm_action is None or not hasattr(arm_action, "controller"):
@@ -363,7 +374,12 @@ def setup_teleop_device(callbacks: dict[str, Callable], env: gym.Env) -> object:
                 teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
             elif args_cli.teleop_device.lower() == "xrobotoolkit":
                 control_mode = args_cli.xrobotoolkit_control_mode or "absolute"
-                teleop_interface = XRoboToolkitDevice(XRoboToolkitDeviceCfg(control_mode=control_mode))
+                teleop_interface = XRoboToolkitDevice(
+                    XRoboToolkitDeviceCfg(
+                        control_mode=control_mode,
+                        debug_mapping=args_cli.xrobotoolkit_debug_mapping,
+                    )
+                )
             else:
                 logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
                 logger.error("Supported devices: keyboard, spacemouse, handtracking, xrobotoolkit")

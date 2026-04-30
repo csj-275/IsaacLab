@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -17,12 +18,12 @@ import torch
 from ..device_base import DeviceBase, DeviceCfg
 
 
-STANDARD_OPENXR_AXIS_MAP = (
-    (1.0, 0.0, 0.0),
+XR_SDK_TO_ROBOT_BASE_AXIS_MAP = (
+    (0.0, 0.0, -1.0),
+    (-1.0, 0.0, 0.0),
     (0.0, 1.0, 0.0),
-    (0.0, 0.0, 1.0),
 )
-"""Default axis map that preserves standard OpenXR controller coordinates."""
+"""Default axis map from XR SDK input coordinates to the robot-base control frame."""
 
 
 class XRoboToolkitDevice(DeviceBase):
@@ -30,7 +31,7 @@ class XRoboToolkitDevice(DeviceBase):
 
     In relative mode, the command layout is ``[dx, dy, dz, rx, ry, rz, gripper]``.
     In absolute mode, the command layout is ``[x, y, z, qw, qx, qy, qz, gripper]``.
-    By default, standard OpenXR controller coordinates are used directly.
+    By default, XR SDK input axes are mapped to the robot-base frame as ``[-z, -x, y]``.
     """
 
     def __init__(self, cfg: XRoboToolkitDeviceCfg):
@@ -52,6 +53,8 @@ class XRoboToolkitDevice(DeviceBase):
         self.control_mode = cfg.control_mode
         if self.control_mode not in ("relative", "absolute"):
             raise ValueError(f"Unsupported XRoboToolkit control mode: {self.control_mode}")
+        self.debug_mapping = cfg.debug_mapping
+        self.debug_mapping_interval = cfg.debug_mapping_interval
         self._sim_device = cfg.sim_device
         self._delta_pos_axis_map = _axis_mapping_to_array(cfg.delta_pos_axis_map, "delta_pos_axis_map")
         self._delta_rot_axis_map = _axis_mapping_to_array(cfg.delta_rot_axis_map, "delta_rot_axis_map")
@@ -64,6 +67,7 @@ class XRoboToolkitDevice(DeviceBase):
         self._ref_quat: np.ndarray | None = None
         self._ref_robot_pos: np.ndarray | None = None
         self._ref_robot_quat: np.ndarray | None = None
+        self._last_debug_mapping_time = -float("inf")
 
     def __str__(self) -> str:
         """Returns: A string containing the device information."""
@@ -123,11 +127,12 @@ class XRoboToolkitDevice(DeviceBase):
 
         pos = pose[:3]
         quat = pose[3:7]
-        delta_pos = (pos - self._ref_pos) * self.pos_sensitivity
+        raw_delta_pos = (pos - self._ref_pos) * self.pos_sensitivity
         delta_quat = _quat_multiply(quat, _quat_conjugate(self._ref_quat))
-        delta_rot = _quat_to_rotvec(delta_quat) * self.rot_sensitivity
-        delta_pos = self._delta_pos_axis_map @ delta_pos
-        delta_rot = self._delta_rot_axis_map @ delta_rot
+        raw_delta_rot = _quat_to_rotvec(delta_quat) * self.rot_sensitivity
+        delta_pos = self._delta_pos_axis_map @ raw_delta_pos
+        delta_rot = self._delta_rot_axis_map @ raw_delta_rot
+        self._debug_mapping(raw_delta_pos, delta_pos, raw_delta_rot, delta_rot)
 
         if self.control_mode == "absolute":
             if self._ref_robot_pos is None or self._ref_robot_quat is None:
@@ -218,6 +223,31 @@ class XRoboToolkitDevice(DeviceBase):
         if callback is not None:
             callback()
 
+    def _debug_mapping(
+        self,
+        raw_delta_pos: np.ndarray,
+        mapped_delta_pos: np.ndarray,
+        raw_delta_rot: np.ndarray,
+        mapped_delta_rot: np.ndarray,
+    ):
+        if not self.debug_mapping:
+            return
+
+        now = time.monotonic()
+        if self.debug_mapping_interval > 0.0 and now - self._last_debug_mapping_time < self.debug_mapping_interval:
+            return
+        self._last_debug_mapping_time = now
+
+        print(
+            "[XRoboToolkit mapping] "
+            f"mode={self.control_mode} "
+            f"raw_pos={_format_vector(raw_delta_pos)} "
+            f"mapped_pos={_format_vector(mapped_delta_pos)} "
+            f"raw_rot={_format_vector(raw_delta_rot)} "
+            f"mapped_rot={_format_vector(mapped_delta_rot)}",
+            flush=True,
+        )
+
     def _inactive_command(self, gripper: float = 1.0) -> torch.Tensor:
         if self.control_mode == "absolute":
             target_pos = self._ref_robot_pos if self._ref_robot_pos is not None else np.zeros(3)
@@ -253,11 +283,13 @@ class XRoboToolkitDeviceCfg(DeviceCfg):
     gripper_threshold: float = 0.5
     gripper_term: bool = True
     control_mode: Literal["relative", "absolute"] = "absolute"
+    debug_mapping: bool = False
+    debug_mapping_interval: float = 0.5
     delta_pos_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
-        STANDARD_OPENXR_AXIS_MAP
+        XR_SDK_TO_ROBOT_BASE_AXIS_MAP
     )
     delta_rot_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
-        STANDARD_OPENXR_AXIS_MAP
+        XR_SDK_TO_ROBOT_BASE_AXIS_MAP
     )
     retargeters: None = None
     ee_pose_provider: Callable[[], tuple[Any, Any]] | None = None
@@ -270,6 +302,10 @@ def _axis_mapping_to_array(mapping: Any, name: str) -> np.ndarray:
     if array.shape != (3, 3) or not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must be a finite 3x3 matrix, got shape {array.shape}")
     return array
+
+
+def _format_vector(vector: np.ndarray) -> str:
+    return np.array2string(np.asarray(vector, dtype=float), precision=4, suppress_small=True)
 
 
 def _normalize_quat(quat: np.ndarray) -> np.ndarray | None:
