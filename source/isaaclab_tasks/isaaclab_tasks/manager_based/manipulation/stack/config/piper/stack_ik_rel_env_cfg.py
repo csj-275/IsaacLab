@@ -120,6 +120,7 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                     sim_device=self.sim.device,
                 ),
                 "xrobotoolkit": XRoboToolkitDeviceCfg(
+                    control_mode="relative",
                     pos_sensitivity=1.0,
                     rot_sensitivity=1.0,
                     sim_device=self.sim.device,

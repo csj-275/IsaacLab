@@ -20,6 +20,8 @@ optional arguments:
     --num_demos               Number of demonstrations to record. (default: 0)
     --num_success_steps       Number of continuous steps with task success for concluding a demo as successful.
                               (default: 10)
+    --xrobotoolkit_control_mode
+                              XRoboToolkit control mode: relative or absolute.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -56,6 +58,13 @@ parser.add_argument(
     type=int,
     default=10,
     help="Number of continuous steps with task success for concluding a demo as successful. Default is 10.",
+)
+parser.add_argument(
+    "--xrobotoolkit_control_mode",
+    "--xrobotoolkit-control-mode",
+    choices=("relative", "absolute"),
+    default=None,
+    help="XRoboToolkit control mode. If omitted, the environment device config is used.",
 )
 parser.add_argument(
     "--enable_pinocchio",
@@ -130,6 +139,59 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+def _get_xrobotoolkit_cfg(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> XRoboToolkitDeviceCfg | None:
+    if not hasattr(env_cfg, "teleop_devices"):
+        return None
+    device_cfg = env_cfg.teleop_devices.devices.get("xrobotoolkit")
+    return device_cfg if isinstance(device_cfg, XRoboToolkitDeviceCfg) else None
+
+
+def _configure_xrobotoolkit_control_mode(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> str:
+    if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
+        raise ValueError("XRoboToolkit control mode is only supported for ManagerBasedRLEnvCfg.")
+
+    device_cfg = _get_xrobotoolkit_cfg(env_cfg)
+    cfg_mode = getattr(device_cfg, "control_mode", "relative") if device_cfg is not None else "relative"
+    control_mode = args_cli.xrobotoolkit_control_mode or cfg_mode
+    if device_cfg is not None:
+        device_cfg.control_mode = control_mode
+
+    arm_action = getattr(env_cfg.actions, "arm_action", None)
+    if arm_action is None or not hasattr(arm_action, "controller"):
+        raise ValueError("XRoboToolkit control mode requires env_cfg.actions.arm_action with an IK controller.")
+
+    if control_mode == "absolute":
+        if getattr(env_cfg.scene, "ee_frame", None) is None:
+            raise ValueError("XRoboToolkit absolute mode requires env_cfg.scene.ee_frame.")
+        arm_action.controller.use_relative_mode = False
+        arm_action.scale = 1.0
+    else:
+        arm_action.controller.use_relative_mode = True
+
+    return control_mode
+
+
+def _make_ee_pose_provider(env: gym.Env):
+    def _provider():
+        try:
+            ee_frame = env.scene["ee_frame"]
+        except KeyError as exc:
+            raise RuntimeError("XRoboToolkit absolute mode requires env.scene['ee_frame'].") from exc
+
+        pos = ee_frame.data.target_pos_source[0, 0].detach().cpu().numpy()
+        quat = ee_frame.data.target_quat_source[0, 0].detach().cpu().numpy()
+        return pos, quat
+
+    return _provider
+
+
+def _attach_xrobotoolkit_pose_provider(device: object, env: gym.Env, control_mode: str | None):
+    if control_mode == "absolute":
+        if not isinstance(device, XRoboToolkitDevice):
+            raise TypeError("XRoboToolkit absolute mode requires an XRoboToolkitDevice instance.")
+        device.set_absolute_pose_provider(_make_ee_pose_provider(env))
 
 
 class RateLimiter:
@@ -238,6 +300,9 @@ def create_environment_config(
     env_cfg.terminations.time_out = None
     env_cfg.observations.policy.concatenate_terms = False
 
+    if args_cli.teleop_device.lower() == "xrobotoolkit":
+        _configure_xrobotoolkit_control_mode(env_cfg)
+
     env_cfg.recorders: ActionStateRecorderManagerCfg = ActionStateRecorderManagerCfg()
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
@@ -267,7 +332,7 @@ def create_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg) -> gym.En
         exit(1)
 
 
-def setup_teleop_device(callbacks: dict[str, Callable]) -> object:
+def setup_teleop_device(callbacks: dict[str, Callable], env: gym.Env) -> object:
     """Set up the teleoperation device based on configuration.
 
     Attempts to create a teleoperation device based on the environment configuration.
@@ -297,7 +362,8 @@ def setup_teleop_device(callbacks: dict[str, Callable]) -> object:
             elif args_cli.teleop_device.lower() == "spacemouse":
                 teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
             elif args_cli.teleop_device.lower() == "xrobotoolkit":
-                teleop_interface = XRoboToolkitDevice(XRoboToolkitDeviceCfg())
+                control_mode = args_cli.xrobotoolkit_control_mode or "relative"
+                teleop_interface = XRoboToolkitDevice(XRoboToolkitDeviceCfg(control_mode=control_mode))
             else:
                 logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
                 logger.error("Supported devices: keyboard, spacemouse, handtracking, xrobotoolkit")
@@ -306,6 +372,11 @@ def setup_teleop_device(callbacks: dict[str, Callable]) -> object:
             # Add callbacks to fallback device
             for key, callback in callbacks.items():
                 teleop_interface.add_callback(key, callback)
+
+        if args_cli.teleop_device.lower() == "xrobotoolkit":
+            device_cfg = _get_xrobotoolkit_cfg(env_cfg)
+            control_mode = args_cli.xrobotoolkit_control_mode or getattr(device_cfg, "control_mode", "relative")
+            _attach_xrobotoolkit_pose_provider(teleop_interface, env, control_mode)
     except Exception as e:
         logger.error(f"Failed to create teleop device: {e}")
         exit(1)
@@ -452,7 +523,7 @@ def run_simulation_loop(
         "RESET": reset_recording_instance,
     }
 
-    teleop_interface = setup_teleop_device(teleoperation_callbacks)
+    teleop_interface = setup_teleop_device(teleoperation_callbacks, env)
     teleop_interface.add_callback("R", reset_recording_instance)
 
     # Reset before starting

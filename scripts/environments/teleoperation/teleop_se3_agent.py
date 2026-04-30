@@ -32,6 +32,13 @@ parser.add_argument(
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity factor.")
 parser.add_argument(
+    "--xrobotoolkit_control_mode",
+    "--xrobotoolkit-control-mode",
+    choices=("relative", "absolute"),
+    default=None,
+    help="XRoboToolkit control mode. If omitted, the environment device config is used.",
+)
+parser.add_argument(
     "--enable_pinocchio",
     action="store_true",
     default=False,
@@ -91,6 +98,56 @@ if args_cli.enable_pinocchio:
 logger = logging.getLogger(__name__)
 
 
+def _get_xrobotoolkit_cfg(env_cfg: ManagerBasedRLEnvCfg) -> XRoboToolkitDeviceCfg | None:
+    if not hasattr(env_cfg, "teleop_devices"):
+        return None
+    device_cfg = env_cfg.teleop_devices.devices.get("xrobotoolkit")
+    return device_cfg if isinstance(device_cfg, XRoboToolkitDeviceCfg) else None
+
+
+def _configure_xrobotoolkit_control_mode(env_cfg: ManagerBasedRLEnvCfg) -> str:
+    device_cfg = _get_xrobotoolkit_cfg(env_cfg)
+    cfg_mode = getattr(device_cfg, "control_mode", "relative") if device_cfg is not None else "relative"
+    control_mode = args_cli.xrobotoolkit_control_mode or cfg_mode
+    if device_cfg is not None:
+        device_cfg.control_mode = control_mode
+
+    arm_action = getattr(env_cfg.actions, "arm_action", None)
+    if arm_action is None or not hasattr(arm_action, "controller"):
+        raise ValueError("XRoboToolkit control mode requires env_cfg.actions.arm_action with an IK controller.")
+
+    if control_mode == "absolute":
+        if getattr(env_cfg.scene, "ee_frame", None) is None:
+            raise ValueError("XRoboToolkit absolute mode requires env_cfg.scene.ee_frame.")
+        arm_action.controller.use_relative_mode = False
+        arm_action.scale = 1.0
+    else:
+        arm_action.controller.use_relative_mode = True
+
+    return control_mode
+
+
+def _make_ee_pose_provider(env: gym.Env):
+    def _provider():
+        try:
+            ee_frame = env.scene["ee_frame"]
+        except KeyError as exc:
+            raise RuntimeError("XRoboToolkit absolute mode requires env.scene['ee_frame'].") from exc
+
+        pos = ee_frame.data.target_pos_source[0, 0].detach().cpu().numpy()
+        quat = ee_frame.data.target_quat_source[0, 0].detach().cpu().numpy()
+        return pos, quat
+
+    return _provider
+
+
+def _attach_xrobotoolkit_pose_provider(device: object, env: gym.Env, control_mode: str | None):
+    if control_mode == "absolute":
+        if not isinstance(device, XRoboToolkitDevice):
+            raise TypeError("XRoboToolkit absolute mode requires an XRoboToolkitDevice instance.")
+        device.set_absolute_pose_provider(_make_ee_pose_provider(env))
+
+
 def main() -> None:
     """
     Run teleoperation with an Isaac Lab manipulation environment.
@@ -116,6 +173,10 @@ def main() -> None:
         env_cfg.commands.object_pose.resampling_time_range = (1.0e9, 1.0e9)
         # add termination condition for reaching the goal otherwise the environment won't reset
         env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
+
+    xrobotoolkit_control_mode = None
+    if args_cli.teleop_device.lower() == "xrobotoolkit":
+        xrobotoolkit_control_mode = _configure_xrobotoolkit_control_mode(env_cfg)
 
     if args_cli.xr:
         env_cfg = remove_camera_configs(env_cfg)
@@ -221,7 +282,11 @@ def main() -> None:
                 )
             elif args_cli.teleop_device.lower() == "xrobotoolkit":
                 teleop_interface = XRoboToolkitDevice(
-                    XRoboToolkitDeviceCfg(pos_sensitivity=sensitivity, rot_sensitivity=sensitivity)
+                    XRoboToolkitDeviceCfg(
+                        pos_sensitivity=sensitivity,
+                        rot_sensitivity=sensitivity,
+                        control_mode=xrobotoolkit_control_mode or "relative",
+                    )
                 )
             else:
                 logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
@@ -236,6 +301,8 @@ def main() -> None:
                     teleop_interface.add_callback(key, callback)
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Failed to add callback for key {key}: {e}")
+
+        _attach_xrobotoolkit_pose_provider(teleop_interface, env, xrobotoolkit_control_mode)
     except Exception as e:
         logger.error(f"Failed to create teleop device: {e}")
         env.close()

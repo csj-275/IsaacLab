@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -28,10 +28,10 @@ OPENXR_TO_ROBOT_BASE_AXIS_MAP = (
 class XRoboToolkitDevice(DeviceBase):
     """XRoboToolkit controller device for Isaac Lab SE(3) + gripper teleoperation.
 
-    The command layout is ``[dx, dy, dz, rx, ry, rz, gripper]``. Translation is in meters,
-    rotation is a rotation vector in radians, and the gripper command is ``+1.0`` for open
-    or ``-1.0`` for close. By default, OpenXR axes ``[right, up, back]`` are mapped into
-    Isaac/Piper robot-base axes ``[forward, left, up]`` as ``[-z, -x, y]``.
+    In relative mode, the command layout is ``[dx, dy, dz, rx, ry, rz, gripper]``.
+    In absolute mode, the command layout is ``[x, y, z, qw, qx, qy, qz, gripper]``.
+    By default, OpenXR axes ``[right, up, back]`` are mapped into Isaac/Piper robot-base
+    axes ``[forward, left, up]`` as ``[-z, -x, y]``.
     """
 
     def __init__(self, cfg: XRoboToolkitDeviceCfg):
@@ -50,20 +50,27 @@ class XRoboToolkitDevice(DeviceBase):
         self.activation_threshold = cfg.activation_threshold
         self.gripper_threshold = cfg.gripper_threshold
         self.gripper_term = cfg.gripper_term
+        self.control_mode = cfg.control_mode
+        if self.control_mode not in ("relative", "absolute"):
+            raise ValueError(f"Unsupported XRoboToolkit control mode: {self.control_mode}")
         self._sim_device = cfg.sim_device
         self._delta_pos_axis_map = _axis_mapping_to_array(cfg.delta_pos_axis_map, "delta_pos_axis_map")
         self._delta_rot_axis_map = _axis_mapping_to_array(cfg.delta_rot_axis_map, "delta_rot_axis_map")
+        self._ee_pose_provider = cfg.ee_pose_provider
         self._xr_client = cfg.xr_client if cfg.xr_client is not None else self._create_xr_client()
         self._additional_callbacks: dict[str, Callable] = {}
         self._prev_active = False
         self._prev_reset_pressed = False
         self._ref_pos: np.ndarray | None = None
         self._ref_quat: np.ndarray | None = None
+        self._ref_robot_pos: np.ndarray | None = None
+        self._ref_robot_quat: np.ndarray | None = None
 
     def __str__(self) -> str:
         """Returns: A string containing the device information."""
         return (
             f"XRoboToolkit Controller for SE(3): {self.__class__.__name__}\n"
+            f"\tControl mode: {self.control_mode}\n"
             f"\tPose source: {self.pose_source}\n"
             f"\tControl trigger: {self.control_trigger}\n"
             f"\tGripper trigger: {self.gripper_trigger}\n"
@@ -76,6 +83,8 @@ class XRoboToolkitDevice(DeviceBase):
         self._prev_reset_pressed = False
         self._ref_pos = None
         self._ref_quat = None
+        self._ref_robot_pos = None
+        self._ref_robot_quat = None
 
     def add_callback(self, key: Any, func: Callable):
         """Add a callback for an XRoboToolkit event key.
@@ -83,6 +92,10 @@ class XRoboToolkitDevice(DeviceBase):
         Supported keys used by this device are ``START``, ``STOP``, and ``RESET``.
         """
         self._additional_callbacks[key] = func
+
+    def set_absolute_pose_provider(self, provider: Callable[[], tuple[Any, Any]]):
+        """Set the provider used to anchor robot end-effector pose in absolute mode."""
+        self._ee_pose_provider = provider
 
     def advance(self) -> torch.Tensor:
         """Read XRoboToolkit input and return an Isaac Lab SE(3) + gripper command."""
@@ -103,11 +116,11 @@ class XRoboToolkitDevice(DeviceBase):
         self._prev_active = active
 
         if not active:
-            return self._command(np.zeros(3), np.zeros(3), 1.0)
+            return self._inactive_command()
 
         pose = self._read_pose(self.pose_source)
         if pose is None or self._ref_pos is None or self._ref_quat is None:
-            return self._command(np.zeros(3), np.zeros(3), self._read_gripper())
+            return self._inactive_command(self._read_gripper())
 
         pos = pose[:3]
         quat = pose[3:7]
@@ -117,7 +130,22 @@ class XRoboToolkitDevice(DeviceBase):
         delta_pos = self._delta_pos_axis_map @ delta_pos
         delta_rot = self._delta_rot_axis_map @ delta_rot
 
-        return self._command(delta_pos, delta_rot, self._read_gripper())
+        if self.control_mode == "absolute":
+            if self._ref_robot_pos is None or self._ref_robot_quat is None:
+                return self._inactive_command(self._read_gripper())
+            target_pos = self._ref_robot_pos + delta_pos
+            target_quat = _xyzw_to_wxyz(
+                _quat_multiply(_rotvec_to_quat(delta_rot), _wxyz_to_xyzw(self._ref_robot_quat))
+            )
+            return self._absolute_command(target_pos, target_quat, self._read_gripper())
+        else:
+            return self._relative_command(delta_pos, delta_rot, self._read_gripper())
+
+    @property
+    def command_dim(self) -> int:
+        """Dimension of the command emitted by this device."""
+        base_dim = 7 if self.control_mode == "absolute" else 6
+        return base_dim + int(self.gripper_term)
 
     def _create_xr_client(self):
         """Create the XRoboToolkit client lazily so importing Isaac Lab does not require the SDK."""
@@ -139,10 +167,25 @@ class XRoboToolkitDevice(DeviceBase):
             return
         self._ref_pos = pose[:3].copy()
         self._ref_quat = pose[3:7].copy()
+        if self.control_mode == "absolute":
+            self._ref_robot_pos, self._ref_robot_quat = self._read_robot_pose()
 
     def _clear_reference(self):
         self._ref_pos = None
         self._ref_quat = None
+        self._ref_robot_pos = None
+        self._ref_robot_quat = None
+
+    def _read_robot_pose(self) -> tuple[np.ndarray, np.ndarray]:
+        if self._ee_pose_provider is None:
+            raise RuntimeError("XRoboToolkit absolute mode requires an end-effector pose provider.")
+
+        pos, quat = self._ee_pose_provider()
+        pos = np.asarray(pos, dtype=float)
+        quat = _normalize_quat(np.asarray(quat, dtype=float))
+        if pos.shape != (3,) or quat is None or not np.all(np.isfinite(pos)):
+            raise RuntimeError("XRoboToolkit absolute mode received an invalid end-effector reference pose.")
+        return pos.copy(), quat.copy()
 
     def _read_pose(self, name: str) -> np.ndarray | None:
         pose = self._xr_client.get_pose_by_name(name)
@@ -176,8 +219,22 @@ class XRoboToolkitDevice(DeviceBase):
         if callback is not None:
             callback()
 
-    def _command(self, delta_pos: np.ndarray, delta_rot: np.ndarray, gripper: float) -> torch.Tensor:
+    def _inactive_command(self, gripper: float = 1.0) -> torch.Tensor:
+        if self.control_mode == "absolute":
+            target_pos = self._ref_robot_pos if self._ref_robot_pos is not None else np.zeros(3)
+            target_quat = self._ref_robot_quat if self._ref_robot_quat is not None else np.array([1.0, 0.0, 0.0, 0.0])
+            return self._absolute_command(target_pos, target_quat, gripper)
+        else:
+            return self._relative_command(np.zeros(3), np.zeros(3), gripper)
+
+    def _relative_command(self, delta_pos: np.ndarray, delta_rot: np.ndarray, gripper: float) -> torch.Tensor:
         command = np.concatenate([delta_pos, delta_rot])
+        if self.gripper_term:
+            command = np.append(command, gripper)
+        return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
+
+    def _absolute_command(self, target_pos: np.ndarray, target_quat: np.ndarray, gripper: float) -> torch.Tensor:
+        command = np.concatenate([target_pos, target_quat])
         if self.gripper_term:
             command = np.append(command, gripper)
         return torch.tensor(command, dtype=torch.float32, device=self._sim_device)
@@ -196,6 +253,7 @@ class XRoboToolkitDeviceCfg(DeviceCfg):
     activation_threshold: float = 0.5
     gripper_threshold: float = 0.5
     gripper_term: bool = True
+    control_mode: Literal["relative", "absolute"] = "relative"
     delta_pos_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
         OPENXR_TO_ROBOT_BASE_AXIS_MAP
     )
@@ -203,6 +261,7 @@ class XRoboToolkitDeviceCfg(DeviceCfg):
         OPENXR_TO_ROBOT_BASE_AXIS_MAP
     )
     retargeters: None = None
+    ee_pose_provider: Callable[[], tuple[Any, Any]] | None = None
     xr_client: Any | None = None
     class_type: type[DeviceBase] = XRoboToolkitDevice
 
@@ -256,3 +315,22 @@ def _quat_to_rotvec(quat: np.ndarray) -> np.ndarray:
 
     angle = 2.0 * np.arctan2(xyz_norm, quat[3])
     return xyz / xyz_norm * angle
+
+
+def _rotvec_to_quat(rotvec: np.ndarray) -> np.ndarray:
+    angle = np.linalg.norm(rotvec)
+    if angle < 1.0e-12:
+        return np.array([0.0, 0.0, 0.0, 1.0], dtype=float)
+    axis = rotvec / angle
+    return np.concatenate([axis * np.sin(angle / 2.0), [np.cos(angle / 2.0)]])
+
+
+def _wxyz_to_xyzw(quat: np.ndarray) -> np.ndarray:
+    return np.array([quat[1], quat[2], quat[3], quat[0]], dtype=float)
+
+
+def _xyzw_to_wxyz(quat: np.ndarray) -> np.ndarray:
+    quat = _normalize_quat(quat)
+    if quat is None:
+        return np.array([1.0, 0.0, 0.0, 0.0], dtype=float)
+    return np.array([quat[3], quat[0], quat[1], quat[2]], dtype=float)

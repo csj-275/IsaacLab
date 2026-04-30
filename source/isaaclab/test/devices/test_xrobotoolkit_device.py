@@ -93,6 +93,40 @@ def test_xrobotoolkit_device_control_edges_and_action_mapping():
     np.testing.assert_allclose(action.cpu().numpy(), np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]))
 
 
+def test_xrobotoolkit_device_absolute_control_mode_anchors_robot_pose():
+    client = FakeXrClient()
+    robot_ref_pos = np.array([0.4, 0.1, 0.2])
+    robot_ref_quat = np.array([1.0, 0.0, 0.0, 0.0])
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            control_mode="absolute",
+            xr_client=client,
+            ee_pose_provider=lambda: (robot_ref_pos.copy(), robot_ref_quat.copy()),
+        )
+    )
+    events = []
+    device.add_callback("START", lambda: events.append("START"))
+
+    action = device.advance()
+    assert action.shape == (8,)
+    np.testing.assert_allclose(action.cpu().numpy(), np.array([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]))
+
+    client.keys["right_grip"] = 1.0
+    action = device.advance()
+    assert events == ["START"]
+    np.testing.assert_allclose(action.cpu().numpy(), np.array([0.4, 0.1, 0.2, 1.0, 0.0, 0.0, 0.0, 1.0]))
+
+    robot_ref_pos[:] = np.array([9.0, 9.0, 9.0])
+    client.pose = _pose([0.0, 0.0, -0.1], [np.pi / 2.0, 0.0, 0.0])
+    client.keys["right_trigger"] = 1.0
+    action = device.advance()
+    np.testing.assert_allclose(
+        action.cpu().numpy(),
+        np.array([0.5, 0.1, 0.2, np.cos(np.pi / 4.0), 0.0, -np.sin(np.pi / 4.0), 0.0, -1.0]),
+        atol=1.0e-6,
+    )
+
+
 def test_xrobotoolkit_device_default_openxr_axis_mapping():
     client = FakeXrClient()
     device = XRoboToolkitDevice(XRoboToolkitDeviceCfg(xr_client=client))
