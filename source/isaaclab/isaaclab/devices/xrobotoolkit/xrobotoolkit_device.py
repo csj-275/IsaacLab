@@ -17,12 +17,12 @@ import torch
 from ..device_base import DeviceBase, DeviceCfg
 
 
-OPENXR_TO_ROBOT_BASE_AXIS_MAP = (
-    (0.0, 0.0, -1.0),
-    (-1.0, 0.0, 0.0),
+STANDARD_OPENXR_AXIS_MAP = (
+    (1.0, 0.0, 0.0),
     (0.0, 1.0, 0.0),
+    (0.0, 0.0, 1.0),
 )
-"""Default axis map from OpenXR coordinates to Isaac/Piper robot-base coordinates."""
+"""Default axis map that preserves standard OpenXR controller coordinates."""
 
 
 class XRoboToolkitDevice(DeviceBase):
@@ -30,8 +30,7 @@ class XRoboToolkitDevice(DeviceBase):
 
     In relative mode, the command layout is ``[dx, dy, dz, rx, ry, rz, gripper]``.
     In absolute mode, the command layout is ``[x, y, z, qw, qx, qy, qz, gripper]``.
-    By default, OpenXR axes ``[right, up, back]`` are mapped into Isaac/Piper robot-base
-    axes ``[forward, left, up]`` as ``[-z, -x, y]``.
+    By default, standard OpenXR controller coordinates are used directly.
     """
 
     def __init__(self, cfg: XRoboToolkitDeviceCfg):
@@ -253,12 +252,12 @@ class XRoboToolkitDeviceCfg(DeviceCfg):
     activation_threshold: float = 0.5
     gripper_threshold: float = 0.5
     gripper_term: bool = True
-    control_mode: Literal["relative", "absolute"] = "relative"
+    control_mode: Literal["relative", "absolute"] = "absolute"
     delta_pos_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
-        OPENXR_TO_ROBOT_BASE_AXIS_MAP
+        STANDARD_OPENXR_AXIS_MAP
     )
     delta_rot_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
-        OPENXR_TO_ROBOT_BASE_AXIS_MAP
+        STANDARD_OPENXR_AXIS_MAP
     )
     retargeters: None = None
     ee_pose_provider: Callable[[], tuple[Any, Any]] | None = None

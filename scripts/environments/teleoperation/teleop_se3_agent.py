@@ -107,7 +107,7 @@ def _get_xrobotoolkit_cfg(env_cfg: ManagerBasedRLEnvCfg) -> XRoboToolkitDeviceCf
 
 def _configure_xrobotoolkit_control_mode(env_cfg: ManagerBasedRLEnvCfg) -> str:
     device_cfg = _get_xrobotoolkit_cfg(env_cfg)
-    cfg_mode = getattr(device_cfg, "control_mode", "relative") if device_cfg is not None else "relative"
+    cfg_mode = getattr(device_cfg, "control_mode", "absolute") if device_cfg is not None else "absolute"
     control_mode = args_cli.xrobotoolkit_control_mode or cfg_mode
     if device_cfg is not None:
         device_cfg.control_mode = control_mode
@@ -285,7 +285,7 @@ def main() -> None:
                     XRoboToolkitDeviceCfg(
                         pos_sensitivity=sensitivity,
                         rot_sensitivity=sensitivity,
-                        control_mode=xrobotoolkit_control_mode or "relative",
+                        control_mode=xrobotoolkit_control_mode or "absolute",
                     )
                 )
             else:

@@ -153,7 +153,7 @@ def _configure_xrobotoolkit_control_mode(env_cfg: ManagerBasedRLEnvCfg | DirectR
         raise ValueError("XRoboToolkit control mode is only supported for ManagerBasedRLEnvCfg.")
 
     device_cfg = _get_xrobotoolkit_cfg(env_cfg)
-    cfg_mode = getattr(device_cfg, "control_mode", "relative") if device_cfg is not None else "relative"
+    cfg_mode = getattr(device_cfg, "control_mode", "absolute") if device_cfg is not None else "absolute"
     control_mode = args_cli.xrobotoolkit_control_mode or cfg_mode
     if device_cfg is not None:
         device_cfg.control_mode = control_mode
@@ -362,7 +362,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], env: gym.Env) -> object:
             elif args_cli.teleop_device.lower() == "spacemouse":
                 teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
             elif args_cli.teleop_device.lower() == "xrobotoolkit":
-                control_mode = args_cli.xrobotoolkit_control_mode or "relative"
+                control_mode = args_cli.xrobotoolkit_control_mode or "absolute"
                 teleop_interface = XRoboToolkitDevice(XRoboToolkitDeviceCfg(control_mode=control_mode))
             else:
                 logger.error(f"Unsupported teleop device: {args_cli.teleop_device}")
@@ -375,7 +375,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], env: gym.Env) -> object:
 
         if args_cli.teleop_device.lower() == "xrobotoolkit":
             device_cfg = _get_xrobotoolkit_cfg(env_cfg)
-            control_mode = args_cli.xrobotoolkit_control_mode or getattr(device_cfg, "control_mode", "relative")
+            control_mode = args_cli.xrobotoolkit_control_mode or getattr(device_cfg, "control_mode", "absolute")
             _attach_xrobotoolkit_pose_provider(teleop_interface, env, control_mode)
     except Exception as e:
         logger.error(f"Failed to create teleop device: {e}")
