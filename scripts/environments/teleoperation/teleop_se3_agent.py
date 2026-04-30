@@ -16,6 +16,8 @@ from collections.abc import Callable
 
 from isaaclab.app import AppLauncher
 
+_XROBOT_DEFAULT_VIDEO_LISTEN = "0.0.0.0:13579"
+
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Teleoperation for Isaac Lab environments.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
@@ -46,6 +48,62 @@ parser.add_argument(
     help="Print XRoboToolkit raw and mapped controller deltas for coordinate calibration.",
 )
 parser.add_argument(
+    "--disable_xrobotoolkit_video_stream",
+    "--disable-xrobotoolkit-video-stream",
+    action="store_true",
+    default=False,
+    help="Disable XRoboToolkit wrist camera video streaming.",
+)
+parser.add_argument(
+    "--xrobotoolkit_video_listen",
+    "--xrobotoolkit-video-listen",
+    type=str,
+    default=_XROBOT_DEFAULT_VIDEO_LISTEN,
+    help="XRoboToolkit video control listen address in HOST:PORT format.",
+)
+parser.add_argument(
+    "--xrobotoolkit_video_camera",
+    "--xrobotoolkit-video-camera",
+    type=str,
+    default="wrist_cam",
+    help="Isaac Lab scene camera entity used for XRoboToolkit video streaming.",
+)
+parser.add_argument(
+    "--xrobotoolkit_video_width",
+    "--xrobotoolkit-video-width",
+    type=int,
+    default=640,
+    help="Default local XRoboToolkit video camera width in pixels.",
+)
+parser.add_argument(
+    "--xrobotoolkit_video_height",
+    "--xrobotoolkit-video-height",
+    type=int,
+    default=480,
+    help="Default local XRoboToolkit video camera height in pixels.",
+)
+parser.add_argument(
+    "--xrobotoolkit_video_fps",
+    "--xrobotoolkit-video-fps",
+    type=int,
+    default=30,
+    help="Default XRoboToolkit video output frame rate in frames per second.",
+)
+parser.add_argument(
+    "--xrobotoolkit_video_bitrate",
+    "--xrobotoolkit-video-bitrate",
+    type=int,
+    default=4_000_000,
+    help="Default XRoboToolkit video output bitrate in bits per second.",
+)
+parser.add_argument(
+    "--xrobotoolkit_video_strict_camera_type",
+    "--xrobotoolkit-video-strict-camera-type",
+    type=str,
+    default="ZED",
+    help="Only accept XRoboToolkit OPEN_CAMERA requests with this camera type. Empty string accepts all.",
+)
+parser.add_argument(
     "--enable_pinocchio",
     action="store_true",
     default=False,
@@ -65,6 +123,8 @@ if args_cli.enable_pinocchio:
     import pinocchio  # noqa: F401
 if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
+if args_cli.teleop_device.lower() == "xrobotoolkit" and not args_cli.disable_xrobotoolkit_video_stream:
+    app_launcher_args["enable_cameras"] = True
 
 # launch omniverse app
 app_launcher = AppLauncher(app_launcher_args)
@@ -76,6 +136,7 @@ simulation_app = app_launcher.app
 import logging
 
 import gymnasium as gym
+import numpy as np
 import torch
 
 from isaaclab.devices import (
@@ -90,8 +151,10 @@ from isaaclab.devices import (
 )
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
+from isaaclab.devices.xrobotoolkit.xrobotoolkit_video_stream import XRoboToolkitVideoStreamServer
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.sensors import CameraCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.manager_based.manipulation.lift import mdp
@@ -157,6 +220,81 @@ def _attach_xrobotoolkit_pose_provider(device: object, env: gym.Env, control_mod
         device.set_absolute_pose_provider(_make_ee_pose_provider(env))
 
 
+def _xrobotoolkit_video_requested() -> bool:
+    return args_cli.teleop_device.lower() == "xrobotoolkit" and not args_cli.disable_xrobotoolkit_video_stream
+
+
+def _configure_xrobotoolkit_video_camera(env_cfg: ManagerBasedRLEnvCfg) -> bool:
+    if not _xrobotoolkit_video_requested():
+        return False
+
+    camera_name = args_cli.xrobotoolkit_video_camera
+    camera_cfg = getattr(env_cfg.scene, camera_name, None)
+    if not isinstance(camera_cfg, CameraCfg):
+        message = f"XRoboToolkit video camera '{camera_name}' is not a CameraCfg scene entity."
+        if camera_name == "wrist_cam":
+            logger.warning("%s Video streaming will be disabled.", message)
+            return False
+        raise ValueError(message)
+
+    camera_cfg.width = args_cli.xrobotoolkit_video_width
+    camera_cfg.height = args_cli.xrobotoolkit_video_height
+    camera_cfg.update_period = 0.0
+    data_types = list(camera_cfg.data_types or [])
+    if "rgb" not in data_types:
+        data_types.append("rgb")
+    camera_cfg.data_types = data_types
+    return True
+
+
+def _create_xrobotoolkit_video_stream(enabled: bool) -> XRoboToolkitVideoStreamServer | None:
+    if not enabled:
+        return None
+
+    strict_camera_type = args_cli.xrobotoolkit_video_strict_camera_type or ""
+    server = XRoboToolkitVideoStreamServer(
+        listen_address=args_cli.xrobotoolkit_video_listen,
+        strict_camera_type=strict_camera_type,
+        default_width=args_cli.xrobotoolkit_video_width,
+        default_height=args_cli.xrobotoolkit_video_height,
+        default_fps=args_cli.xrobotoolkit_video_fps,
+        default_bitrate=args_cli.xrobotoolkit_video_bitrate,
+    )
+    try:
+        server.start()
+    except OSError as exc:
+        logger.error("Failed to start XRoboToolkit video control listener: %s", exc)
+        return None
+
+    host, port = server.bound_address if server.bound_address is not None else (server.listen_host, server.listen_port)
+    print(f"XRoboToolkit video control listening on {host}:{port}")
+    return server
+
+
+def _submit_xrobotoolkit_video_frame(
+    video_stream: XRoboToolkitVideoStreamServer | None,
+    env: gym.Env,
+    *,
+    force_camera_update: bool,
+) -> None:
+    if video_stream is None or not video_stream.is_streaming:
+        return
+
+    try:
+        camera = env.scene[args_cli.xrobotoolkit_video_camera]
+        if force_camera_update:
+            camera.update(env.sim.get_physics_dt(), force_recompute=True)
+        rgb = camera.data.output.get("rgb")
+        if rgb is None:
+            logger.warning("XRoboToolkit video camera '%s' has no RGB output.", args_cli.xrobotoolkit_video_camera)
+            return
+
+        frame = rgb[0].detach().cpu().numpy() if hasattr(rgb, "detach") else np.asarray(rgb)[0]
+        video_stream.submit_frame(frame)
+    except Exception as exc:
+        logger.warning("Failed to submit XRoboToolkit video frame: %s", exc)
+
+
 def main() -> None:
     """
     Run teleoperation with an Isaac Lab manipulation environment.
@@ -184,10 +322,15 @@ def main() -> None:
         env_cfg.terminations.object_reached_goal = DoneTerm(func=mdp.object_reached_goal)
 
     xrobotoolkit_control_mode = None
+    xrobotoolkit_video_enabled = False
     if args_cli.teleop_device.lower() == "xrobotoolkit":
         xrobotoolkit_control_mode = _configure_xrobotoolkit_control_mode(env_cfg)
+        xrobotoolkit_video_enabled = _configure_xrobotoolkit_video_camera(env_cfg)
 
     if args_cli.xr:
+        if xrobotoolkit_video_enabled:
+            logger.warning("XR mode removes scene camera configs; XRoboToolkit video streaming will be disabled.")
+            xrobotoolkit_video_enabled = False
         env_cfg = remove_camera_configs(env_cfg)
         env_cfg.sim.render.antialiasing_mode = "DLSS"
 
@@ -333,35 +476,46 @@ def main() -> None:
 
     print("Teleoperation started. Press 'R' to reset the environment.")
 
+    video_stream = _create_xrobotoolkit_video_stream(xrobotoolkit_video_enabled)
+
     # simulate environment
-    while simulation_app.is_running():
-        try:
-            # run everything in inference mode
-            with torch.inference_mode():
-                # get device command
-                action = teleop_interface.advance()
+    try:
+        while simulation_app.is_running():
+            try:
+                # run everything in inference mode
+                with torch.inference_mode():
+                    # get device command
+                    action = teleop_interface.advance()
 
-                # Only apply teleop commands when active
-                if teleoperation_active:
-                    # process actions
-                    actions = action.repeat(env.num_envs, 1)
-                    # apply actions
-                    env.step(actions)
-                else:
-                    env.sim.render()
+                    # Only apply teleop commands when active
+                    if teleoperation_active:
+                        # process actions
+                        actions = action.repeat(env.num_envs, 1)
+                        # apply actions
+                        env.step(actions)
+                    else:
+                        env.sim.render()
 
-                if should_reset_recording_instance:
-                    env.reset()
-                    teleop_interface.reset()
-                    should_reset_recording_instance = False
-                    print("Environment reset complete")
-        except Exception as e:
-            logger.error(f"Error during simulation step: {e}")
-            break
+                    _submit_xrobotoolkit_video_frame(
+                        video_stream,
+                        env,
+                        force_camera_update=not teleoperation_active,
+                    )
 
-    # close the simulator
-    env.close()
-    print("Environment closed")
+                    if should_reset_recording_instance:
+                        env.reset()
+                        teleop_interface.reset()
+                        should_reset_recording_instance = False
+                        print("Environment reset complete")
+            except Exception as e:
+                logger.error(f"Error during simulation step: {e}")
+                break
+    finally:
+        if video_stream is not None:
+            video_stream.stop()
+        # close the simulator
+        env.close()
+        print("Environment closed")
 
 
 if __name__ == "__main__":

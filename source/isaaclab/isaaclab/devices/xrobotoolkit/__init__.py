@@ -6,5 +6,6 @@
 """XRoboToolkit teleoperation device."""
 
 from .xrobotoolkit_device import XRoboToolkitDevice, XRoboToolkitDeviceCfg
+from .xrobotoolkit_video_stream import XRoboToolkitVideoStreamServer
 
-__all__ = ["XRoboToolkitDevice", "XRoboToolkitDeviceCfg"]
+__all__ = ["XRoboToolkitDevice", "XRoboToolkitDeviceCfg", "XRoboToolkitVideoStreamServer"]

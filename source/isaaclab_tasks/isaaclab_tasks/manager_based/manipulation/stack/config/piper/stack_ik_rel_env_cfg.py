@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import isaaclab.sim as sim_utils
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.devices.device_base import DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -11,7 +12,7 @@ from isaaclab.devices.xrobotoolkit import XRoboToolkitDeviceCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import FrameTransformerCfg
+from isaaclab.sensors import CameraCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
 
@@ -106,6 +107,28 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                 ),
             ],
         )
+
+        # Set wrist camera attached to the Piper URDF camera link.
+        self.scene.wrist_cam = CameraCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
+            update_period=0.0,
+            height=480,
+            width=640,
+            data_types=["rgb"],
+            spawn=sim_utils.PinholeCameraCfg(
+                focal_length=24.0,
+                focus_distance=400.0,
+                horizontal_aperture=20.955,
+                clipping_range=(0.1, 2.0),
+            ),
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.0, 0.0, 0.0),
+                rot=(1.0, 0.0, 0.0, 0.0),
+                convention="ros",
+            ),
+        )
+        self.num_rerenders_on_reset = 3
+        self.sim.render.antialiasing_mode = "DLAA"
 
         self.teleop_devices = DevicesCfg(
             devices={
