@@ -2,7 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-
 """
     Author: csj
     Created: 26-04-27
@@ -21,7 +20,7 @@ class PiperEnvCfg(piper_env_cfg.PiperEnvCfg):
         # post init of parent
         super().__post_init__()
     
-        self.actions.arm_actions = DifferentialInverseKinematicsActionCfg(
+        self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
                 asset_name="robot",
                 joint_names=["joint[1-6]"],
                 body_name="link6",
@@ -32,6 +31,6 @@ class PiperEnvCfg(piper_env_cfg.PiperEnvCfg):
                 ),
                 scale=0.5,
                 body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
-                    pos=(0.12, 0.0, 0.0)
+                    pos=(0.0, 0.0, 0.135)
                 ),
             )

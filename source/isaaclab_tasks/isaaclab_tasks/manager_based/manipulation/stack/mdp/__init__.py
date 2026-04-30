@@ -6,6 +6,5 @@
 """This sub-module contains the functions that are specific to the lift environments."""
 
 from isaaclab.envs.mdp import *  # noqa: F401, F403
-
 from .observations import *  # noqa: F401, F403
 from .terminations import *  # noqa: F401, F403

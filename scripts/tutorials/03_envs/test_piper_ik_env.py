@@ -35,13 +35,8 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import math
-
 import torch
-
-import isaaclab.envs.mdp as mdp
 from isaaclab.envs import ManagerBasedRLEnv
-
 from isaaclab_tasks.manager_based.piper.piper_ik_env_cfg import PiperEnvCfg
 
 
@@ -61,7 +56,7 @@ def main():
     gripper_state = 1  # 1 = open, -1 = close
     device = env.device
     
-    while simulation_app.DifferentialInverseKinematicsActionCfgis_running():
+    while simulation_app.is_running():
         with torch.inference_mode():
             # reset
             if count % 300 == 0:
@@ -75,7 +70,7 @@ def main():
             
             # IK relative_mode-6(True),7(False)
             arm_actions = torch.zeros(env.num_envs, 6, device=device) 
-            arm_actions[:, 2] = 0.1
+            arm_actions[:, 0] = 0.1
             gripper_action = 10 * torch.full((env.num_envs, 1), gripper_state, device=device)
 
             joint_actions = torch.cat([arm_actions, gripper_action], dim=1)
