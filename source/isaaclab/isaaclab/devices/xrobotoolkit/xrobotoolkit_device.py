@@ -18,12 +18,19 @@ import torch
 from ..device_base import DeviceBase, DeviceCfg
 
 
-XR_SDK_TO_ROBOT_BASE_AXIS_MAP = (
+XR_SDK_TO_ROS_BASE_POS_AXIS_MAP = (
     (0.0, 0.0, -1.0),
     (-1.0, 0.0, 0.0),
     (0.0, 1.0, 0.0),
 )
-"""Default axis map from XR SDK input coordinates to the robot-base control frame."""
+"""Default position map from XR SDK input coordinates to ROS base axes: X forward, Y left, Z up."""
+
+XR_SDK_TO_ROS_BASE_ROT_AXIS_MAP = (
+    (0.0, 0.0, -1.0),
+    (-1.0, 0.0, 0.0),
+    (0.0, 1.0, 0.0),
+)
+"""Default rotation map calibrated from XR SDK input rotation vectors to robot end-effector effects."""
 
 
 class XRoboToolkitDevice(DeviceBase):
@@ -31,7 +38,8 @@ class XRoboToolkitDevice(DeviceBase):
 
     In relative mode, the command layout is ``[dx, dy, dz, rx, ry, rz, gripper]``.
     In absolute mode, the command layout is ``[x, y, z, qw, qx, qy, qz, gripper]``.
-    By default, XR SDK input axes are mapped to the robot-base frame as ``[-z, -x, y]``.
+    By default, XR SDK position deltas are mapped to ROS base axes as ``[-z, -x, y]``.
+    Rotation deltas are mapped to calibrated robot-effect axes as ``[-z, -x, y]``.
     """
 
     def __init__(self, cfg: XRoboToolkitDeviceCfg):
@@ -286,10 +294,10 @@ class XRoboToolkitDeviceCfg(DeviceCfg):
     debug_mapping: bool = False
     debug_mapping_interval: float = 0.5
     delta_pos_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
-        XR_SDK_TO_ROBOT_BASE_AXIS_MAP
+        XR_SDK_TO_ROS_BASE_POS_AXIS_MAP
     )
     delta_rot_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
-        XR_SDK_TO_ROBOT_BASE_AXIS_MAP
+        XR_SDK_TO_ROS_BASE_ROT_AXIS_MAP
     )
     retargeters: None = None
     ee_pose_provider: Callable[[], tuple[Any, Any]] | None = None
