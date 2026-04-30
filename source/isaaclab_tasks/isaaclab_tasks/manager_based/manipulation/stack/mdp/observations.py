@@ -18,6 +18,18 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+def _gripper_open_targets(env: ManagerBasedRLEnv, robot: Articulation, gripper_joint_ids: list[int]) -> torch.Tensor:
+    """Return per-joint open targets while preserving the legacy scalar gripper_open_val contract."""
+    if hasattr(env.cfg, "gripper_open_vals"):
+        open_vals = env.cfg.gripper_open_vals
+        if len(open_vals) != len(gripper_joint_ids):
+            raise ValueError("gripper_open_vals length must match gripper_joint_names")
+    else:
+        open_vals = [env.cfg.gripper_open_val] * len(gripper_joint_ids)
+
+    return torch.as_tensor(open_vals, dtype=robot.data.joint_pos.dtype, device=robot.data.joint_pos.device)
+
+
 def cube_positions_in_world_frame(
     env: ManagerBasedRLEnv,
     cube_1_cfg: SceneEntityCfg = SceneEntityCfg("cube_1"),
@@ -316,22 +328,12 @@ def object_grasped(
         if hasattr(env.cfg, "gripper_joint_names"):
             gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
             assert len(gripper_joint_ids) == 2, "Observations only support parallel gripper for now"
+            open_targets = _gripper_open_targets(env, robot, gripper_joint_ids)
+            gripper_pos = robot.data.joint_pos[:, gripper_joint_ids]
 
             grasped = torch.logical_and(
                 pose_diff < diff_threshold,
-                torch.abs(
-                    robot.data.joint_pos[:, gripper_joint_ids[0]]
-                    - torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device)
-                )
-                > env.cfg.gripper_threshold,
-            )
-            grasped = torch.logical_and(
-                grasped,
-                torch.abs(
-                    robot.data.joint_pos[:, gripper_joint_ids[1]]
-                    - torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device)
-                )
-                > env.cfg.gripper_threshold,
+                torch.all(torch.abs(gripper_pos - open_targets) > env.cfg.gripper_threshold, dim=1),
             )
 
     return grasped
@@ -368,22 +370,10 @@ def object_stacked(
         if hasattr(env.cfg, "gripper_joint_names"):
             gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
             assert len(gripper_joint_ids) == 2, "Observations only support parallel gripper for now"
+            open_targets = _gripper_open_targets(env, robot, gripper_joint_ids)
+            gripper_pos = robot.data.joint_pos[:, gripper_joint_ids]
             stacked = torch.logical_and(
-                torch.isclose(
-                    robot.data.joint_pos[:, gripper_joint_ids[0]],
-                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
-                    atol=1e-4,
-                    rtol=1e-4,
-                ),
-                stacked,
-            )
-            stacked = torch.logical_and(
-                torch.isclose(
-                    robot.data.joint_pos[:, gripper_joint_ids[1]],
-                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
-                    atol=1e-4,
-                    rtol=1e-4,
-                ),
+                torch.all(torch.isclose(gripper_pos, open_targets, atol=1e-4, rtol=1e-4), dim=1),
                 stacked,
             )
         else:

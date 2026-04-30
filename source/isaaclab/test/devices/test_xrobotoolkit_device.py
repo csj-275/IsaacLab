@@ -7,6 +7,15 @@
 
 from __future__ import annotations
 
+"""Launch Isaac Sim Simulator first."""
+
+from isaaclab.app import AppLauncher
+
+# launch omniverse app so isaaclab.devices can import OpenXR/pxr side modules
+simulation_app = AppLauncher(headless=True).app
+
+"""Rest everything follows."""
+
 import numpy as np
 import torch
 

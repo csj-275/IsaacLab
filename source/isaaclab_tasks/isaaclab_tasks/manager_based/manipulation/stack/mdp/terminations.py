@@ -22,6 +22,18 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+def _gripper_open_targets(env: ManagerBasedRLEnv, robot: Articulation, gripper_joint_ids: list[int]) -> torch.Tensor:
+    """Return per-joint open targets while preserving the legacy scalar gripper_open_val contract."""
+    if hasattr(env.cfg, "gripper_open_vals"):
+        open_vals = env.cfg.gripper_open_vals
+        if len(open_vals) != len(gripper_joint_ids):
+            raise ValueError("gripper_open_vals length must match gripper_joint_names")
+    else:
+        open_vals = [env.cfg.gripper_open_val] * len(gripper_joint_ids)
+
+    return torch.as_tensor(open_vals, dtype=robot.data.joint_pos.dtype, device=robot.data.joint_pos.device)
+
+
 def cubes_stacked(
     env: ManagerBasedRLEnv,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
@@ -77,23 +89,11 @@ def cubes_stacked(
         if hasattr(env.cfg, "gripper_joint_names"):
             gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
             assert len(gripper_joint_ids) == 2, "Terminations only support parallel gripper for now"
+            open_targets = _gripper_open_targets(env, robot, gripper_joint_ids)
+            gripper_pos = robot.data.joint_pos[:, gripper_joint_ids]
 
             stacked = torch.logical_and(
-                torch.isclose(
-                    robot.data.joint_pos[:, gripper_joint_ids[0]],
-                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
-                    atol=atol,
-                    rtol=rtol,
-                ),
-                stacked,
-            )
-            stacked = torch.logical_and(
-                torch.isclose(
-                    robot.data.joint_pos[:, gripper_joint_ids[1]],
-                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
-                    atol=atol,
-                    rtol=rtol,
-                ),
+                torch.all(torch.isclose(gripper_pos, open_targets, atol=atol, rtol=rtol), dim=1),
                 stacked,
             )
         else:
