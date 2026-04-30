@@ -34,65 +34,33 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
-
 import torch
 from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab_tasks.manager_based.piper.piper_ik_env_cfg import PiperEnvCfg
-
+# from isaaclab_tasks.manager_based.manipulation.place.config.agibot.place_toy2box_rmp_rel_env_cfg import RmpFlowAgibotPlaceToy2BoxEnvCfg
+from isaaclab_tasks.manager_based.piper_grab.grab_joint_pos_env_cfg import PiperGrabEnvCfg
 
 def main():
     """Main function."""
     # parse the arguments
-    env_cfg = PiperEnvCfg()
+    env_cfg = PiperGrabEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.sim.device = args_cli.device
     # setup base environment
     env = ManagerBasedRLEnv(cfg=env_cfg)
-    robot = env.scene["robot"]
+    # robot = env.scene["robot"]
 
-    # simulate physics
-    count = 0
-    # gripper_state 逻辑保持不变
-    gripper_state = 1  # 1 = open, -1 = close
-    device = env.device
-    
     while simulation_app.is_running():
         with torch.inference_mode():
             # reset
             if count % 300 == 0:
                 count = 0
                 env.reset()
-                print("-" * 80)
-                print("[INFO]: Resetting environment...")
-                gripper_state = -gripper_state
-                close_str = 'CLOSE' if gripper_state < 0 else 'OPEN'
-                print(f"[INFO]: Gripper command value = {gripper_state} ({close_str})")
-            
-            # IK relative_mode-6(True),7(False)
-            arm_actions = torch.zeros(env.num_envs, 6, device=device) 
-            arm_actions[:, 0] = 0.1
-            gripper_action = 10 * torch.full((env.num_envs, 1), gripper_state, device=device)
-
-            joint_actions = torch.cat([arm_actions, gripper_action], dim=1)
+                
+            joint_actions = torch.zeros_like(env.action_manager.action)
 
             # step the environment
             obs = env.step(joint_actions)
-
-            current_joint_pos = robot.data.joint_pos
-            gripper_pos = current_joint_pos[:, -2:] 
-            
-            if env.num_envs == 1:
-                pos_str = f"J7: {gripper_pos[0, 0]:.4f}, J8: {gripper_pos[0, 1]:.4f}"
-            else:
-                mean_pos = gripper_pos.mean(dim=0)
-                pos_str = f"Mean - J7: {mean_pos[0]:.4f}, J8: {mean_pos[1]:.4f}"
-            
-            if count % 100 == 0:
-                current_state = 'CLOSED' if gripper_state < 0 else 'OPENED'
-                print(f"[INFO]: Gripper State: {current_state} | "
-                      f"Actual Pos: {pos_str} | "
-                      f"Action sent: {arm_actions[0].cpu().numpy()}")
-            
+            # update counter
             count += 1
 
     # close the environment

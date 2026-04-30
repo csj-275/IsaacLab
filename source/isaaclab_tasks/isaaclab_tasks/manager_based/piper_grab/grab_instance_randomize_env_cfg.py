@@ -16,6 +16,7 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransf
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.managers import SceneEntityCfg
 
 from . import mdp
 
@@ -80,11 +81,12 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         object = ObsTerm(func=mdp.instance_randomize_object_obs)
-        cube_positions = ObsTerm(func=mdp.instance_randomize_cube_positions_in_world_frame)
-        cube_orientations = ObsTerm(func=mdp.instance_randomize_cube_orientations_in_world_frame)
-        eef_pos = ObsTerm(func=mdp.ee_frame_pos)
-        eef_quat = ObsTerm(func=mdp.ee_frame_quat)
-        gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        object_positions = ObsTerm(func=mdp.instance_randomize_object_positions_in_world_frame)
+        object_orientations = ObsTerm(func=mdp.instance_randomize_object_orientations_in_world_frame)
+        eef_pos = ObsTerm(func=mdp.ee_frame_pos, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
+        eef_quat = ObsTerm(func=mdp.ee_frame_quat, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
+        gripper_pos = ObsTerm(func=mdp.gripper_pos, params={"robot_cfg": SceneEntityCfg("robot")})
+
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -102,8 +104,8 @@ class TerminationsCfg:
 
 
 @configclass
-class StackInstanceRandomizeEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the stacking environment."""
+class GrabInstanceRandomizeEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the grabbing environment."""
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False)
@@ -114,11 +116,8 @@ class StackInstanceRandomizeEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
 
     # Unused managers
-    commands = None
-    rewards = None
     events = None
-    curriculum = None
-
+    rewards = None
     def __post_init__(self):
         """Post initialization."""
         # general settings

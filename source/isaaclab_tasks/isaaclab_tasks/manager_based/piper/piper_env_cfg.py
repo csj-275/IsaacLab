@@ -23,6 +23,13 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+
+# cube 
+from isaaclab.assets import RigidObjectCfg
+from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+
 
 from . import mdp
 
@@ -43,7 +50,8 @@ class PiperSceneCfg(InteractiveSceneCfg):
     # ground plane
     ground = AssetBaseCfg(
         prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+        spawn=GroundPlaneCfg(size=(100.0, 100.0)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0, 0, -1.05)),
     )
 
     # robot
@@ -55,11 +63,22 @@ class PiperSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
     )
 
+    # Table
+    table = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0, 0), rot=(0.707, 0, 0, 0.707)),
+        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+    )
+
+
+
+    
+    
 @configclass
 class ActionsCfg:
     """Action specifications for the environment."""
 
-    arm_actions = mdp.JointPositionActionCfg(
+    arm_action = mdp.JointPositionActionCfg(
         asset_name="robot", 
         joint_names=["joint[1-6]"],
         scale=1.0,
@@ -154,7 +173,7 @@ class PiperEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     # rewards: RewardsCfg = RewardsCfg()
     # terminations: TerminationsCfg = TerminationsCfg()
-    episode_length_s = 20.0 
+    
     rewards = None
     terminations = None
 
@@ -167,3 +186,4 @@ class PiperEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
+        self.episode_length_s = 20.0 

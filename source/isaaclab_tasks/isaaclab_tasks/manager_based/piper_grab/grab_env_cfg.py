@@ -7,9 +7,11 @@ from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.devices.openxr import XrCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
@@ -38,14 +40,14 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # Table
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0, 0], rot=[0.707, 0, 0, 0.707]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0, 0), rot=(0.707, 0, 0, 0.707)),
         spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
     )
 
-    # planez
+    # plane
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0, 0, -1.05)),
         spawn=GroundPlaneCfg(),
     )
 
@@ -68,6 +70,7 @@ class ActionsCfg:
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
 
 
+
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
@@ -79,12 +82,48 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        object = ObsTerm(func=mdp.instance_randomize_object_obs)
-        cube_positions = ObsTerm(func=mdp.instance_randomize_cube_positions_in_world_frame)
-        cube_orientations = ObsTerm(func=mdp.instance_randomize_cube_orientations_in_world_frame)
-        eef_pos = ObsTerm(func=mdp.ee_frame_pos)
-        eef_quat = ObsTerm(func=mdp.ee_frame_quat)
-        gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        object_1_positions = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "pos"},
+        )
+        object_1_orientations = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "quat"},
+        )
+        box_positions = ObsTerm(
+            func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"}
+        )
+        box_orientations = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
+        )
+        eef_pos = ObsTerm(func=mdp.ee_frame_pos, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
+        eef_quat = ObsTerm(func=mdp.ee_frame_quat, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
+        gripper_pos = ObsTerm(func=mdp.gripper_pos, params={"robot_cfg": SceneEntityCfg("robot")})
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    @configclass
+    class RGBCameraPolicyCfg(ObsGroup):
+        """Observations for policy group with RGB images."""
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    @configclass
+    class SubtaskCfg(ObsGroup):
+        """Observations for subtask group."""
+        grasp_1 = ObsTerm(
+            func=mdp.object_grasped,
+            params={
+                "robot_cfg": SceneEntityCfg("robot"),
+                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
+                "object_cfg": SceneEntityCfg("object_1"),
+            },
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -92,18 +131,35 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
-
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
+
+    # -0.85 
+    object_1_dropping = DoneTerm(
+        func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("object_1")}
+    )
+
+    success = DoneTerm(
+        func=mdp.object_a_is_into_b,
+        params={
+            "robot_cfg": SceneEntityCfg("robot"),
+            "object_a_cfg": SceneEntityCfg("object_1"),
+            "object_b_cfg": SceneEntityCfg("box"),
+            "xy_threshold": 0.10,
+            "height_diff": 0.06,
+            "height_threshold": 0.04,
+        },
+    )
 
 
 @configclass
-class StackInstanceRandomizeEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the stacking environment."""
+class GrabEnvCfg(ManagerBasedRLEnvCfg):
+    """Configuration for the grabbing environment."""
 
     # Scene settings
     scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False)
@@ -114,10 +170,8 @@ class StackInstanceRandomizeEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
 
     # Unused managers
-    commands = None
-    rewards = None
     events = None
-    curriculum = None
+    rewards = None
 
     def __post_init__(self):
         """Post initialization."""
@@ -126,7 +180,7 @@ class StackInstanceRandomizeEnvCfg(ManagerBasedRLEnvCfg):
         self.episode_length_s = 30.0
         # simulation settings
         self.sim.dt = 0.01  # 100Hz
-        self.sim.render_interval = self.decimation
+        self.sim.render_interval = 2
 
         self.sim.physx.bounce_threshold_velocity = 0.2
         self.sim.physx.bounce_threshold_velocity = 0.01

@@ -1,6 +1,6 @@
 # 项目记录
 ---
-## [A] 自定义机器人搭建流程
+## [A] 自定义机器人环境搭建流程
 ### 0.urdf转usd
 - 打开isaacsim, file->import导入urdfmanager_based
 - 在导入的机器人下的root_joint找到Articulation Root点击删除
@@ -22,3 +22,4 @@
 ---
 ## [B]机械臂末端控制
 `DifferentialInverseKinematicsActionCfg()`逆运动学控制，包括相对模式和绝对模式，相对模式给的是6维向量(位置增量+欧拉角增量)，绝对模式给的是7维向量(位置+四元数)
+
