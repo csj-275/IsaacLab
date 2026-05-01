@@ -13,7 +13,7 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 
 from isaaclab_tasks.manager_based.piper_grab import mdp
@@ -32,15 +32,15 @@ from isaaclab_assets.robots.piper import PIPER_CFG  # isort: skip
 class EventCfg:
     """Configuration for events."""
 
-    init_franka_arm_pose = EventTerm(
+    init_piper_arm_pose = EventTerm(
         func=piper_grab_events.set_default_joint_pose,
         mode="startup",
         params={
-            "default_pose": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "default_pose": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
         },
     )
 
-    randomize_franka_joint_state = EventTerm(
+    randomize_piper_joint_state = EventTerm(
         func=piper_grab_events.randomize_joint_by_gaussian_offset,
         mode="reset",
         params={
@@ -54,10 +54,20 @@ class EventCfg:
         func=piper_grab_events.randomize_rigid_objects_in_focus,
         mode="reset",
         params={
-            "asset_cfgs": [SceneEntityCfg("cube_1")],
+            "asset_cfgs": [SceneEntityCfg("object_1")],
             "out_focus_state": torch.tensor([10.0, 10.0, 10.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-            "pose_range": {"x": (0.4, 0.6), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
+            "pose_range": {"x": (0.2, 0.4), "y": (-0.12, 0.12), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
             "min_separation": 0.1,
+        },
+    )
+
+    randomize_box_positions = EventTerm(
+        func=piper_grab_events.randomize_object_pose,
+        mode="reset",
+        params={
+            "pose_range": {"x": (-0.1, 0.4), "y": (0.15, 0.35), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
+            "min_separation": 0.1,
+            "asset_cfgs": [SceneEntityCfg("box")],
         },
     )
 
@@ -107,7 +117,7 @@ class PiperGrabInstanceRandomizeEnvCfg(GrabInstanceRandomizeEnvCfg):
         cube_1_config_dict = {
             "blue_cube": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_1_Blue",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.0203), rot=(1, 0, 0, 0)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3, 0.0, 0.0203), rot=(1, 0, 0, 0)),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                     scale=(1.0, 1.0, 1.0),
@@ -116,43 +126,63 @@ class PiperGrabInstanceRandomizeEnvCfg(GrabInstanceRandomizeEnvCfg):
             ),
             "red_cube": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Cube_1_Red",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, 0.0, 0.0403), rot=(1, 0, 0, 0)),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3, 0.0, 0.0403), rot=(1, 0, 0, 0)),
                 spawn=UsdFileCfg(
                     usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/red_block.usd",
                     scale=(1.0, 1.0, 1.0),
                     rigid_props=cube_properties,
                 ),
             ),
+            "green_cube": RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Cube_1_Green",
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3, 0.0, 0.0603), rot=(1, 0, 0, 0)),
+                spawn=UsdFileCfg(
+                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/green_block.usd",
+                    scale=(1.0, 1.0, 1.0),
+                    rigid_props=cube_properties,
+                ),
+            )
         }
 
-
         self.scene.object_1 = RigidObjectCollectionCfg(rigid_objects=cube_1_config_dict)
+        
+        self.scene.box = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/BlueSortingBin",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.1, 0.3, 0.0203), rot=(1.0, 0.0, 0.0, 0.0)),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
+                scale=(0.4, 0.6, 1.5), # l, w, h
+                rigid_props=RigidBodyPropertiesCfg(),
+                semantic_tags=[("class", "box")],
+            ),
+        )
+
 
         # Listens to the required transforms
         marker_cfg = FRAME_MARKER_CFG.copy()
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/arm_base",
+            prim_path="{ENV_REGEX_NS}/Robot/piper_camera/arm_base",
             debug_vis=False,
             visualizer_cfg=marker_cfg,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/link6",
+                    prim_path="{ENV_REGEX_NS}/Robot/piper_camera/link6",
                     name="end_effector",
                     offset=OffsetCfg(
                         pos=(0.0, 0.0, 0.0),
                     ),
                 ),
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/link7",
+                    prim_path="{ENV_REGEX_NS}/Robot/piper_camera/link7",
                     name="tool_leftfinger",
                     offset=OffsetCfg(
                         pos=(0.0, 0.0, 0.135),
                     ),
                 ),
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/link8",
+                    prim_path="{ENV_REGEX_NS}/Robot/piper_camera/link8",
                     name="tool_rightfinger",
                     offset=OffsetCfg(
                         pos=(0.0, 0.0, 0.135),

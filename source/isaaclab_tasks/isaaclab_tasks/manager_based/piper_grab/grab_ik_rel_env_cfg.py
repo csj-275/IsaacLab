@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-# 未开始
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.devices.device_base import DeviceBase, DevicesCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
@@ -16,32 +14,31 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.manipulation.stack.stack_env_cfg import mdp
+from isaaclab_tasks.manager_based.piper_grab.grab_env_cfg import mdp
 
-from . import stack_joint_pos_env_cfg
+from . import grab_joint_pos_env_cfg
 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
-
+from isaaclab_assets.robots.piper import PIPER_CFG  # isort: skip
 
 @configclass
-class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
+class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
-        # Set Franka as robot
+        # Set Piper as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = PIPER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # [IK action]
-        # Set actions for the specific robot type (franka)
+        # Set actions for the specific robot type (piper)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
-            joint_names=["panda_joint.*"],
-            body_name="panda_hand",
+            joint_names=["joint[1-6]"],
+            body_name="link6",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=0.5,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
@@ -84,9 +81,7 @@ class FrankaCubeStackRedGreenEnvCfg(FrankaCubeStackEnvCfg):
 
         self.terminations.success = DoneTerm(
             func=mdp.cubes_stacked,
-            params={"cube_1_cfg": SceneEntityCfg("cube_2"), 
-                    "cube_2_cfg": SceneEntityCfg("cube_3"), 
-                    "cube_3_cfg": None},
+            params={"cube_1_cfg": SceneEntityCfg("cube_2"), "cube_2_cfg": SceneEntityCfg("cube_3"), "cube_3_cfg": None},
         )
 
 
@@ -114,9 +109,7 @@ class FrankaCubeStackBlueGreenEnvCfg(FrankaCubeStackEnvCfg):
 
         self.terminations.success = DoneTerm(
             func=mdp.cubes_stacked,
-            params={"cube_1_cfg": SceneEntityCfg("cube_1"), 
-                    "cube_2_cfg": SceneEntityCfg("cube_3"), 
-                    "cube_3_cfg": None},
+            params={"cube_1_cfg": SceneEntityCfg("cube_1"), "cube_2_cfg": SceneEntityCfg("cube_3"), "cube_3_cfg": None},
         )
 
 
@@ -130,7 +123,5 @@ class FrankaCubeStackBlueGreenRedEnvCfg(FrankaCubeStackEnvCfg):
             func=mdp.cubes_stacked,
             params={
                 "cube_1_cfg": SceneEntityCfg("cube_1"),
-                "cube_2_cfg": SceneEntityCfg("cube_3"),
-                "cube_3_cfg": SceneEntityCfg("cube_2"),
             },
         )

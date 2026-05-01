@@ -90,22 +90,88 @@ class Solution:
 
 ## 子串
 ### 560. 和为k的子数组
+> 需要复习
+
 给你一个整数数组 nums 和一个整数 k ，请你统计并返回 该数组中和为 k 的子数组的个数。子数组是数组中元素的连续非空序列。
 **示例 1：**
 输入：nums = [1,1,1], k = 2 输出：2
 **示例 2：**
 输入：nums = [1,2,3], k = 3 输出：2
+思路：转化为针对前缀和数组的两数之和问题，然后用哈希表
 ```python
+class Solution:
+    def subarraySum(self, nums: List[int], k: int) -> int:
+        presum = [0]*(len(nums)+1)
+        for i in range(1,len(nums)+1):
+            presum[i] = presum[i-1]+nums[i-1]
+        # if some i, j exist so that presum[i] - presum[j] = k then ans+=1
+        # presum[j] = presum[i] - k
+        ans = 0
+        st = dict()
+        for i in range(len(presum)):
+            target = presum[i] - k
+            if target in st:
+                ans += st[target]
+            st[presum[i]] = st.get(presum[i], 0) + 1
+            
 
-
+        return ans
 ```
+知识点：
+`st.get(key, default)`:第一个是查找的key，如果找不到不会报错，而是返回default
+
 ## 普通数组
 
 ## 矩阵
 
 ## 链表
 
+### 160.相交链表
+给你两个单链表的头节点`headA`和`headB`，请你找出并返回两个单链表相交的起始节点。如果两个链表不存在相交节点，返回`null`。
+题目数据保证整个链式结构中不存在环。
+注意，函数返回结果后，链表必须保持其原始结构 。
+自定义评测：
+评测系统 的输入如下（你设计的程序 不适用 此输入）：
+`intersectVal` - 相交的起始节点的值。如果不存在相交节点，这一值为 0
+`listA` - 第一个链表
+`listB` - 第二个链表
+`skipA` - 在 `listA` 中（从头节点开始）跳到交叉节点的节点数
+`skipB` - 在 `listB` 中（从头节点开始）跳到交叉节点的节点数
+评测系统将根据这些输入创建链式数据结构，并将两个头节点 `headA` 和 `headB` 传递给你的程序。如果程序能够正确返回相交节点，那么你的解决方案将被 视作正确答案 。
+**示例 1：**
+![alt text](image.png)
+输入：intersectVal = 8, listA = [4,1,8,4,5], listB = [5,6,1,8,4,5], skipA = 2, skipB = 3
+输出：Intersected at '8'
+解释：相交节点的值为 8 （注意，如果两个链表相交则不能为 0）。
+从各自的表头开始算起，链表 A 为 [4,1,8,4,5]，链表 B 为 [5,6,1,8,4,5]。
+在 A 中，相交节点前有 2 个节点；在 B 中，相交节点前有 3 个节点。
+— 请注意相交节点的值不为 1，因为在链表 A 和链表 B 之中值为 1 的节点 (A 中第二个节点和 B 中第三个节点) 是不同的节点。换句话说，它们在内存中指向两个不同的位置，而链表 A 和链表 B 中值为 8 的节点 (A 中第三个节点，B 中第四个节点) 在内存中指向相同的位置。
+``` python
+class Solution:
+    def getIntersectionNode(self, headA: ListNode, headB: ListNode) -> ListNode:
+        # 1. 边界情况：如果任一链表为空，不可能相交
+        if not headA or not headB:
+            return None
+        
+        # 2. 初始化双指针
+        pA, pB = headA, headB
+        
+        # 3. 只要两个指针不相等，就一直走
+        # 注意：如果相交，会在节点相遇；如果不相交，会在 null 相遇
+        while pA != pB:
+            # 如果 pA 走到头了，就跳到 B 的头；否则继续走下一步
+            pA = pA.next if pA else headB
+            
+            # 如果 pB 走到头了，就跳到 A 的头；否则继续走下一步
+            pB = pB.next if pB else headA
+            
+        # 4. 返回相遇点（可能是相交节点，也可能是 null）
+        return pA
+```
+
 ## 二叉树
+
+
 
 ## 图论
 
@@ -164,3 +230,54 @@ class Solution:
 ## 多维DP
 
 ## 技巧
+### 136.只出现一次的数字
+给你一个非空整数数组`nums`，除了某个元素只出现一次以外，其余每个元素均出现两次。找出那个只出现了一次的元素。
+你必须设计并实现线性时间复杂度的算法来解决此问题，且该算法只使用常量额外空间。
+**示例 1 ：**
+输入：nums = [2,2,1] 输出：1
+输入：nums = [4,1,2,1,2] 输出：4
+``` python
+class Solution:
+    def singleNumber(self, nums: List[int]) -> List[int]:
+        x = 0
+        for num in nums:  # 1. 遍历 nums 执行异或运算
+            x ^= num      
+        return x;         # 2. 返回出现一次的数字 x
+
+```
+知识点：相同为0, 不同为1，用异或
+
+### 169.多数元素
+给定一个大小为`n`的数组`nums`，返回其中的多数元素。多数元素是指在数组中出现次数 大于`⌊ n/2 ⌋`的元素。
+你可以假设数组是非空的，并且给定的数组总是存在多数元素。
+**示例 1：**
+输入：nums = [3,2,3] 输出：3
+输入：nums = [2,2,1,1,1,2,2] 输出：2
+``` python
+class Solution:
+    def majorityElement(self, nums: List[int]) -> int:
+        votes = 0
+        for num in nums:
+            if votes == 0: x = num
+            votes += 1 if num == x else -1
+        return x
+
+```
+
+### 75.颜色分类
+给定一个包含红色、白色和蓝色、共`n`个元素的数组`nums`，原地对它们进行排序，使得相同颜色的元素相邻，并按照红色、白色、蓝色顺序排列。
+我们使用整数 0、 1 和 2 分别表示红色、白色和蓝色。
+必须在不使用库内置的`sort`函数的情况下解决这个问题。
+**示例 1：**
+输入：nums = [2,0,2,1,1,0] 输出：[0,0,1,1,2,2]
+``` python
+class Solution:
+    def sortColors(self, nums: List[int]) -> None:
+        """
+        Do not return anything, modify nums in-place instead.
+        """
+        x = 0
+        n = len(nums)
+        for i in range(n):
+            x and num[i]
+```

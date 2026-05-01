@@ -1,20 +1,3 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
-"""
-This script demonstrates how to create a simple environment with a cartpole. It combines the concepts of
-scene, action, observation and event managers to create an environment.
-
-.. code-block:: bash
-
-    ./isaaclab.sh -p scripts/tutorials/03_envs/create_piper_base_env.py --num_envs 32
-
-"""
-
-"""Launch Isaac Sim Simulator first."""
-
 
 import argparse
 
@@ -36,18 +19,20 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 import torch
 from isaaclab.envs import ManagerBasedRLEnv
-# from isaaclab_tasks.manager_based.manipulation.place.config.agibot.place_toy2box_rmp_rel_env_cfg import RmpFlowAgibotPlaceToy2BoxEnvCfg
-from isaaclab_tasks.manager_based.piper_grab.grab_joint_pos_instance_randomize_env_cfg import PiperGrabInstanceRandomizeEnvCfg
+from isaaclab_tasks.manager_based.wheel_futura_pendulum.wheel_futura_pendulum_env_cfg import WheelFuturaPendulumEnvCfg
+
 
 def main():
     """Main function."""
     # parse the arguments
-    env_cfg = PiperGrabInstanceRandomizeEnvCfg()
+    env_cfg = WheelFuturaPendulumEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.sim.device = args_cli.device
     # setup base environment
     env = ManagerBasedRLEnv(cfg=env_cfg)
-    # robot = env.scene["robot"]
+    robot = env.scene["robot"]
+
+    # simulate physics
     count = 0
     while simulation_app.is_running():
         with torch.inference_mode():
@@ -55,11 +40,12 @@ def main():
             if count % 300 == 0:
                 count = 0
                 env.reset()
-                
-            joint_actions = torch.zeros_like(env.action_manager.action)
+                print("-" * 80)
+                print("[INFO]: Resetting environment...")
 
+            joint_efforts = torch.randn_like(env.action_manager.action)
             # step the environment
-            obs = env.step(joint_actions)
+            obs = env.step(joint_efforts)
             # update counter
             count += 1
 
