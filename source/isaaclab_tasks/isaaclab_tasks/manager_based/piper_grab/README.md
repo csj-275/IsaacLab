@@ -1,11 +1,11 @@
 ## 仿真数据生成——任务规划
 1. piper关节空间控制: `piper_env_cfg` - 完成
 2. piper任务空间控制: `piper_ik_env_cfg` - 完成
-3. grab任务的mdp观测与终止条件: `mdp.observations`, `mdp.terminations` - 未测试
-4. grab环境: `grab_env_cfg` - 未测试
-5. grab环境随机化: `grab_instance_randomize_env_cfg` - 未测试  offset需要check
-6. piper关节空间的grab环境： `grab_joint_pos_env_cfg` - 未测试 
-7. piper关节空间的grab环境随机化： `grab_joint_pos_instance_randomize_env_cfg` - 未测试 
+3. grab任务的mdp观测与终止条件: `mdp.observations`, `mdp.terminations` - 完成
+4. grab环境: `grab_env_cfg` - 完成 
+5. grab环境随机化: `grab_instance_randomize_env_cfg` - 完成  
+6. piper关节空间的grab环境： `grab_joint_pos_env_cfg` - 初步完成测试 - offset need to check
+7. piper关节空间的grab环境随机化： `grab_joint_pos_instance_randomize_env_cfg` - 初步完成测试 
 8. piper任务空间的grab环境： `grab_ik_env_cfg` - 进行中
 9. piper任务空间的grab环境随机化 - 待做
 10. piper抓取随机物体演示 - 待做

@@ -58,6 +58,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
 
+
 ##
 # MDP settings
 ##

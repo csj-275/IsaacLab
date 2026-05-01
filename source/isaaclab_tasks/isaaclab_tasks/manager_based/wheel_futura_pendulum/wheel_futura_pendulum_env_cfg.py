@@ -16,7 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
-
+import math
 from . import mdp
 
 ##
@@ -25,11 +25,9 @@ from . import mdp
 
 from isaaclab_assets import WHEEL_FUTURA_PENDULUM_CFG  # isort:skip
 
-
 ##
 # Scene definition
 ##
-
 
 @configclass
 class WheelFuturaPendulumSceneCfg(InteractiveSceneCfg):
@@ -46,8 +44,6 @@ class WheelFuturaPendulumSceneCfg(InteractiveSceneCfg):
     # articulation
     robot: ArticulationCfg = WHEEL_FUTURA_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
-
-
 ##
 # MDP settings
 ##
@@ -59,8 +55,7 @@ class ActionsCfg:
     joint_effort = mdp.JointEffortActionCfg(
         asset_name="robot", 
         joint_names=["wheel_joint"], 
-        scale=100.0)
-
+        scale=10.0)
 
 @configclass
 class ObservationsCfg:
@@ -69,12 +64,11 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-
         # observation terms (order preserved)
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
         # target pos
-        target_pos = ObsTerm(func=mdp.return_target_joint_pos)
+        # target_pos = ObsTerm(func=mdp.return_target_joint_pos)
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -87,18 +81,35 @@ class ObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for events."""
-    reset_all = EventTerm(
-        func=mdp.randomize_initial_state_and_target,
+    reset_joint1_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]", "wheel_joint"]),
-            "pos_range": (-0.3, 0.3),
-            "vel_range": (-0.5, 0.5),
-            "target_range": (-1.0, 1.0),
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint1"]),
+            "position_range": (-1.0*math.pi, 1.0*math.pi),
+            "velocity_range": (-0.5*math.pi, 0.5*math.pi),
         },
     )
 
+    reset_joint2_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["joint2"]),
+            "position_range": (-1.0*math.pi, 1.0*math.pi),
+            "velocity_range": (-0.5*math.pi, 0.5*math.pi),
+        },
+    )
 
+    reset_wheel_position = EventTerm(
+        func=mdp.reset_joints_by_offset,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=["wheel_joint"]),
+            "position_range": (-0.1, 0.1),
+            "velocity_range": (-0.5, 0.5),
+        },
+    )
 
 @configclass
 class RewardsCfg:
@@ -108,22 +119,28 @@ class RewardsCfg:
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
     # primary task：minimize the error
     tracking_error = RewTerm(
-        func=mdp.joint_pos_error_l2,
-        weight=-10.0,
+        func=mdp.joint_pos_target_l2,
+        weight=-5.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["joint1"])},
+    )
+
+    tracking_error = RewTerm(
+        func=mdp.joint_pos_target_l2,
+        weight=-5.0,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["joint2"]), "target": -math.pi},
+    )
+
+    # 速度惩罚，抑制残余振荡
+    joint_vel = RewTerm(
+        func=mdp.joint_vel_l2,
+        weight=-0.005,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["joint[1-2]"])},
     )
 
-    # 辅助：动作平滑惩罚（抑致力矩剧烈变化）
-    action_rate = RewTerm(
-        func=mdp.action_rate_l2,
-        weight=-0.01,
-    )
-
-    # 可选：速度惩罚，抑制残余振荡
     joint_vel = RewTerm(
         func=mdp.joint_vel_l2,
-        weight=-0.001,
-        params={"asset_cfg": SceneEntityCfg("robot")},
+        weight=-0.005,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["wheel_joint"])},
     )
 
 
@@ -136,7 +153,6 @@ class TerminationsCfg:
 ##
 # Environment configuration
 ##
-
 
 @configclass
 class WheelFuturaPendulumEnvCfg(ManagerBasedRLEnvCfg):

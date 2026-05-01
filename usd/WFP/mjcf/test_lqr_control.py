@@ -91,7 +91,7 @@ def clear_record():
     open(filename1, 'w').close()
     open(filename2, 'w').close()
 
-model = mujoco.MjModel.from_xml_path("mjcf/scene.xml")
+model = mujoco.MjModel.from_xml_path("scene.xml")
 data = mujoco.MjData(model)
 data.qpos = np.array([1.5, 0, 0])  # 初始化位置 dq1 dq2 dq0
 
