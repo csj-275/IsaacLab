@@ -37,7 +37,7 @@ from . import mdp
 # Pre-defined configs
 ##
 
-from isaaclab_assets.robots.piper import PIPER_CFG  # isort:skip
+from isaaclab_assets.robots.piper import PIPER_HIGH_PD_CFG  # isort:skip
 
 ##
 # Scene definition
@@ -55,7 +55,7 @@ class PiperSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot: ArticulationCfg = PIPER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = PIPER_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
     
     # lights
     dome_light = AssetBaseCfg(

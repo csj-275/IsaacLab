@@ -21,7 +21,7 @@ from . import grab_joint_pos_env_cfg
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.piper import PIPER_CFG  # isort: skip
+from isaaclab_assets.robots.piper import PIPER_HIGH_PD_CFG  # isort: skip
 
 @configclass
 class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
@@ -31,7 +31,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
         # Set Piper as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = PIPER_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = PIPER_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # [IK action]
         # Set actions for the specific robot type (piper)
@@ -42,7 +42,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=0.5,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
-        )
+        ) # 0.135/0.107 未测试
 
         self.teleop_devices = DevicesCfg(
             devices={
@@ -70,58 +70,4 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     sim_device=self.sim.device,
                 ),
             }
-        )
-
-
-@configclass
-class FrankaCubeStackRedGreenEnvCfg(FrankaCubeStackEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-
-        self.terminations.success = DoneTerm(
-            func=mdp.cubes_stacked,
-            params={"cube_1_cfg": SceneEntityCfg("cube_2"), "cube_2_cfg": SceneEntityCfg("cube_3"), "cube_3_cfg": None},
-        )
-
-
-@configclass
-class FrankaCubeStackRedGreenBlueEnvCfg(FrankaCubeStackEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-
-        self.terminations.success = DoneTerm(
-            func=mdp.cubes_stacked,
-            params={
-                "cube_1_cfg": SceneEntityCfg("cube_2"),
-                "cube_2_cfg": SceneEntityCfg("cube_3"),
-                "cube_3_cfg": SceneEntityCfg("cube_1"),
-            },
-        )
-
-
-@configclass
-class FrankaCubeStackBlueGreenEnvCfg(FrankaCubeStackEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-
-        self.terminations.success = DoneTerm(
-            func=mdp.cubes_stacked,
-            params={"cube_1_cfg": SceneEntityCfg("cube_1"), "cube_2_cfg": SceneEntityCfg("cube_3"), "cube_3_cfg": None},
-        )
-
-
-@configclass
-class FrankaCubeStackBlueGreenRedEnvCfg(FrankaCubeStackEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-
-        self.terminations.success = DoneTerm(
-            func=mdp.cubes_stacked,
-            params={
-                "cube_1_cfg": SceneEntityCfg("cube_1"),
-            },
         )

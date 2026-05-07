@@ -63,3 +63,11 @@ PIPER_CFG = ArticulationCfg(
     soft_joint_pos_limit_factor=1.0,
 )
 """Configuration of piper robot."""
+
+PIPER_HIGH_PD_CFG = PIPER_CFG.copy()
+PIPER_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
+PIPER_HIGH_PD_CFG.actuators["piper_joint"].stiffness = 400.0
+PIPER_HIGH_PD_CFG.actuators["piper_joint"].damping = 80.0
+PIPER_HIGH_PD_CFG.actuators["piper_gripper"].stiffness = 400.0
+PIPER_HIGH_PD_CFG.actuators["piper_gripper"].damping = 80.0
+"""Configuration of piper robot with stiffer PD control"""

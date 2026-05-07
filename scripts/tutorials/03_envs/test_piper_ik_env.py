@@ -44,7 +44,7 @@ def main():
     """Main function."""
     # parse the arguments
     env_cfg = PiperEnvCfg()
-    env_cfg.scene.num_envs = args_cli.num_envs
+    env_cfg.scene.num_envs = 1
     env_cfg.sim.device = args_cli.device
     # setup base environment
     env = ManagerBasedRLEnv(cfg=env_cfg)

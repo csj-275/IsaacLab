@@ -45,6 +45,46 @@ def object_poses_in_base_frame(
         return torch.cat((pos_object_base, quat_object_base), dim=1)
 
 
+
+def object_obs(
+    env: ManagerBasedRLEnv,
+    object_1_cfg: SceneEntityCfg = SceneEntityCfg("object_1"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+):
+    """
+    Object observations (in world frame):
+        cube_1 pos,
+        cube_1 quat,
+        cube_2 pos,
+        cube_2 quat,
+        cube_3 pos,
+        cube_3 quat,
+        gripper to cube_1,
+        gripper to cube_2,
+        gripper to cube_3,
+        cube_1 to cube_2,
+        cube_2 to cube_3,
+        cube_1 to cube_3,
+    """
+    object_1: RigidObject = env.scene[object_1_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+
+    object_1_pos_w = object_1.data.root_pos_w
+    object_1_quat_w = object_1.data.root_quat_w
+
+
+    ee_pos_w = ee_frame.data.target_pos_w[:, 0, :]
+    gripper_to_object_1 = object_1_pos_w - ee_pos_w
+
+    return torch.cat(
+        (
+            object_1_pos_w - env.scene.env_origins,
+            object_1_quat_w,
+            gripper_to_object_1,
+        ),
+        dim=1,
+    )
+
 def object_grasped(
     env: ManagerBasedRLEnv,
     robot_cfg: SceneEntityCfg,
@@ -200,8 +240,6 @@ def instance_randomize_object_orientations_in_world_frame(
     object_1_quat_w = torch.stack(object_1_quat_w)
 
     return object_1_quat_w
-
-
 
 def instance_randomize_object_obs(
     env: ManagerBasedRLEnv,

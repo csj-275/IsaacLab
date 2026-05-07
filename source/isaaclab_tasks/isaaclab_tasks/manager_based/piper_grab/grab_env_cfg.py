@@ -100,7 +100,8 @@ class ObservationsCfg:
         eef_pos = ObsTerm(func=mdp.ee_frame_pos, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
         eef_quat = ObsTerm(func=mdp.ee_frame_quat, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
         gripper_pos = ObsTerm(func=mdp.gripper_pos, params={"robot_cfg": SceneEntityCfg("robot")})
-
+        object = ObsTerm(func=mdp.object_obs)
+        
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False

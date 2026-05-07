@@ -5,11 +5,11 @@
 4. grab环境: `grab_env_cfg` - 完成 
 5. grab环境随机化: `grab_instance_randomize_env_cfg` - 完成  
 6. piper关节空间的grab环境： `grab_joint_pos_env_cfg` - 初步完成测试 - offset need to check
-7. piper关节空间的grab环境随机化： `grab_joint_pos_instance_randomize_env_cfg` - 初步完成测试 
-8. piper任务空间的grab环境： `grab_ik_env_cfg` - 进行中
-9. piper任务空间的grab环境随机化 - 待做
-10. piper抓取随机物体演示 - 待做
-11. piper抓取随机物体相机添加 - 待做
+7. piper关节空间的grab环境随机化：`grab_joint_pos_instance_randomize_env_cfg` - 完成
+8. piper任务空间的grab环境： `grab_ik_rel_env_cfg` - 完成
+9. piper任务空间的grab环境随机化：`grab_ik_rel_instance_randomize_env_cfg` - 完成
+10. piper视觉驱动的grab环境：`grab_ik_rel_visuomotor_env_cfg` - 完成
+11. piper抓取随机物体演示 - 待做
 12. piper抓取数据集制作 - 待做
 - 参考`scripts/tools/record_demos.py`
 13. 数据标注

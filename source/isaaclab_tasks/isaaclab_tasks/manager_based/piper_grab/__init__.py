@@ -12,11 +12,58 @@ from . import agents
 ##
 
 
+##
+# Joint Position Control
+##
+
 gym.register(
     id="Isaac-Piper-Grab-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.piper_grab_env_cfg:grab_joint_pos_env_cfg",
+        "env_cfg_entry_point": f"{__name__}.grab_joint_pos_env_cfg:PiperGrabEnvCfg",
     },
 )
+
+gym.register(
+    id="Isaac-Piper-Instance-Randomize-Grab-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.grab_ik_rel_instance_randomize_env_cfg:PiperGrabInstanceRandomizeEnvCfg",
+    },
+)
+
+##
+# Inverse Kinematics - Relative Pose Control
+##
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.grab_ik_rel_env_cfg:PiperGrabEnvCfg",
+    },
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Instance-Randomize-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.grab_ik_rel_instance_randomize_env_cfg:PiperGrabInstanceRandomizeEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+    },
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.grab_ik_rel_visuomotor_env_cfg:PiperGrabVisuomotorEnvCfg",
+    },
+)
+
+

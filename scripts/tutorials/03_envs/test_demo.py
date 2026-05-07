@@ -37,12 +37,16 @@ simulation_app = app_launcher.app
 import torch
 from isaaclab.envs import ManagerBasedRLEnv
 # from isaaclab_tasks.manager_based.manipulation.place.config.agibot.place_toy2box_rmp_rel_env_cfg import RmpFlowAgibotPlaceToy2BoxEnvCfg
-from isaaclab_tasks.manager_based.piper_grab.grab_joint_pos_instance_randomize_env_cfg import PiperGrabInstanceRandomizeEnvCfg
+from isaaclab_tasks.manager_based.piper_grab.grab_ik_rel_env_cfg import PiperGrabEnvCfg
+# from isaaclab_tasks.manager_based.piper_grab.grab_joint_pos_env_cfg import PiperGrabEnvCfg
+# from isaaclab_tasks.manager_based.manipulation.reach.config.franka.ik_rel_env_cfg import FrankaReachEnvCfg
+from isaaclab_tasks.manager_based.piper_grab.grab_ik_rel_visuomotor_env_cfg import PiperGrabVisuomotorEnvCfg
+
 
 def main():
     """Main function."""
     # parse the arguments
-    env_cfg = PiperGrabInstanceRandomizeEnvCfg()
+    env_cfg = PiperGrabVisuomotorEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.sim.device = args_cli.device
     # setup base environment
@@ -55,7 +59,12 @@ def main():
             if count % 300 == 0:
                 count = 0
                 env.reset()
-                
+            
+            # arm_actions = torch.zeros(env.num_envs, 6) 
+            # arm_actions[:, 0] = 0.0
+            # gripper_action = 10 * torch.full((env.num_envs, 1), 0)
+            # joint_actions = torch.cat([arm_actions, gripper_action], dim=1)
+
             joint_actions = torch.zeros_like(env.action_manager.action)
 
             # step the environment

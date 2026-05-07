@@ -31,6 +31,6 @@ class PiperEnvCfg(piper_env_cfg.PiperEnvCfg):
                 ),
                 scale=0.5,
                 body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(
-                    pos=(0.0, 0.0, 0.135)
+                    pos=(0.0, 0.0, 0.0)
                 ),
             )
