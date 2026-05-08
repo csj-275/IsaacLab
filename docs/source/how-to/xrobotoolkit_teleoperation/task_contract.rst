@@ -56,6 +56,18 @@ Piper 示例任务
 
    source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/piper/stack_ik_rel_env_cfg.py
 
+机器人资产配置位于：
+
+.. code:: text
+
+   source/isaaclab_assets/isaaclab_assets/robots/piper.py
+
+Piper URDF 和 mesh 资产位于：
+
+.. code:: text
+
+   source/isaaclab_assets/isaaclab_assets/data/piper
+
 该任务已经配置：
 
 * Piper 机械臂与夹爪 action。
@@ -75,4 +87,3 @@ Piper 示例任务
 
 如果实际机器人效果与该语义不一致，应先使用映射诊断日志确认输入、映射和机器人效果，
 不要直接修改任务 action 或控制器名称。
-

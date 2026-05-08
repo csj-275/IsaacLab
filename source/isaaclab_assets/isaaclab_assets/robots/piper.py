@@ -11,6 +11,9 @@ The following configurations are available:
 * :obj:`PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG`: Piper standard arm with stiffer PD control for IK.
 """
 
+import os
+from pathlib import Path
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -19,13 +22,28 @@ from isaaclab.assets.articulation import ArticulationCfg
 # Configuration
 ##
 
-PIPER_STANDARD_WITH_GRIPPER_URDF = (
-    "/workspace/piper_isaac_sim/piper_description/urdf/piper_description_v100_realsense_camera_v2.urdf"
+PIPER_ASSET_ROOT = Path(__file__).resolve().parents[1] / "data" / "piper"
+"""Repository-local root containing Piper URDF packages and meshes."""
+
+PIPER_STANDARD_WITH_GRIPPER_URDF = str(
+    PIPER_ASSET_ROOT / "piper_description" / "urdf" / "piper_description_v100_realsense_camera_v2.urdf"
 )
 """URDF path for the standard Piper variant with gripper and RealSense camera links."""
 
 PIPER_USD_CONVERSION_DIR = "/tmp/isaaclab_piper_assets"
 """Output directory for the generated Piper USD."""
+
+
+def _prepend_ros_package_path(path: Path) -> None:
+    """Expose repository-local URDF packages for package:// mesh resolution."""
+    path_text = str(path)
+    current = os.environ.get("ROS_PACKAGE_PATH", "")
+    entries = [entry for entry in current.split(os.pathsep) if entry]
+    if path_text not in entries:
+        os.environ["ROS_PACKAGE_PATH"] = os.pathsep.join([path_text, *entries])
+
+
+_prepend_ros_package_path(PIPER_ASSET_ROOT)
 
 
 PIPER_STANDARD_WITH_GRIPPER_CFG = ArticulationCfg(

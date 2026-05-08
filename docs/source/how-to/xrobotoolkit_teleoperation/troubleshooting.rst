@@ -18,6 +18,22 @@
 
    ./isaaclab.sh -p -m pip install --no-deps -e /home/kongqingwei/XRoboToolkit-Teleop-Sample-Python
 
+Piper URDF mesh 解析失败
+------------------------
+
+现象：
+
+.. code:: text
+
+   package://piper_description/...
+   package://realsense2_description/...
+
+处理：
+
+* 确认仓库内存在 ``source/isaaclab_assets/isaaclab_assets/data/piper``。
+* 确认运行环境导入的是当前 checkout 的 ``isaaclab_assets``，而不是旧安装包。
+* 正常导入 ``isaaclab_assets.robots.piper`` 时会自动把该目录加入 ``ROS_PACKAGE_PATH``。
+
 绝对模式缺少末端 frame
 ----------------------
 
@@ -82,4 +98,3 @@
 * 松开 ``right_grip`` 后重新按住，重新捕获参考位姿。
 * 按 ``A`` 触发环境 reset。
 * 检查任务 ``ee_frame`` 是否指向真实末端执行器，而不是中间 link。
-

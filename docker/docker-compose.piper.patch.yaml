@@ -7,5 +7,5 @@ services:
   isaac-lab-base:
     volumes:
       - type: bind
-        source: ../../piper_isaac_sim
+        source: ../source/isaaclab_assets/isaaclab_assets/data/piper
         target: /workspace/piper_isaac_sim

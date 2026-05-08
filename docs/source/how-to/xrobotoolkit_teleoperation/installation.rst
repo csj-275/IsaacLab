@@ -21,6 +21,19 @@ XRoboToolkit 仓库的完整依赖集合解析进 Isaac Lab 环境。
 如果运行时提示缺少 ``xrobotoolkit_sdk``，只把 XRoboToolkit PC Service Pybind 包安装到
 Isaac Lab Python 环境中。不要优先使用 XRoboToolkit 仓库的完整环境安装脚本覆盖 Isaac Lab 环境。
 
+Piper 资产
+----------
+
+Piper 示例任务使用的 URDF、mesh 和 RealSense 描述已经放在当前仓库内：
+
+.. code:: text
+
+   source/isaaclab_assets/isaaclab_assets/data/piper
+
+``isaaclab_assets.robots.piper`` 会把该目录加入 ``ROS_PACKAGE_PATH``，用于解析 URDF 中的
+``package://piper_description`` 和 ``package://realsense2_description`` mesh 引用。
+使用 Piper 示例任务不再需要额外挂载或下载 ``/workspace/piper_isaac_sim``。
+
 快速检查
 --------
 
@@ -48,5 +61,4 @@ Pixi 任务
 
 * ``--no-deps -e`` 只负责让 Isaac Lab Python 能 import XRoboToolkit 源码。
 * XRoboToolkit PC 服务、头显端应用、控制器输入、网络连通性不由上述命令启动。
-* 若 Isaac Lab 在 Docker 容器中运行，容器内也需要能访问本地 XRoboToolkit 源码路径。
-
+* 若 Isaac Lab 在 Docker 容器中运行，容器内仍需要能访问本地 XRoboToolkit 源码路径。
