@@ -161,6 +161,19 @@ with directional force feedback in Isaac Lab.
     haply_teleoperation
 
 
+Setting up XRoboToolkit Teleoperation
+-------------------------------------
+
+This guide explains how to use XRoboToolkit as an Isaac Lab teleoperation device,
+including Piper task setup, demonstration recording, wrist-camera video streaming,
+and coordinate mapping diagnostics.
+
+.. toctree::
+    :maxdepth: 1
+
+    xrobotoolkit_teleoperation/index
+
+
 Understanding Simulation Performance
 ------------------------------------
 
