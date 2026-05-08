@@ -121,9 +121,10 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                 horizontal_aperture=20.955,
                 clipping_range=(0.1, 2.0),
             ),
+            # Convert the URDF RealSense camera_link frame to the optical frame expected by IsaacLab cameras.
             offset=CameraCfg.OffsetCfg(
                 pos=(0.0, 0.0, 0.0),
-                rot=(1.0, 0.0, 0.0, 0.0),
+                rot=(0.5, -0.5, 0.5, -0.5),
                 convention="ros",
             ),
         )

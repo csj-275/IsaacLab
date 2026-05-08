@@ -161,6 +161,39 @@ def test_reject_non_zed_camera_type():
         server.handle_protocol(protocol)
 
 
+def test_loopback_video_request_uses_control_peer_host():
+    server = video.XRoboToolkitVideoStreamServer(
+        "127.0.0.1:0",
+        strict_camera_type="ZED",
+        encoder_factory=FakeEncoder,
+    )
+    request = video.CameraRequestData(4, 3, 30, 4_000_000, 0, 0, 12345, "ZED", "127.0.0.1")
+
+    resolved = server._with_control_peer_host(request, "192.168.1.10")
+
+    assert resolved.ip == "192.168.1.10"
+
+
+def test_ffmpeg_encoder_command_outputs_yuv420p(monkeypatch):
+    class FakeImageioFfmpeg:
+        @staticmethod
+        def get_ffmpeg_exe():
+            return "ffmpeg"
+
+    monkeypatch.setitem(sys.modules, "imageio_ffmpeg", FakeImageioFfmpeg)
+    encoder = video.FFmpegVideoEncoder.__new__(video.FFmpegVideoEncoder)
+    encoder.width = 4
+    encoder.height = 3
+    encoder.fps = 30
+    encoder.bitrate = 4_000_000
+    encoder.use_hevc = False
+
+    command = encoder._make_command()
+
+    pix_fmt_indices = [index for index, value in enumerate(command) if value == "-pix_fmt"]
+    assert command[pix_fmt_indices[-1] + 1] == "yuv420p"
+
+
 def test_length_prefix_payload_uses_big_endian_size():
     packet = video.length_prefix_payload(b"abc")
 

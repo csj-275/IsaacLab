@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_LISTEN_ADDRESS = "0.0.0.0:13579"
 MAX_CONTROL_BODY_BYTES = 1_048_576
+LOOPBACK_VIDEO_HOSTS = {"", "0.0.0.0", "127.0.0.1", "::1", "localhost"}
 
 
 class ProtocolError(ValueError):
@@ -332,6 +333,8 @@ class FFmpegVideoEncoder:
             "0",
             f"-{params_name}",
             params_value,
+            "-pix_fmt",
+            "yuv420p",
             "-f",
             stream_format,
             "pipe:1",
@@ -482,7 +485,7 @@ class XRoboToolkitVideoStreamServer:
             if not thread.is_alive():
                 self._stream_thread = None
 
-    def handle_protocol(self, protocol: NetworkDataProtocol) -> None:
+    def handle_protocol(self, protocol: NetworkDataProtocol, *, peer_host: str | None = None) -> None:
         """Handle a decoded XRoboToolkit control command."""
         if protocol.command == "OPEN_CAMERA":
             request = parse_camera_request(protocol.data)
@@ -490,9 +493,10 @@ class XRoboToolkitVideoStreamServer:
                 raise ProtocolError(
                     f"unsupported camera type {request.camera!r}; expected {self.strict_camera_type!r}"
                 )
-            self._start_stream(self._with_defaults(request))
+            self._start_stream(self._with_control_peer_host(self._with_defaults(request), peer_host))
         elif protocol.command == "CLOSE_CAMERA":
             logger.info("received CLOSE_CAMERA")
+            print("XRoboToolkit CLOSE_CAMERA received")
             self.stop_stream()
         else:
             raise ProtocolError(f"unknown command {protocol.command!r}")
@@ -505,6 +509,18 @@ class XRoboToolkitVideoStreamServer:
             fps=request.fps if request.fps > 0 else self.default_fps,
             bitrate=request.bitrate if request.bitrate > 0 else self.default_bitrate,
         )
+
+    def _with_control_peer_host(self, request: CameraRequestData, peer_host: str | None) -> CameraRequestData:
+        if peer_host is None or request.ip not in LOOPBACK_VIDEO_HOSTS or peer_host in LOOPBACK_VIDEO_HOSTS:
+            return request
+
+        logger.warning(
+            "OPEN_CAMERA requested loopback video host %s; using control peer host %s instead",
+            request.ip,
+            peer_host,
+        )
+        print(f"XRoboToolkit OPEN_CAMERA requested loopback host {request.ip}; using {peer_host}")
+        return replace(request, ip=peer_host)
 
     def _start_stream(self, request: CameraRequestData) -> None:
         if request.port <= 0 or request.port > 65535:
@@ -534,6 +550,11 @@ class XRoboToolkitVideoStreamServer:
             request.port,
             request.camera,
         )
+        print(
+            "XRoboToolkit OPEN_CAMERA: "
+            f"{request.width}x{request.height}@{request.fps} bitrate={request.bitrate} "
+            f"target={request.ip}:{request.port} camera={request.camera}"
+        )
 
     def _serve_loop(self) -> None:
         while not self._control_stop_event.is_set():
@@ -546,13 +567,15 @@ class XRoboToolkitVideoStreamServer:
                 break
 
             logger.info("XRoboToolkit video control client connected from %s:%d", addr[0], addr[1])
+            print(f"XRoboToolkit video control client connected from {addr[0]}:{addr[1]}")
             try:
-                self._handle_client(conn)
+                self._handle_client(conn, peer_host=addr[0])
             finally:
                 self.stop_stream()
                 logger.info("XRoboToolkit video control client disconnected")
+                print("XRoboToolkit video control client disconnected")
 
-    def _handle_client(self, conn: socket.socket) -> None:
+    def _handle_client(self, conn: socket.socket, *, peer_host: str | None = None) -> None:
         buffer = bytearray()
         conn.settimeout(0.2)
         with conn:
@@ -577,7 +600,7 @@ class XRoboToolkitVideoStreamServer:
 
                 for protocol in protocols:
                     try:
-                        self.handle_protocol(protocol)
+                        self.handle_protocol(protocol, peer_host=peer_host)
                     except ProtocolError as exc:
                         logger.warning("ignored XRoboToolkit video control command: %s", exc)
 
@@ -590,6 +613,7 @@ class XRoboToolkitVideoStreamServer:
             with socket.create_connection((request.ip, request.port), timeout=5.0) as stream_socket:
                 stream_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 logger.info("connected XRoboToolkit video stream to %s:%d", request.ip, request.port)
+                print(f"XRoboToolkit video stream connected to {request.ip}:{request.port}")
                 while not self._stream_stop_event.is_set():
                     loop_start = time.perf_counter()
                     last_sequence, frame = self._frame_buffer.wait_next(last_sequence, timeout=0.5)
