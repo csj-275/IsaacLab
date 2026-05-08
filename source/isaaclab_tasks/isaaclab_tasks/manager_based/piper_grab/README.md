@@ -1,5 +1,5 @@
 ## 仿真数据生成——任务规划
-### 1.基础环境
+### 1. 基础环境
 1. piper关节空间控制: `piper_env_cfg` - 完成
 2. piper任务空间控制: `piper_ik_env_cfg` - 完成
 3. grab任务的mdp观测与终止条件: `mdp.observations`, `mdp.terminations` - 完成
@@ -11,9 +11,16 @@
 9. piper任务空间的grab环境随机化：`grab_ik_rel_instance_randomize_env_cfg` - 完成
 10. piper视觉驱动的grab环境：`grab_ik_rel_visuomotor_env_cfg` - 完成
 
-目前的piper任务空间抓取(无视觉)可以通过遥操作记录演示数据并回放演示数据，但还无法标注子任务，需要配置skillgen环境。
+### 2. Mimic环境
+1. piper mimic环境创建：`piper_grab_ik_rel_mimic_env.py` - 完成
+2. piper mimic环境配置：`piper_grab_ik_rel_mimic_env_cfg.py` - 完成
+3. piper mimic skillgen环境配置：`piper_grab_ik_rel_skillgen_env_cfg.py` - 完成
+4. piper mimic visuomotor环境配置：`piper_grab_ik_rel_visuuomotor_mimic_env_cdf.py`
+- skillgen和mimic都可以生成数据，关键区别在于标注数据时，mimic只需要标注子任务完成，在物体被抓取后立刻标记；skillgen需要标注子任务的开始和结束，即抓取物体时，开始信号在在夹具关闭之前，终止信号是在物体被抓取之后
 
-### 2.Skillgen数据采集、标注与生成
+- skillgen标注需使用`--annotate_subtask_start_signals`
+
+### 3. Skillgen数据采集、标注与生成
 1. piper基于状态的策略环境：`grab_ik_rel_env_cfg_skillgen` - 待做
 2. piper基于视觉的策略环境：`grab_ik_rel_visuomotor_env_cfg_skillgen` - 待做
 3. 执行以下脚本 (测试并修改Bug)

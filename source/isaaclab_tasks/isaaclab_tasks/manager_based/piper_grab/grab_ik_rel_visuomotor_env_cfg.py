@@ -117,6 +117,21 @@ class ObservationsCfg:
         eef_pos = ObsTerm(func=mdp.ee_frame_pos)
         eef_quat = ObsTerm(func=mdp.ee_frame_quat)
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        object_1_positions = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "pos"},
+        )
+        object_1_orientations = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "quat"},
+        )
+        box_positions = ObsTerm(
+            func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"}
+        )
+        box_orientations = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
+        )
         table_cam = ObsTerm(
             func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
         )

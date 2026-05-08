@@ -51,7 +51,7 @@ class PiperGrabIKRelMimicEnv(ManagerBasedRLMimicEnv):
         Args:
             target_eef_pose_dict: Dictionary of 4x4 target eef pose for each end-effector.
             gripper_action_dict: Dictionary of gripper actions for each end-effector.
-            action_noise_dict: Noise to add to the action. If None, no noise is added.
+            noise: Noise to add to the action. If None, no noise is added.
             env_id: Environment index to get the action for.
 
         Returns:
@@ -139,15 +139,14 @@ class PiperGrabIKRelMimicEnv(ManagerBasedRLMimicEnv):
         """
         # last dimension is gripper action
         return {list(self.cfg.subtask_configs.keys())[0]: actions[:, -1:]}
-
+    
     def get_subtask_term_signals(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         """
         Gets a dictionary of termination signal flags for each subtask in a task. The flag is 1
-        when the subtask has been completed and 0 otherwise.
-
-        For the piper grab task:
-        - Subtask 0 (grasp_1): detected when object_1 is grasped
-        - Subtask 1 (place): final subtask, no signal needed
+        when the subtask has been completed and 0 otherwise. The implementation of this method is
+        required if intending to enable automatic subtask term signal annotation when running the
+        dataset annotation tool. This method can be kept unimplemented if intending to use manual
+        subtask term signal annotation.
 
         Args:
             env_ids: Environment indices to get the termination signals for. If None, all envs are considered.
@@ -161,24 +160,16 @@ class PiperGrabIKRelMimicEnv(ManagerBasedRLMimicEnv):
         signals = dict()
         subtask_terms = self.obs_buf["subtask_terms"]
         signals["grasp_1"] = subtask_terms["grasp_1"][env_ids]
-        # final subtask is place into box - no term signal needed
+        
+        # final subtask is placing cubeC on cubeA (motion relative to cubeA) - but final subtask signal is not needed
         return signals
 
     def get_expected_attached_object(self, eef_name: str, subtask_index: int, env_cfg) -> str | None:
         """
         (SkillGen) Return the expected attached object for the given EEF/subtask.
 
-        For the piper grab task:
-        - Subtask 0 (grasp): no object attached yet
-        - Subtask 1 (place): object_1 should be attached (grasped in previous subtask)
-
-        Args:
-            eef_name: Name of the end effector.
-            subtask_index: Index of the current subtask.
-            env_cfg: Environment configuration.
-
-        Returns:
-            Name of the expected attached object, or None if no object should be attached.
+        Assumes 'stack' subtasks place the object grasped in the preceding 'grasp' subtask.
+        Returns None for 'grasp' (or others) at subtask start.
         """
         if eef_name not in env_cfg.subtask_configs:
             return None
@@ -188,8 +179,8 @@ class PiperGrabIKRelMimicEnv(ManagerBasedRLMimicEnv):
             return None
 
         current_cfg = subtask_configs[subtask_index]
-        # If placing, expect we are holding the object grasped in the prior subtask
-        if current_cfg.object_ref == "box":
+        # If stacking, expect we are holding the object grasped in the prior subtask
+        if "stack" in str(current_cfg.subtask_term_signal).lower():
             if subtask_index > 0:
                 prev_cfg = subtask_configs[subtask_index - 1]
                 if "grasp" in str(prev_cfg.subtask_term_signal).lower():

@@ -9,8 +9,9 @@ from isaaclab.utils import configclass
 from isaaclab_tasks.manager_based.piper_grab.grab_ik_rel_env_cfg_skillgen import PiperGrabSkillgenEnvCfg
 
 
+
 @configclass
-class PiperGrabIKRelMimicEnvCfg(PiperGrabSkillgenEnvCfg, MimicEnvCfg):
+class PiperGrabIKRelSkillgenEnvCfg(PiperGrabSkillgenEnvCfg, MimicEnvCfg):
     """
     Isaac Lab Mimic environment config class for Piper Grab IK Rel env.
     """
@@ -69,7 +70,7 @@ class PiperGrabIKRelMimicEnvCfg(PiperGrabSkillgenEnvCfg, MimicEnvCfg):
                 # End of final subtask does not need to be detected for MimicGen
                 # Needs to be detected for SkillGen
                 # Setting this doesn't affect the data generation for MimicGen
-                subtask_term_signal=None,
+                subtask_term_signal="placed_1",
                 # No time offsets for the final subtask
                 subtask_term_offset_range=(0, 0),
                 # Selection strategy for source subtask segment
