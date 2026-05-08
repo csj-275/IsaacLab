@@ -60,7 +60,7 @@ class PiperGrabIKRelVisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvCfg
                 num_fixed_steps=0,
                 # If True, apply action noise during the interpolation phase and execution
                 apply_noise_during_interpolation=False,
-                description="Grasp cube",
+                description="Grasp the cube",
                 next_subtask_description="Place the cube into the box",
             )
         )
