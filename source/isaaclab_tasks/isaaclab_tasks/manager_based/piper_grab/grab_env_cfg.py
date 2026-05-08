@@ -82,6 +82,10 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+        eef_pos = ObsTerm(func=mdp.ee_frame_pos, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
+        eef_quat = ObsTerm(func=mdp.ee_frame_quat, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
+        gripper_pos = ObsTerm(func=mdp.gripper_pos, params={"robot_cfg": SceneEntityCfg("robot")})
+        object = ObsTerm(func=mdp.object_obs)
         object_1_positions = ObsTerm(
             func=mdp.object_poses_in_base_frame,
             params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "pos"},
@@ -97,10 +101,7 @@ class ObservationsCfg:
             func=mdp.object_poses_in_base_frame,
             params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
         )
-        eef_pos = ObsTerm(func=mdp.ee_frame_pos, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
-        eef_quat = ObsTerm(func=mdp.ee_frame_quat, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
-        gripper_pos = ObsTerm(func=mdp.gripper_pos, params={"robot_cfg": SceneEntityCfg("robot")})
-        object = ObsTerm(func=mdp.object_obs)
+        
         
         def __post_init__(self):
             self.enable_corruption = False
@@ -151,9 +152,9 @@ class TerminationsCfg:
             "robot_cfg": SceneEntityCfg("robot"),
             "object_a_cfg": SceneEntityCfg("object_1"),
             "object_b_cfg": SceneEntityCfg("box"),
-            "xy_threshold": 0.10,
-            "height_diff": 0.06,
-            "height_threshold": 0.04,
+            "xy_threshold": 0.08,
+            "height_diff": 0.0,
+            "height_threshold": 0.08,
         },
     )
 

@@ -44,6 +44,11 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
         ) # 0.135/0.107 未测试
 
+
+        self.gripper_joint_names = ["joint7", "joint8"]
+        self.gripper_open_val = 0.05
+        self.gripper_threshold = 0.01
+
         self.teleop_devices = DevicesCfg(
             devices={
                 "handtracking": OpenXRDeviceCfg(

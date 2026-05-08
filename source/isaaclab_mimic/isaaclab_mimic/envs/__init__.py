@@ -6,7 +6,7 @@
 """Sub-package with environment wrappers for Isaac Lab Mimic."""
 
 import gymnasium as gym
-
+from piper_gym import *
 ##
 # Inverse Kinematics - Relative Pose Control
 ##
@@ -52,15 +52,26 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v0",
+    id="Isaac-Piper-Grab-IK-Rel-Mimic-v0",
     entry_point=f"{__name__}.piper_grab_ik_rel_mimic_env:PiperGrabIKRelMimicEnv",
     kwargs={
         "env_cfg_entry_point": (
-            f"{__name__}.piper_grab_ik_rel_visuomotor_mimic_env_cfg:PiperGrabIKRelVisuomotorMimicEnvCfg"
+            f"{__name__}.piper_grab_ik_rel_mimic_env_cfg:PiperGrabIKRelMimicEnv"
         ),
     },
     disable_env_checker=True,
 )
+
+# gym.register(
+#     id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v0",
+#     entry_point=f"{__name__}.piper_grab_ik_rel_mimic_env:PiperGrabIKRelMimicEnv",
+#     kwargs={
+#         "env_cfg_entry_point": (
+#             f"{__name__}.piper_grab_ik_rel_visuomotor_mimic_env_cfg:PiperGrabIKRelVisuomotorMimicEnvCfg"
+#         ),
+#     },
+#     disable_env_checker=True,
+# )
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0",
