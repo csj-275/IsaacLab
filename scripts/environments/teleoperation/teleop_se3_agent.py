@@ -48,6 +48,13 @@ parser.add_argument(
     help="Print XRoboToolkit raw and mapped controller deltas for coordinate calibration.",
 )
 parser.add_argument(
+    "--xrobotoolkit_calibration_json",
+    "--xrobotoolkit-calibration-json",
+    type=str,
+    default=None,
+    help="Path to a piper world-frame calibration JSON file.",
+)
+parser.add_argument(
     "--disable_xrobotoolkit_video_stream",
     "--disable-xrobotoolkit-video-stream",
     action="store_true",
@@ -183,6 +190,8 @@ def _configure_xrobotoolkit_control_mode(env_cfg: ManagerBasedRLEnvCfg) -> str:
         device_cfg.control_mode = control_mode
         if args_cli.xrobotoolkit_debug_mapping:
             device_cfg.debug_mapping = True
+        if args_cli.xrobotoolkit_calibration_json:
+            device_cfg.calibration_json = args_cli.xrobotoolkit_calibration_json
 
     arm_action = getattr(env_cfg.actions, "arm_action", None)
     if arm_action is None or not hasattr(arm_action, "controller"):
@@ -439,6 +448,7 @@ def main() -> None:
                         rot_sensitivity=sensitivity,
                         control_mode=xrobotoolkit_control_mode or "absolute",
                         debug_mapping=args_cli.xrobotoolkit_debug_mapping,
+                        calibration_json=args_cli.xrobotoolkit_calibration_json,
                     )
                 )
             else:

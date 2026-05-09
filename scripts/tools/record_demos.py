@@ -76,6 +76,13 @@ parser.add_argument(
     help="Print XRoboToolkit raw and mapped controller deltas for coordinate calibration.",
 )
 parser.add_argument(
+    "--xrobotoolkit_calibration_json",
+    "--xrobotoolkit-calibration-json",
+    type=str,
+    default=None,
+    help="Path to a piper world-frame calibration JSON file.",
+)
+parser.add_argument(
     "--enable_pinocchio",
     action="store_true",
     default=False,
@@ -168,6 +175,8 @@ def _configure_xrobotoolkit_control_mode(env_cfg: ManagerBasedRLEnvCfg | DirectR
         device_cfg.control_mode = control_mode
         if args_cli.xrobotoolkit_debug_mapping:
             device_cfg.debug_mapping = True
+        if args_cli.xrobotoolkit_calibration_json:
+            device_cfg.calibration_json = args_cli.xrobotoolkit_calibration_json
 
     arm_action = getattr(env_cfg.actions, "arm_action", None)
     if arm_action is None or not hasattr(arm_action, "controller"):
@@ -378,6 +387,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], env: gym.Env) -> object:
                     XRoboToolkitDeviceCfg(
                         control_mode=control_mode,
                         debug_mapping=args_cli.xrobotoolkit_debug_mapping,
+                        calibration_json=args_cli.xrobotoolkit_calibration_json,
                     )
                 )
             else:

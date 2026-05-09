@@ -252,3 +252,120 @@ def test_xrobotoolkit_device_debug_mapping_does_not_change_action(capsys):
     assert "mapped_pos=" in output
     assert "raw_rot=" in output
     assert "mapped_rot=" in output
+
+
+def _make_calib_json(W_T_Q, R_rot_map=None):
+    """Build a minimal accepted calibration JSON dict."""
+    if R_rot_map is None:
+        R_rot_map = np.eye(3, dtype=float)
+    return {
+        "accepted": True,
+        "W_T_Q": W_T_Q.tolist(),
+        "R_align": np.eye(3, dtype=float).tolist(),
+        "R_rot_map": R_rot_map.tolist(),
+        "R_align_rpy_rad": [0.0, 0.0, 0.0],
+    }
+
+
+def test_calibration_json_identity(tmp_path):
+    """Calibration with identity W_T_Q and identity R_rot_map matches identity axis maps."""
+    import json
+
+    calib = _make_calib_json(np.eye(4, dtype=float))
+    json_path = tmp_path / "calib_identity.json"
+    json_path.write_text(json.dumps(calib))
+
+    client = FakeXrClient()
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            control_mode="relative",
+            xr_client=client,
+            delta_pos_axis_map=IDENTITY_AXIS_MAP,
+            delta_rot_axis_map=IDENTITY_AXIS_MAP,
+            calibration_json=str(json_path),
+        )
+    )
+
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    client.pose = _pose([0.1, 0.2, -0.3], [0.1, 0.2, -0.3])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[:6], np.array([0.1, 0.2, -0.3, 0.1, 0.2, -0.3]), atol=1.0e-6)
+
+
+def test_calibration_json_rot_map(tmp_path):
+    """R_rot_map rotates the rotation delta after axis mapping."""
+    import json
+
+    # R_rot_map: swap X and Y, negate Z
+    R_rot_map = np.array([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]], dtype=float)
+    calib = _make_calib_json(np.eye(4, dtype=float), R_rot_map)
+    json_path = tmp_path / "calib_rot_map.json"
+    json_path.write_text(json.dumps(calib))
+
+    client = FakeXrClient()
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            control_mode="relative",
+            xr_client=client,
+            delta_pos_axis_map=IDENTITY_AXIS_MAP,
+            delta_rot_axis_map=IDENTITY_AXIS_MAP,
+            calibration_json=str(json_path),
+        )
+    )
+
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    # Position delta should NOT be affected by R_rot_map
+    client.pose = _pose([0.1, 0.0, 0.0])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.1, 0.0, 0.0]), atol=1.0e-6)
+
+    # Rotation delta SHOULD be mapped: [0.1, 0.2, -0.3] -> R_rot_map -> [0.2, 0.1, 0.3]
+    client.pose = _pose([0.0, 0.0, 0.0], [0.1, 0.2, -0.3])
+    action = device.advance()
+    expected_rot = R_rot_map @ np.array([0.1, 0.2, -0.3])
+    np.testing.assert_allclose(action.cpu().numpy()[3:6], expected_rot, atol=1.0e-6)
+
+
+def test_calibration_json_axis_map(tmp_path):
+    """Calibration W_T_Q matches default OPENXR_TO_ROS axis map."""
+    import json
+
+    openxr_to_ros = np.array(
+        [[0.0, 0.0, -1.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        dtype=float,
+    )
+    W_T_Q = np.eye(4, dtype=float)
+    W_T_Q[:3, :3] = openxr_to_ros
+    calib = _make_calib_json(W_T_Q)
+    json_path = tmp_path / "calib_axis_map.json"
+    json_path.write_text(json.dumps(calib))
+
+    client = FakeXrClient()
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            control_mode="relative",
+            xr_client=client,
+            calibration_json=str(json_path),
+        )
+    )
+
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    # Same test as test_xrobotoolkit_device_default_ros_base_position_mapping
+    client.pose = _pose([0.0, 0.0, -0.1])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.1, 0.0, 0.0]), atol=1.0e-6)
+
+    client.pose = _pose([-0.1, 0.0, 0.0])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.0, 0.1, 0.0]), atol=1.0e-6)
+
+    # Rotation mapping
+    client.pose = _pose([0.0, 0.0, 0.0], [0.0, 0.0, -0.2])
+    action = device.advance()
+    np.testing.assert_allclose(action.cpu().numpy()[3:6], np.array([0.2, 0.0, 0.0]), atol=1.0e-6)

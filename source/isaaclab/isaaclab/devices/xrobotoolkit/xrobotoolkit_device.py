@@ -66,6 +66,12 @@ class XRoboToolkitDevice(DeviceBase):
         self._sim_device = cfg.sim_device
         self._delta_pos_axis_map = _axis_mapping_to_array(cfg.delta_pos_axis_map, "delta_pos_axis_map")
         self._delta_rot_axis_map = _axis_mapping_to_array(cfg.delta_rot_axis_map, "delta_rot_axis_map")
+        self._calibrated_axis_map: np.ndarray | None = None
+        self._calibrated_rot_map: np.ndarray | None = None
+        if cfg.calibration_json is not None:
+            calib = _load_calibration(cfg.calibration_json)
+            self._calibrated_axis_map = calib["axis_map"]
+            self._calibrated_rot_map = calib["rot_map"]
         self._ee_pose_provider = cfg.ee_pose_provider
         self._xr_client = cfg.xr_client if cfg.xr_client is not None else self._create_xr_client()
         self._additional_callbacks: dict[str, Callable] = {}
@@ -138,8 +144,13 @@ class XRoboToolkitDevice(DeviceBase):
         raw_delta_pos = (pos - self._ref_pos) * self.pos_sensitivity
         delta_quat = _quat_multiply(quat, _quat_conjugate(self._ref_quat))
         raw_delta_rot = _quat_to_rotvec(delta_quat) * self.rot_sensitivity
-        delta_pos = self._delta_pos_axis_map @ raw_delta_pos
-        delta_rot = self._delta_rot_axis_map @ raw_delta_rot
+        if self._calibrated_axis_map is not None:
+            delta_pos = self._calibrated_axis_map @ raw_delta_pos
+            delta_rot_remapped = self._calibrated_axis_map @ raw_delta_rot
+            delta_rot = self._calibrated_rot_map @ delta_rot_remapped
+        else:
+            delta_pos = self._delta_pos_axis_map @ raw_delta_pos
+            delta_rot = self._delta_rot_axis_map @ raw_delta_rot
         self._debug_mapping(raw_delta_pos, delta_pos, raw_delta_rot, delta_rot)
 
         if self.control_mode == "absolute":
@@ -299,10 +310,40 @@ class XRoboToolkitDeviceCfg(DeviceCfg):
     delta_rot_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
         XR_SDK_TO_ROS_BASE_ROT_AXIS_MAP
     )
+    calibration_json: str | None = None
+    """Path to a piper world-frame calibration JSON.
+
+    When set, W_T_Q[:3,:3] replaces delta_pos_axis_map and delta_rot_axis_map,
+    and R_rot_map is applied to rotation deltas on top of the axis mapping.
+    """
     retargeters: None = None
     ee_pose_provider: Callable[[], tuple[Any, Any]] | None = None
     xr_client: Any | None = None
     class_type: type[DeviceBase] = XRoboToolkitDevice
+
+
+def _load_calibration(json_path: str) -> dict[str, np.ndarray]:
+    """Load a piper world-frame calibration JSON and return axis/rot maps.
+
+    Args:
+        json_path: Path to the calibration JSON file.
+
+    Returns:
+        Dict with keys "axis_map" (3x3) and "rot_map" (3x3).
+
+    Raises:
+        FileNotFoundError: If the JSON file does not exist.
+        ValueError: If the calibration is not accepted or the data is invalid.
+    """
+    from xrobotoolkit_teleop.hardware.piper_world_frame_mapping import (
+        load_piper_world_calibration_json,
+        project_to_so3,
+    )
+
+    data = load_piper_world_calibration_json(json_path)
+    axis_map = project_to_so3(data["W_T_Q"][:3, :3])
+    rot_map = project_to_so3(data["R_rot_map"])
+    return {"axis_map": axis_map, "rot_map": rot_map}
 
 
 def _axis_mapping_to_array(mapping: Any, name: str) -> np.ndarray:
