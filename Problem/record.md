@@ -1,6 +1,6 @@
 
 # Hot100
-# 哈希
+## 哈希
 哈希表，也叫散列表，是一种基于“键-值”（Key-Value）对存储数据的数据结构。
 哈希集合是只存储“键”（Key）而不存储“值”（Value）的特殊哈希表。它的核心特性是元素唯一和无序。
 | 特性 | 哈希表 (Hash Table) | 哈希集合 (Hash Set) |
@@ -9,6 +9,7 @@
 | 核心优势 | 快速查找、插入、删除 | 保证元素唯一性、快速成员检查 |
 | 典型应用 | 字典、缓存、映射关系 | 去重、成员资格判断 |
 | 代码示例 | Python `dict`, Java `HashMap` | Python `set`, Java `HashSet` |
+### 1.两数之和
 
 ### 49.字母异位词分组
 给你一个字符串数组，请你将 字母异位词 组合在一起。可以按任意顺序返回结果列表。
@@ -16,10 +17,10 @@
 输入：strs = ["eat", "tea", "tan", "ate", "nat", "bat"]
 输出: \[["bat"],["nat","tan"],["ate","eat","tea"]]
 解释：在 `strs` 中没有字符串可以通过重新排列来形成 `bat`。字符串 `nat` 和 `tan` 是字母异位词，因为它们可以重新排列以形成彼此。字符串 `ate` ，`eat` 和 `tea` 是字母异位词，因为它们可以重新排列以形成彼此
-**示例 2:**
+**示例 2：**
 输入: strs = [""]
 输出: \[[""]]
-**示例 3:**
+**示例 3：**
 输入: strs = ["a"]
 输出: \[["a"]]
 
@@ -70,9 +71,9 @@ class Solution:
 ### 283.移动零
 给定一个数组 nums，编写一个函数将所有0移动到数组的末尾，同时保持非零元素的相对顺序。
 请注意，必须在不复制数组的情况下原地对数组进行操作。
-**示例 1:**
+**示例 1：**
 输入: nums = [0,1,0,3,12] 输出: [1,3,12,0,0]
-**示例 2:**
+**示例 2：**
 输入: nums = [0] 输出: [0]
 ```python
 class Solution:
@@ -86,7 +87,28 @@ class Solution:
             nums[i] = 0
 ```
 
+### 11.盛最多水的容器
+给定一个长度为 n 的整数数组 height 。有 n 条垂线，第 i 条线的两个端点是 (i, 0) 和 (i, height[i]) 。
+找出其中的两条线，使得它们与 x 轴共同构成的容器可以容纳最多的水。
+返回容器可以储存的最大水量。
+说明：你不能倾斜容器。
+![alt text](image-1.png)
+示例1
+输入：[1,8,6,2,5,4,8,3,7]
+输出：49 
+解释：图中垂直线代表输入数组 [1,8,6,2,5,4,8,3,7]。在此情况下，容器能够容纳水（表示为蓝色部分）的最大值为 49。
+示例 2：
+
+输入：height = [1,1]
+输出：1
 ## 滑动窗口
+### 3.无重复字符的最长子串
+给定一个字符串s，请你找出其中不含有重复字符的最长子串的长度。
+
+
+
+
+
 
 ## 子串
 ### 560. 和为k的子数组
@@ -125,7 +147,6 @@ class Solution:
 ## 矩阵
 
 ## 链表
-
 ### 160.相交链表
 给你两个单链表的头节点`headA`和`headB`，请你找出并返回两个单链表相交的起始节点。如果两个链表不存在相交节点，返回`null`。
 题目数据保证整个链式结构中不存在环。
@@ -169,13 +190,247 @@ class Solution:
         return pA
 ```
 
-## 二叉树
+### 206.反转链表
+给你单链表的头节点`head`，请你反转链表，并返回反转后的链表。
+**示例1：**
+![alt text](image-2.png)
+输入：head = [1,2,3,4,5]
+输出：[5,4,3,2,1]
+**示例2：**
+![alt text](image-3.png)
+输入：head = [1,2]
+输出：[2,1]
+**示例3：**
+输入：head = []
+输出：[]
+```python
+# Definition for singly-linked list.
+# class ListNode:
+#     def __init__(self, val=0, next=None):
+#         self.val = val
+#         self.next = next
+class Solution:
+    def reverseList(self, head: Optional[ListNode]) -> Optional[ListNode]:
+        cur, pre = head, None
+        while cur:
+            tmp = cur.next # 暂存后继节点 cur.next
+            cur.next = pre # 修改 next 引用指向
+            pre = cur # pre 暂存 cur
+            cur = tmp # cur 访问下一节点
+        return pre
+```
 
+## 二叉树
+### 94.二叉树的中序遍历
+给定一个二叉树的根节点`root`，返回它的中序遍历 。
+**示例1：**
+![alt text](image-4.png)
+输入：root = [1,null,2,3]
+输出：[1,3,2]
+**示例2：**
+输入：root = []
+输出：[]
+**示例3：**
+输入：root = [1]
+输出：[1]
+
+**思路1：**
+递归实现
+- 前序遍历：打印 - 左 - 右
+- 中序遍历：左 - 打印 - 右
+- 后序遍历：左 - 右 - 打印
+按照 左-打印-右这种顺序遍历树,终止条件：当前节点为空时
+函数内：递归的调用左节点，打印当前节点，再递归调用右节点
+``` python
+class Solution(object):
+	def inorderTraversal(self, root):
+		"""
+		:type root: TreeNode
+		:rtype: List[int]
+		"""
+		res = []
+		def dfs(root):
+			if not root:
+				return
+			# 按照 左-打印-右的方式遍历	
+			dfs(root.left)
+			res.append(root.val)
+			dfs(root.right)
+		dfs(root)
+		return res
+```
+
+### 104.二叉树的最大深度
+给定一个二叉树`root`，返回其最大深度。二叉树的最大深度是指从根节点到最远叶子节点的最长路径上的节点数。
+**示例1：**
+![alt text](image-5.png)
+输入：root = [3,9,20,null,null,15,7]
+输出：3
+**示例2：**
+输入：root = [1,null,2]
+输出：2
+**思路：** 树的遍历方式总体分为两类：深度优先搜索（DFS）、广度优先搜索（BFS）。
+- 常见 DFS ： 先序遍历、中序遍历、后序遍历。
+- 常见 BFS ： 层序遍历（即按层遍历）。
+![alt text](image-6.png)
+**方法1 后序遍历(DFS)**
+树的后序遍历 / 深度优先搜索往往利用递归或栈实现
+1.终止条件：当`root`为空，说明已经越过了叶节点，返回0
+2.递归工作：本质上是对树做后序遍历
+a.计算节点`root`的左子树深度，调用maxDepth(root.left)
+b.计算节点`root`的右子树深度，调用maxDepth(root.right)
+3.返回`max(maxDepth(root.left), maxDepth(root.right)) + 1`
+```python
+# Definition for a binary tree node.
+# class TreeNode:
+#     def __init__(self, val=0, left=None, right=None):
+#         self.val = val
+#         self.left = left
+#         self.right = right
+class Solution:
+    def maxDepth(self, root: Optional[TreeNode]) -> int:
+        if not root: return 0
+        return max(self.maxDepth(root.left), self.maxDepth(root.right)) + 1
+```
+**方法2 层级遍历(BFS)**
+树的层序遍历 / 广度优先搜索往往利用队列实现。
+```python
+class Solution:
+    def maxDepth(self, root: Optional[TreeNode]) -> int:
+        if not root: return 0
+        queue, res = [root], 0
+        while queue:
+            tmp = []
+            for node in queue:
+                if node.left: tmp.append(node.left)
+                if node.right: tmp.append(node.right)
+            queue = tmp
+            res += 1
+        return res
+
+```
 
 
 ## 图论
+### 200.岛屿数量
+给你一个由`1`（陆地）和`0`（水）组成的的二维网格，请你计算网格中岛屿的数量。
+岛屿总是被水包围，并且每座岛屿只能由水平方向和/或竖直方向上相邻的陆地连接形成。
+此外，你可以假设该网格的四条边均被水包围。
+**示例 1：**
+输入：grid = [
+  ['1','1','1','1','0'],
+  ['1','1','0','1','0'],
+  ['1','1','0','0','0'],
+  ['0','0','0','0','0']
+]
+输出：1
+
+**示例 2：**
+输入：grid = [
+  ['1','1','0','0','0'],
+  ['1','1','0','0','0'],
+  ['0','0','1','0','0'],
+  ['0','0','0','1','1']
+]
+输出：3
+
+**思路1：** 深度优先搜索
+- 目标是找到矩阵中 “岛屿的数量” ，上下左右相连的 1 都被认为是连续岛屿。
+- dfs方法: 设目前指针指向一个岛屿中的某一点 (i, j)，寻找包括此点的岛屿边界。
+  - 从 (i, j) 向此点的上下左右 (i+1,j),(i-1,j),(i,j+1),(i,j-1) 做深度搜索。
+  - 终止条件：1. (i, j) 越过矩阵边界; 2. grid[i][j] == 0，代表此分支已越过岛屿边界。
+  - 搜索岛屿的同时，执行 grid[i][j] = '0'，即将岛屿所有节点删除，以免之后重复搜索相同岛屿。
+- 主循环：
+  - 遍历整个矩阵，当遇到 grid[i][j] == '1' 时，从此点开始做深度优先搜索 dfs，岛屿数`count + 1` 且在深度优先搜索中删除此岛屿。
+- 最终返回岛屿数`count`即可。
+```python
+class Solution:
+    def numIslands(self, grid: List[List[str]]) -> int:
+        m = len(grid)
+        n = len(grid[0])
+        def dfs(grid, i, j):
+            if not 0 <= i < m or not 0 <= j < n or grid[i][j] == '0': return
+            grid[i][j]='0'
+            dfs(grid, i+1, j)
+            dfs(grid, i, j+1)
+            dfs(grid, i-1, j)
+            dfs(grid, i, j-1)
+        count = 0
+        for i in range(m):
+            for j in range(n):
+                if grid[i][j] == '1':
+                    dfs(grid, i, j)
+                    count += 1
+        return count
+```
+**思路2：**
+- 主循环和思路一类似，不同点是在于搜索某岛屿边界的方法不同。
+- bfs 方法：
+  - 借用一个队列 queue，判断队列首部节点 (i, j) 是否未越界且为 1：
+    - 若是则置零（删除岛屿节点），并将此节点上下左右节点 (i+1,j),(i-1,j),(i,j+1),(i,j-1) 加入队列；
+    - 若不是则跳过此节点；
+  - 循环`pop`队列首节点，直到整个队列为空，此时已经遍历完此岛屿。
+``` python
+class Solution:
+    def numIslands(self, grid: List[List[str]]) -> int:
+        def bfs(grid, i, j):
+            queue = [[i, j]]
+            while queue:
+                [i, j] = queue.pop(0)
+                if 0 <= i < len(grid) and 0 <= j < len(grid[0]) and grid[i][j]=='1':
+                    grid[i][j] = '0' 
+                    queue += [[i + 1, j], [i - 1, j], [i, j - 1], [i, j + 1]]
+        count = 0
+        for i in range(len(grid)):
+            for j in range(len(grid[0])):
+                if grid[i][j] == '0': continue
+                bfs(grid, i, j)
+                count += 1
+        return count
+
+```
 
 ## 回溯
+### 46.全排列
+给定一个不含重复数字的数组`nums`，返回其所有可能的全排列。你可以按任意顺序返回答案。`nums`中的所有整数互不相同
+**示例 1：**
+输入：nums = [1,2,3]
+输出：\[[1,2,3],[1,3,2],[2,1,3],[2,3,1],[3,1,2],[3,2,1]]
+**示例 2：**
+输入：nums = [0,1]
+输出：\[[0,1],[1,0]]
+**示例 3：**
+输入：nums = [1]
+输出：\[[1]]
+**思路1：**
+对于一个长度为n的数组（假设元素互不重复），其排列方案数共有：n×(n−1)×(n−2)…×2×1
+**排列方案的生成：**
+根据数组排列的特点，考虑深度优先搜索所有排列方案。即通过元素交换，先固定第 1 位元素（ n 种情况）、再固定第 2 位元素（ n−1 种情况）、... 、最后固定第 n 位元素（ 1 种情况）。
+![alt text](image-7.png)
+**递归解析：**
+- 终止条件： 当 x = len(nums) - 1 时，代表所有位已固定（最后一位只有 1 种情况），则将当前组合 nums 转化为数组并加入 res ，并返回。
+- 递推参数： 当前固定位 x 。
+- 递推工作： 将第 x 位元素与 i ∈ [x, len(nums)] 元素分别交换，并进入下层递归。
+  - 固定元素： 将元素 nums[i] 和 nums[x] 交换，即固定 nums[i] 为当前位元素。
+  - 开启下层递归： 调用 dfs(x + 1) ，即开始固定第 x + 1 个元素。
+  - 还原交换： 将元素 nums[i] 和 nums[x] 交换（还原之前的交换）。
+
+```python
+class Solution:
+    def permute(self, nums: List[int]) -> List[List[int]]:
+        def dfs(x):
+            if x == len(nums) - 1:
+                res.append(list(nums))   # 添加排列方案
+                return
+            for i in range(x, len(nums)):
+                nums[i], nums[x] = nums[x], nums[i]  # 交换，将 nums[i] 固定在第 x 位
+                dfs(x + 1)                           # 开启固定第 x + 1 位元素
+                nums[i], nums[x] = nums[x], nums[i]  # 恢复交换
+        res = []
+        dfs(0)
+        return res
+```
+
 
 ## 二分查找
 
@@ -184,6 +439,7 @@ class Solution:
 ## 堆
 
 ## 贪心算法
+
 
 ## 动态规划
 ### 70.爬楼梯
@@ -202,13 +458,14 @@ class Solution:
         return dp[n-1]
 ```
 
+
 ### 118.杨辉三角
 给定一个非负整数 numRows，生成「杨辉三角」的前 numRows 行。
 在「杨辉三角」中，每个数是它左上方和右上方的数的和。
-**示例 1:**
+**示例 1：**
 输入: numRows = 5
 输出: \[[1],[1,1],[1,2,1],[1,3,3,1],[1,4,6,4,1]]
-**示例 2:**
+**示例 2：**
 输入: numRows = 1
 输出: [[1]]
 ```python
@@ -228,6 +485,8 @@ class Solution:
 
 
 ## 多维DP
+### 
+
 
 ## 技巧
 ### 136.只出现一次的数字
@@ -265,19 +524,35 @@ class Solution:
 ```
 
 ### 75.颜色分类
-给定一个包含红色、白色和蓝色、共`n`个元素的数组`nums`，原地对它们进行排序，使得相同颜色的元素相邻，并按照红色、白色、蓝色顺序排列。
-我们使用整数 0、 1 和 2 分别表示红色、白色和蓝色。
+给定一个包含红色、白色和蓝色、共`n`个元素的数组 `nums`，原地 对它们进行排序，使得相同颜色的元素相邻，并按照红色、白色、蓝色顺序排列。
+我们使用整数0、1和2分别表示红色、白色和蓝色。
 必须在不使用库内置的`sort`函数的情况下解决这个问题。
-**示例 1：**
-输入：nums = [2,0,2,1,1,0] 输出：[0,0,1,1,2,2]
-``` python
+```python
 class Solution:
     def sortColors(self, nums: List[int]) -> None:
         """
         Do not return anything, modify nums in-place instead.
         """
-        x = 0
-        n = len(nums)
-        for i in range(n):
-            x and num[i]
+        l, i, r = 0, 0, len(nums)-1
+        while i <= r:
+            if nums[i] == 0:
+                nums[i], nums[l] = nums[l], nums[i]
+                l += 1
+                i += 1
+            elif nums[i] == 2:
+                nums[i], nums[r] = nums[r], nums[i]
+                r -= 1
+            else:
+                i += 1
+
 ```
+
+### 31.下一个排列
+整数数组的一个排列就是将其所有成员以序列或线性顺序排列。
+例如，`arr =[1,2,3]`，以下这些都可以视作`arr` 的排列：`[1,2,3]`、`[1,3,2]`、`[3,1,2]`、`[2,3,1]`。
+整数数组的 下一个排列 是指其整数的下一个字典序更大的排列。更正式地，如果数组的所有排列根据其字典顺序从小到大排列在一个容器中，那么数组的 下一个排列 就是在这个有序容器中排在它后面的那个排列。如果不存在下一个更大的排列，那么这个数组必须重排为字典序最小的排列（即，其元素按升序排列）。
+- 例如，`arr = [1,2,3]` 的下一个排列是 `[1,3,2]` 。
+- 类似地，`arr = [2,3,1]` 的下一个排列是 `[3,1,2]` 。
+- 而 `arr = [3,2,1]` 的下一个排列是 `[1,2,3]` ，因为 `[3,2,1]` 不存在一个字典序更大的排列。
+- 给你一个整数数组 `nums` ，找出`nums` 的下一个排列。
+- 必须原地修改，只允许使用额外常数空间。
