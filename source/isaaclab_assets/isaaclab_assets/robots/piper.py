@@ -2,8 +2,13 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+"""Configuration for AgileX Piper robots.
+    
+    The following configurations are available:
 
-"""
+    * :obj:`PIPER_CFG`: Piper standard arm with the two-finger gripper.
+    * :obj:`PIPER_HIGH_PD_CFG`: Piper standard arm with stiffer PD control for IK.
+
     Author: csj
     Created: 26-04-27
     Modified: 26-04-27
@@ -68,6 +73,4 @@ PIPER_HIGH_PD_CFG = PIPER_CFG.copy()
 PIPER_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
 PIPER_HIGH_PD_CFG.actuators["piper_joint"].stiffness = 400.0
 PIPER_HIGH_PD_CFG.actuators["piper_joint"].damping = 80.0
-PIPER_HIGH_PD_CFG.actuators["piper_gripper"].stiffness = 400.0
-PIPER_HIGH_PD_CFG.actuators["piper_gripper"].damping = 80.0
-"""Configuration of piper robot with stiffer PD control"""
+"""Configuration of piper robot with stiffer PD control for differential IK."""

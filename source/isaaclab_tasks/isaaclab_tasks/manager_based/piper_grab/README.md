@@ -15,10 +15,11 @@
 1. piper mimic环境创建：`piper_grab_ik_rel_mimic_env.py` - 完成
 2. piper mimic环境配置：`piper_grab_ik_rel_mimic_env_cfg.py` - 完成
 3. piper mimic skillgen环境配置：`piper_grab_ik_rel_skillgen_env_cfg.py` - 完成
-4. piper mimic visuomotor环境配置：`piper_grab_ik_rel_visuuomotor_mimic_env_cdf.py`
+4. piper mimic visuomotor环境配置：`piper_grab_ik_rel_visuuomotor_mimic_env_cdf.py` - 完成
 - skillgen和mimic都可以生成数据，关键区别在于标注数据时，mimic只需要标注子任务完成，在物体被抓取后立刻标记；skillgen需要标注子任务的开始和结束，即抓取物体时，开始信号在在夹具关闭之前，终止信号是在物体被抓取之后
 
 - skillgen标注需使用`--annotate_subtask_start_signals`
+当前情况：仿真遥操作的部分基本完成，现准备接入pico
 
 ### 3. Skillgen数据采集、标注与生成
 1. piper基于状态的策略环境：`grab_ik_rel_env_cfg_skillgen` - 待做
