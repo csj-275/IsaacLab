@@ -11,6 +11,8 @@ Estimates W_T_Q (OpenXR Quest frame to ROS world frame) and R_rot_map
 Outputs a JSON file consumable by XRoboToolkitDeviceCfg.calibration_json.
 """
 
+from __future__ import annotations
+
 import argparse
 import datetime
 import json
@@ -55,7 +57,6 @@ from isaaclab.utils import configclass
 
 from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_CFG
 
-from xrobotoolkit_teleop.common.xr_client import XrClient
 from xrobotoolkit_teleop.hardware.piper_world_frame_mapping import (
     OPENXR_TO_ROS,
     estimate_rotation_direction_map,
@@ -68,6 +69,20 @@ from xrobotoolkit_teleop.hardware.piper_world_frame_mapping import (
     so3_log,
     validate_T,
 )
+
+
+def _create_xr_client():
+    """Lazily create the XR client so the script imports cleanly without xrobotoolkit_sdk."""
+    try:
+        from xrobotoolkit_teleop.common.xr_client import XrClient
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            "Calibration requires xrobotoolkit_sdk. "
+            "Install it from XRoboToolkit-Teleop-Sample-Python/dependencies/XRoboToolkit-PC-Service-Pybind/ "
+            "or ensure the XRoboToolkit PC Service is set up in the container."
+        ) from exc
+
+    return XrClient()
 
 _CALIB_POINTS = [
     ("tcp_origin", np.array([0.0, 0.0, 0.0])),
@@ -220,7 +235,7 @@ def run_calibration():
 
     # Connect XR client
     print("\n正在连接 XRoboToolkit XR 服务...", flush=True)
-    xr_client = XrClient()
+    xr_client = _create_xr_client()
     print("XR 服务已连接。\n", flush=True)
 
     # ---- Phase 1: Single-point anchor ----

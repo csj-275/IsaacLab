@@ -9,3 +9,9 @@ services:
       - type: bind
         source: ../../XRoboToolkit-Teleop-Sample-Python
         target: /workspace/XRoboToolkit-Teleop-Sample-Python
+      - type: bind
+        source: ../../XRoboToolkit-PC-Service-Pybind
+        target: /workspace/XRoboToolkit-PC-Service-Pybind
+      - type: bind
+        source: ../../XRoboToolkit-PC-Service
+        target: /workspace/XRoboToolkit-PC-Service

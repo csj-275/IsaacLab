@@ -127,6 +127,9 @@ RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
 # HACK: Remove install of quadprog dependency
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog
 
+# Install pybind11 for xrobotoolkit_sdk build (performed at container runtime via setup_xrobotoolkit_env.sh)
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install pybind11
+
 # Copy the full Isaac Lab directory late. This keeps normal code edits from invalidating the dependency install layer.
 COPY ../ ${ISAACLAB_PATH}
 
