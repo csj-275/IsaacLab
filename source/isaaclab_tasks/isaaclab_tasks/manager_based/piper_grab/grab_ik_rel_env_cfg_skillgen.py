@@ -169,5 +169,5 @@ class PiperGrabSkillgenEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         # Set the offset for the end effector to be 0.0
         for f in self.scene.ee_frame.target_frames:
             if f.name == "end_effector":
-                f.offset.pos = [0.0, 0.0, 0.0]
+                f.offset.pos = (0.0, 0.0, 0.0)
                 break

@@ -34,3 +34,15 @@
 **模块关系**
 - grab环境包含与机器人构型无关的抓取环境配置，但与待抓取物体个数、类型有关
 - 具体机器人继承grab环境，配置robot和ee_frame以及待抓取物体，先关节空间，再任务空间；确定环境和随机环境无继承关系，通常任务空间环境继承自关节空间环境
+
+
+IK-Rel记录数据
+`./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Mimic-v0 --device cpu --teleop_device keyboard --dataset_file ./datasets/piper_dataset.hdf5 --num_demos 10`
+IK-Rel回放数据
+`./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Piper-Grab-IK-Rel-v0 --device cpu --dataset_file ./datasets/piper_dataset.hdf5`
+IK-Rel标注子任务
+`./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --device cpu --task Isaac-Piper-Grab-IK-Rel-Mimic-v0 --input_file ./datasets/piper_dataset.hdf5 --output_file ./datasets/annotated_piper_dataset.hdf5`
+数据生成
+`./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py --device cpu --generation_num_trials 10 --input_file ./datasets/annotated_piper_dataset.hdf5 --output_file ./datasets/generated_dataset_small_piper_grab.hdf5`
+
+`grab_joint_pos_env_cfg`中物体随机化的范围缩小后，生成数据成功率上升

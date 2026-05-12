@@ -33,7 +33,7 @@ class EventCfg:
         func=piper_grab_events.set_default_joint_pose,
         mode="reset",
         params={
-            "default_pose": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            "default_pose": [0.0, 1.0, -1.0, 0.0, 1.57, 0.0, 0.0, 0.0],
         },
     )
 
@@ -47,21 +47,23 @@ class EventCfg:
         },
     )
 
+    # [0.2, 0.4], [-0.12, 0.12], 0.0203, [-1.0, 1.0]
     randomize_cube_positions = EventTerm(
         func=piper_grab_events.randomize_object_pose,
         mode="reset",
         params={
-            "pose_range": {"x": (0.2, 0.4), "y": (-0.12, 0.12), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
+            "pose_range": {"x": (0.25, 0.5), "y": (-0.2, 0.2), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
             "min_separation": 0.1,
             "asset_cfgs": [SceneEntityCfg("object_1")],
         },
     )
 
+    # [-0.1, 0.4], [0.15, 0.35], 0.0203, [-1.0, 1.0]
     randomize_box_positions = EventTerm(
         func=piper_grab_events.randomize_object_pose,
         mode="reset",
         params={
-            "pose_range": {"x": (-0.1, 0.4), "y": (0.15, 0.35), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
+            "pose_range": {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
             "min_separation": 0.1,
             "asset_cfgs": [SceneEntityCfg("box")],
         },
