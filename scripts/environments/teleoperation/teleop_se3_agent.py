@@ -123,6 +123,21 @@ parser.add_argument(
     default=False,
     help="Enable Pinocchio.",
 )
+parser.add_argument(
+    "--show_camera_display",
+    "--show-camera-display",
+    action="store_true",
+    default=False,
+    help="Show a native omni.ui window displaying camera feeds side by side.",
+)
+parser.add_argument(
+    "--camera_display_cameras",
+    "--camera-display-cameras",
+    type=str,
+    nargs="+",
+    default=["wrist_cam", "table_cam"],
+    help="List of scene camera names to show in the camera display window.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -138,6 +153,8 @@ if args_cli.enable_pinocchio:
 if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 if args_cli.teleop_device.lower() == "xrobotoolkit" and not args_cli.disable_xrobotoolkit_video_stream:
+    app_launcher_args["enable_cameras"] = True
+if args_cli.show_camera_display:
     app_launcher_args["enable_cameras"] = True
 
 # launch omniverse app
@@ -311,6 +328,41 @@ def _submit_xrobotoolkit_video_frame(
         video_stream.submit_frame(frame)
     except Exception as exc:
         logger.warning("Failed to submit XRoboToolkit video frame: %s", exc)
+
+
+def _setup_camera_viewports(env: gym.Env, camera_names: list[str]) -> None:
+    """Bind scene cameras to Isaac Sim viewports.
+
+    The first camera is bound to the active viewport (Viewport 1).
+    Additional cameras each get a new viewport window.
+    """
+    try:
+        import omni.kit.viewport.utility as vu
+    except ImportError:
+        logger.warning("omni.kit.viewport.utility not available; camera viewports disabled.")
+        return
+
+    for i, cam_name in enumerate(camera_names):
+        try:
+            camera = env.scene[cam_name]
+            prim_path = camera._sensor_prims[0].GetPath().pathString
+        except Exception as exc:
+            logger.warning("Cannot bind camera '%s' to viewport: %s", cam_name, exc)
+            continue
+
+        if i == 0:
+            vp = vu.get_active_viewport()
+            if vp is not None:
+                vp.camera_path = prim_path
+                print(f"Viewport 1 bound to '{cam_name}' ({prim_path})")
+        else:
+            try:
+                vp_window = vu.create_viewport_window(name=f"Camera: {cam_name}", width=640, height=480)
+                vp = vp_window.viewport_api
+                vp.camera_path = prim_path
+                print(f"Viewport '{cam_name}' bound to {prim_path}")
+            except Exception as exc:
+                logger.warning("Failed to create viewport for camera '%s': %s", cam_name, exc)
 
 
 def main() -> None:
@@ -497,6 +549,10 @@ def main() -> None:
     print("Teleoperation started. Press 'R' to reset the environment.")
 
     video_stream = _create_xrobotoolkit_video_stream(xrobotoolkit_video_enabled)
+
+    # Bind scene cameras to viewports if requested
+    if args_cli.show_camera_display:
+        _setup_camera_viewports(env, args_cli.camera_display_cameras)
 
     # simulate environment
     try:
