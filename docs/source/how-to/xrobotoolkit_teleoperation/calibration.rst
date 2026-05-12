@@ -3,6 +3,55 @@
 坐标映射与标定
 ==============
 
+默认策略
+--------
+
+XRoboToolkit 设备默认使用 ``mapping_mode="world_frame_calibrated"``。该模式优先读取
+``--xrobotoolkit_calibration_json`` 指向的标定 JSON：
+
+* 平移 delta 使用 ``W_T_Q[:3,:3]`` 映射到 Isaac Lab / ROS world 语义。
+* 旋转 delta 先使用 ``W_T_Q[:3,:3]`` 做轴映射，再使用 ``R_rot_map`` 做方向映射。
+
+如果未提供标定 JSON，设备不会中止运行；它会打印一次 uncalibrated fallback 提示，并使用
+内置 OpenXR-to-ROS 轴映射。该 fallback 只用于兼容和诊断，不代表已经完成 world-frame 标定。
+
+IsaacLab 可视化校准
+-------------------
+
+推荐使用 Isaac Sim Viewport 原生校准脚本生成 JSON：
+
+.. code:: bash
+
+   TERM=xterm ./isaaclab.sh -p scripts/tools/calibrate_xrobotoolkit_visual.py
+
+该脚本构建 Isaac Lab Piper 场景，使用 ``FrameTransformer`` 获取当前 TCP 位姿，并在 Viewport
+中显示 Piper 当前 TCP、TCP 锚点、6 个世界系目标点、XR controller 原始/ROS/标定后 frame、
+以及拟合后的 TCP target frame。脚本不连接 Piper SDK，不发送 CAN、``move_j`` 或夹爪命令。
+
+交互流程：
+
+1. 将控制器放到舒适初始姿态，按 ``right_grip`` 预锚定。
+2. 依次把控制器中心移动到 TCP 原点、``+/-X 0.12 m``、``+/-Y 0.12 m``、``+Z 0.10 m``，
+   每个位置按 ``A`` 采样；按 ``B`` 重做当前样本；按 ``right_axis_click`` 退出。
+3. 平移质量通过后，依次完成 roll ``+X``、pitch ``-Y``、yaw ``+Z`` 三个方向型旋转动作。
+4. 脚本输出 JSON 到 ``logs/piper_calibration/``，并打印可直接用于交互遥操和录制的命令。
+
+默认质量门槛：
+
+* 平移：``mean_position_error_m <= 0.03 m``，``max_position_error_m <= 0.08 m``。
+* 旋转动作角度：``15 deg <= angle <= 150 deg``。
+* 旋转方向：``mean_axis_error_deg <= 25 deg``，``max_axis_error_deg <= 40 deg``。
+
+使用通过质量门槛的 JSON：
+
+.. code:: bash
+
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
+       --teleop_device xrobotoolkit \
+       --xrobotoolkit_mapping_mode world_frame_calibrated \
+       --xrobotoolkit_calibration_json logs/piper_calibration/xrobotoolkit_world_frame_calibration_YYYYMMDD_HHMMSS.json
+
 开启映射诊断
 ------------
 
@@ -48,10 +97,10 @@
 * 以 ROS 基座语义为目标：``X`` 前、``Y`` 左、``Z`` 上。
 * 如果真实机器人效果与日志不一致，先确认 IK、末端 frame、任务 action 和硬件反馈，再修改映射。
 
-默认映射
---------
+fallback 映射
+-------------
 
-默认位置与旋转映射均为：
+未提供标定 JSON 时，fallback 位置与旋转映射均为：
 
 .. code:: text
 
@@ -64,8 +113,8 @@
 * ``XRoboToolkitDeviceCfg.delta_pos_axis_map``
 * ``XRoboToolkitDeviceCfg.delta_rot_axis_map``
 
-这些字段是低影响标定入口。优先修改设备配置或任务中的 ``XRoboToolkitDeviceCfg``，
-不要先改高层遥操脚本的数据流。
+这些字段仍保留为 ``mapping_mode="axis_map"`` 的诊断入口。默认路径应优先使用
+``calibrate_xrobotoolkit_visual.py`` 生成 JSON，而不是直接修改高层遥操脚本的数据流。
 
 .. _xrobotoolkit-teleoperation-calibration-comparison:
 
@@ -130,19 +179,19 @@ Sample 的平移和旋转在 4x4 框架内部走的也是不同的计算路径�
      - 3-vector delta
    * - 空间映射
      - 单个 ``W_T_Q`` (4x4) 统一映射
-     - 两个独立 3x3 矩阵 ``delta_pos_axis_map`` + ``delta_rot_axis_map``
+     - 标定 JSON 中的 ``W_T_Q[:3,:3]``；无 JSON 时回退到两个 3x3 fallback 矩阵
    * - 映射来源
      - 标定（SVD 拟合）
-     - 硬编码常量
+     - IsaacLab 可视化标定 JSON；fallback 为硬编码常量
    * - 旋转处理
      - SO(3) delta + ``R_rot_map`` 方向映射
-     - rotation vector + 3x3 axis map
+     - rotation vector + ``W_T_Q[:3,:3]`` + ``R_rot_map``；fallback 为 3x3 axis map
    * - 输出形式
      - 4x4 target_T → Placo FrameTask
      - (dx,dy,dz,rx,ry,rz) 或绝对位姿
    * - 耦合程度
      - 共享 W_T_Q 框架，分路径计算
-     - 完全独立，无耦合
+     - 共享 W_T_Q 的旋转部分，但仍输出 IsaacLab delta/absolute 命令
 
 .. _xrobotoolkit-teleoperation-calibration-migration:
 
@@ -173,11 +222,10 @@ Sample 提供了完整的自动化标定管线（``scripts/hardware/calibrate_pi
 4. **质量检查**：平移 mean_error < 0.03m, max < 0.08m；旋转轴误差 mean < 25°, max < 40°。
    通过后输出 JSON（含 ``W_T_Q``, ``R_align``, ``R_rot_map``）。
 
-迁移可行性
-^^^^^^^^^^
+IsaacLab 当前实现
+^^^^^^^^^^^^^^^^^
 
-**可以迁移，且建议迁移**。Sample 中的标定数学模块（``piper_world_frame_mapping.py``）
-可直接复用：
+IsaacLab 已复用 Sample 中的标定数学模块（``piper_world_frame_mapping.py``）：
 
 * ``estimate_W_T_Q()`` —— SVD 估计 OpenXR→World 的 3x3 旋转矩阵
 * ``estimate_rotation_direction_map()`` —— SVD 估计旋转方向映射
@@ -185,30 +233,17 @@ Sample 提供了完整的自动化标定管线（``scripts/hardware/calibrate_pi
 * ``load_piper_world_calibration_json()`` —— 标定 JSON 加载
 * 质量检查逻辑（reprojection error, rotation axis error）
 
-需要适配的差异：
+当前实现保留了 IsaacLab 的 delta vector / absolute pose 输出接口，因此仍有以下差异：
 
 1. **W_T_Q 的平移分量对 delta-from-reference 无效**：Isaac Lab 使用相对于激活参考的
    delta 机制，平移的绝对原点会在差分化中消去。只有 ``W_T_Q`` 的 3x3 旋转分量
    （即 ``W_T_Q[:3, :3]``）对 Isaac Lab 有意义——它等价于 ``delta_pos_axis_map``
    和 ``delta_rot_axis_map`` 的功能。
 
-2. **R_rot_map 需作为独立环节引入**：当前 ``delta_rot_axis_map`` 同时承担了"坐标轴重映射"
-   和"旋转方向映射"两个职责。标定后应拆分为：轴映射（由 ``W_T_Q[:3,:3]`` 提供）+
-   方向映射（由 ``R_rot_map`` 提供）。
+2. **R_rot_map 作为独立环节**：``world_frame_calibrated`` 模式中，旋转先由
+   ``W_T_Q[:3,:3]`` 进入 world 语义，再经 ``R_rot_map`` 做方向映射。``axis_map``
+   模式保留旧的 3x3 rotation-vector 映射。
 
-3. **标定脚本需适配 Isaac Sim 环境**：Sample 的标定脚本依赖 Placo RobotWrapper 获取
-   TCP 的世界坐标。在 Isaac Lab 环境中需改用 Isaac Sim API 获取 end-effector 位姿。
-
-建议的迁移路径
-^^^^^^^^^^^^^^
-
-在 ``XRoboToolkitDevice`` 中新增可选的 **标定模式**：
-
-* 新增 ``XRoboToolkitDeviceCfg.calibration_json`` 字段，指向标定 JSON 文件路径。
-* 在 ``advance()`` 中，当 calibration_json 存在时：
-   - 平移 delta 用 ``W_T_Q[:3,:3]`` 替代 ``_delta_pos_axis_map`` 做轴映射
-   - 旋转 delta 先用 ``W_T_Q[:3,:3]`` 做轴映射，再经 ``R_rot_map`` 做方向映射
-* 标定 JSON 不存在时，行为与当前完全一致（回退到硬编码轴映射矩阵）。
-
-这相当于将 Sample 的 ``world_frame_calibrated_target()`` 逻辑从 4x4 矩阵框架
-移植到 Isaac Lab 的 delta vector 框架中。
+3. **标定脚本适配 Isaac Sim 环境**：Sample 的可视化脚本依赖 Placo/MeshCat 获取和显示
+   TCP；IsaacLab 使用 ``InteractiveScene``、Piper asset 和 ``FrameTransformer`` 获取 TCP，
+   并用 Isaac Sim Viewport markers 显示目标点和 frame。

@@ -145,6 +145,7 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                 ),
                 "xrobotoolkit": XRoboToolkitDeviceCfg(
                     control_mode="absolute",
+                    mapping_mode="world_frame_calibrated",
                     pos_sensitivity=1.0,
                     rot_sensitivity=1.0,
                     sim_device=self.sim.device,

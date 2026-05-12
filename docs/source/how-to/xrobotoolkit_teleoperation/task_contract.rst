@@ -29,6 +29,9 @@ Isaac Lab 侧设备配置为 ``XRoboToolkitDeviceCfg``，当前默认输入约�
    * - ``control_mode``
      - ``absolute``
      - 输出绝对末端目标位姿；也支持 ``relative``。
+   * - ``mapping_mode``
+     - ``world_frame_calibrated``
+     - 默认使用 world-frame 标定策略；未提供标定 JSON 时回退到当前轴映射。
 
 动作维度
 --------
@@ -74,16 +77,21 @@ Piper URDF 和 mesh 资产位于：
 * ``ee_frame``，用于绝对模式末端位姿参考。
 * ``wrist_cam``，用于 XRoboToolkit 视频流。
 * ``teleop_devices.devices["xrobotoolkit"]``，默认 ``control_mode="absolute"``。
+* ``teleop_devices.devices["xrobotoolkit"]``，默认 ``mapping_mode="world_frame_calibrated"``。
 
 坐标基准
 --------
 
-当前 XRoboToolkit 默认位置映射面向 ROS 机器人基座语义：``X`` 前、``Y`` 左、``Z`` 上。
-默认映射把 XR SDK 输入增量映射为：
+当前 XRoboToolkit 默认映射策略为 ``world_frame_calibrated``。如果运行时提供
+``calibration_json``，设备使用 JSON 中的 ``W_T_Q[:3,:3]`` 映射平移/旋转轴，并用
+``R_rot_map`` 继续映射旋转方向。如果未提供 JSON，设备会打印一次 uncalibrated fallback
+提示，并回退到内置 OpenXR-to-ROS 轴映射。
+
+fallback 映射面向 ROS 机器人基座语义：``X`` 前、``Y`` 左、``Z`` 上。它把 XR SDK 输入增量映射为：
 
 .. code:: text
 
    robot = [-raw_z, -raw_x, raw_y]
 
-如果实际机器人效果与该语义不一致，应先使用映射诊断日志确认输入、映射和机器人效果，
-不要直接修改任务 action 或控制器名称。
+如果实际机器人效果与该语义不一致，应先运行可视化标定或使用映射诊断日志确认输入、
+映射和机器人效果，不要直接修改任务 action 或控制器名称。

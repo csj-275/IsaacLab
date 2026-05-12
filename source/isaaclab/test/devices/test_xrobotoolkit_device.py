@@ -61,6 +61,7 @@ def test_xrobotoolkit_device_cfg_defaults_to_absolute_control_mode():
     device = XRoboToolkitDevice(cfg)
 
     assert cfg.control_mode == "absolute"
+    assert cfg.mapping_mode == "world_frame_calibrated"
     assert cfg.debug_mapping is False
     assert device.command_dim == 8
     action = device.advance()
@@ -171,6 +172,26 @@ def test_xrobotoolkit_device_default_ros_base_position_mapping():
     np.testing.assert_allclose(action.cpu().numpy()[:3], np.array([0.0, 0.0, -0.1]), atol=1.0e-6)
 
 
+def test_xrobotoolkit_device_default_world_frame_calibrated_falls_back_to_axis_map(capsys):
+    client = FakeXrClient()
+    device = XRoboToolkitDevice(XRoboToolkitDeviceCfg(control_mode="relative", xr_client=client))
+
+    output = capsys.readouterr().out
+    assert "mapping_mode=world_frame_calibrated is using uncalibrated fallback" in output
+    assert device.mapping_mode == "world_frame_calibrated"
+
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    client.pose = _pose([0.0, 0.0, -0.1], [0.0, 0.0, -0.2])
+    action = device.advance()
+    np.testing.assert_allclose(
+        action.cpu().numpy()[:6],
+        np.array([0.1, 0.0, 0.0, 0.2, 0.0, 0.0]),
+        atol=1.0e-6,
+    )
+
+
 def test_xrobotoolkit_device_default_calibrated_rotation_mapping():
     client = FakeXrClient()
     device = XRoboToolkitDevice(XRoboToolkitDeviceCfg(control_mode="relative", xr_client=client))
@@ -248,6 +269,8 @@ def test_xrobotoolkit_device_debug_mapping_does_not_change_action(capsys):
     output = capsys.readouterr().out
     assert "[XRoboToolkit mapping]" in output
     assert "mode=relative" in output
+    assert "mapping_mode=world_frame_calibrated" in output
+    assert "calibrated=false" in output
     assert "raw_pos=" in output
     assert "mapped_pos=" in output
     assert "raw_rot=" in output
@@ -369,3 +392,33 @@ def test_calibration_json_axis_map(tmp_path):
     client.pose = _pose([0.0, 0.0, 0.0], [0.0, 0.0, -0.2])
     action = device.advance()
     np.testing.assert_allclose(action.cpu().numpy()[3:6], np.array([0.2, 0.0, 0.0]), atol=1.0e-6)
+
+
+def test_axis_map_mode_ignores_calibration_json(tmp_path):
+    """axis_map mode preserves the legacy hard-coded 3x3 mapping even when a JSON is provided."""
+    import json
+
+    calib = _make_calib_json(np.eye(4, dtype=float))
+    json_path = tmp_path / "calib_identity.json"
+    json_path.write_text(json.dumps(calib))
+
+    client = FakeXrClient()
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            control_mode="relative",
+            mapping_mode="axis_map",
+            xr_client=client,
+            calibration_json=str(json_path),
+        )
+    )
+
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    client.pose = _pose([0.0, 0.0, -0.1], [0.0, 0.0, -0.2])
+    action = device.advance()
+    np.testing.assert_allclose(
+        action.cpu().numpy()[:6],
+        np.array([0.1, 0.0, 0.0, 0.2, 0.0, 0.0]),
+        atol=1.0e-6,
+    )

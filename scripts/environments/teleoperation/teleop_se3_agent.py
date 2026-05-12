@@ -41,6 +41,13 @@ parser.add_argument(
     help="XRoboToolkit control mode. If omitted, the environment device config is used.",
 )
 parser.add_argument(
+    "--xrobotoolkit_mapping_mode",
+    "--xrobotoolkit-mapping-mode",
+    choices=("world_frame_calibrated", "axis_map"),
+    default=None,
+    help="XRoboToolkit mapping mode. If omitted, the environment device config is used.",
+)
+parser.add_argument(
     "--xrobotoolkit_debug_mapping",
     "--xrobotoolkit-debug-mapping",
     action="store_true",
@@ -188,6 +195,8 @@ def _configure_xrobotoolkit_control_mode(env_cfg: ManagerBasedRLEnvCfg) -> str:
     control_mode = args_cli.xrobotoolkit_control_mode or cfg_mode
     if device_cfg is not None:
         device_cfg.control_mode = control_mode
+        if args_cli.xrobotoolkit_mapping_mode:
+            device_cfg.mapping_mode = args_cli.xrobotoolkit_mapping_mode
         if args_cli.xrobotoolkit_debug_mapping:
             device_cfg.debug_mapping = True
         if args_cli.xrobotoolkit_calibration_json:
@@ -447,6 +456,7 @@ def main() -> None:
                         pos_sensitivity=sensitivity,
                         rot_sensitivity=sensitivity,
                         control_mode=xrobotoolkit_control_mode or "absolute",
+                        mapping_mode=args_cli.xrobotoolkit_mapping_mode or "world_frame_calibrated",
                         debug_mapping=args_cli.xrobotoolkit_debug_mapping,
                         calibration_json=args_cli.xrobotoolkit_calibration_json,
                     )

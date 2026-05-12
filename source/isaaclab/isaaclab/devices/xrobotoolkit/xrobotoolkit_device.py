@@ -38,8 +38,10 @@ class XRoboToolkitDevice(DeviceBase):
 
     In relative mode, the command layout is ``[dx, dy, dz, rx, ry, rz, gripper]``.
     In absolute mode, the command layout is ``[x, y, z, qw, qx, qy, qz, gripper]``.
-    By default, XR SDK position deltas are mapped to ROS base axes as ``[-z, -x, y]``.
-    Rotation deltas are mapped to calibrated robot-effect axes as ``[-z, -x, y]``.
+    By default, mapping mode is ``world_frame_calibrated``. When a calibration JSON
+    is provided, XR SDK deltas are mapped by ``W_T_Q[:3,:3]`` and rotation deltas
+    are further mapped by ``R_rot_map``. Without a calibration JSON, the device
+    falls back to the built-in OpenXR-to-ROS axis maps.
     """
 
     def __init__(self, cfg: XRoboToolkitDeviceCfg):
@@ -61,6 +63,9 @@ class XRoboToolkitDevice(DeviceBase):
         self.control_mode = cfg.control_mode
         if self.control_mode not in ("relative", "absolute"):
             raise ValueError(f"Unsupported XRoboToolkit control mode: {self.control_mode}")
+        self.mapping_mode = cfg.mapping_mode
+        if self.mapping_mode not in ("world_frame_calibrated", "axis_map"):
+            raise ValueError(f"Unsupported XRoboToolkit mapping mode: {self.mapping_mode}")
         self.debug_mapping = cfg.debug_mapping
         self.debug_mapping_interval = cfg.debug_mapping_interval
         self._sim_device = cfg.sim_device
@@ -68,10 +73,16 @@ class XRoboToolkitDevice(DeviceBase):
         self._delta_rot_axis_map = _axis_mapping_to_array(cfg.delta_rot_axis_map, "delta_rot_axis_map")
         self._calibrated_axis_map: np.ndarray | None = None
         self._calibrated_rot_map: np.ndarray | None = None
-        if cfg.calibration_json is not None:
+        if self.mapping_mode == "world_frame_calibrated" and cfg.calibration_json is not None:
             calib = _load_calibration(cfg.calibration_json)
             self._calibrated_axis_map = calib["axis_map"]
             self._calibrated_rot_map = calib["rot_map"]
+        elif self.mapping_mode == "world_frame_calibrated":
+            print(
+                "XRoboToolkitDevice: mapping_mode=world_frame_calibrated is using uncalibrated fallback "
+                "(no calibration_json provided); provide --xrobotoolkit_calibration_json to use W_T_Q + R_rot_map.",
+                flush=True,
+            )
         self._ee_pose_provider = cfg.ee_pose_provider
         self._xr_client = cfg.xr_client if cfg.xr_client is not None else self._create_xr_client()
         self._additional_callbacks: dict[str, Callable] = {}
@@ -88,6 +99,8 @@ class XRoboToolkitDevice(DeviceBase):
         return (
             f"XRoboToolkit Controller for SE(3): {self.__class__.__name__}\n"
             f"\tControl mode: {self.control_mode}\n"
+            f"\tMapping mode: {self.mapping_mode}\n"
+            f"\tCalibrated: {self._calibrated_axis_map is not None}\n"
             f"\tPose source: {self.pose_source}\n"
             f"\tControl trigger: {self.control_trigger}\n"
             f"\tGripper trigger: {self.gripper_trigger}\n"
@@ -144,7 +157,8 @@ class XRoboToolkitDevice(DeviceBase):
         raw_delta_pos = (pos - self._ref_pos) * self.pos_sensitivity
         delta_quat = _quat_multiply(quat, _quat_conjugate(self._ref_quat))
         raw_delta_rot = _quat_to_rotvec(delta_quat) * self.rot_sensitivity
-        if self._calibrated_axis_map is not None:
+        if self.mapping_mode == "world_frame_calibrated" and self._calibrated_axis_map is not None:
+            assert self._calibrated_rot_map is not None
             delta_pos = self._calibrated_axis_map @ raw_delta_pos
             delta_rot_remapped = self._calibrated_axis_map @ raw_delta_rot
             delta_rot = self._calibrated_rot_map @ delta_rot_remapped
@@ -267,6 +281,8 @@ class XRoboToolkitDevice(DeviceBase):
         print(
             "[XRoboToolkit mapping] "
             f"mode={self.control_mode} "
+            f"mapping_mode={self.mapping_mode} "
+            f"calibrated={str(self._calibrated_axis_map is not None).lower()} "
             f"raw_pos={_format_vector(raw_delta_pos)} "
             f"mapped_pos={_format_vector(mapped_delta_pos)} "
             f"raw_rot={_format_vector(raw_delta_rot)} "
@@ -309,6 +325,8 @@ class XRoboToolkitDeviceCfg(DeviceCfg):
     gripper_threshold: float = 0.5
     gripper_term: bool = True
     control_mode: Literal["relative", "absolute"] = "absolute"
+    mapping_mode: Literal["world_frame_calibrated", "axis_map"] = "world_frame_calibrated"
+    """Coordinate mapping mode for XR controller deltas."""
     debug_mapping: bool = False
     debug_mapping_interval: float = 0.5
     delta_pos_axis_map: tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]] = (
@@ -320,8 +338,10 @@ class XRoboToolkitDeviceCfg(DeviceCfg):
     calibration_json: str | None = None
     """Path to a piper world-frame calibration JSON.
 
-    When set, W_T_Q[:3,:3] replaces delta_pos_axis_map and delta_rot_axis_map,
-    and R_rot_map is applied to rotation deltas on top of the axis mapping.
+    Used only in mapping_mode="world_frame_calibrated". When set, W_T_Q[:3,:3]
+    replaces delta_pos_axis_map and delta_rot_axis_map, and R_rot_map is applied
+    to rotation deltas on top of the axis mapping. When omitted, the device uses
+    the built-in axis-map fallback.
     """
     retargeters: None = None
     ee_pose_provider: Callable[[], tuple[Any, Any]] | None = None

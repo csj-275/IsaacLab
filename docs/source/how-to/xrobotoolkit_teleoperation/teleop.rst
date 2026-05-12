@@ -54,7 +54,8 @@ X Server 的宿主机终端启动或重新进入容器：
 控制模式
 --------
 
-默认使用任务配置中的模式。可通过命令行覆盖：
+默认使用任务配置中的模式。Piper 示例任务默认 ``control_mode="absolute"``，
+``mapping_mode="world_frame_calibrated"``。可通过命令行覆盖控制模式：
 
 .. code:: bash
 
@@ -73,6 +74,31 @@ X Server 的宿主机终端启动或重新进入容器：
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --xrobotoolkit_control_mode relative
+
+映射模式与标定 JSON
+-------------------
+
+默认 ``world_frame_calibrated`` 映射模式优先使用标定 JSON：
+
+.. code:: bash
+
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --headless \
+       --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
+       --teleop_device xrobotoolkit \
+       --xrobotoolkit_mapping_mode world_frame_calibrated \
+       --xrobotoolkit_calibration_json logs/piper_calibration/xrobotoolkit_world_frame_calibration_YYYYMMDD_HHMMSS.json
+
+如果没有传入 ``--xrobotoolkit_calibration_json``，设备仍会运行，但会打印 uncalibrated fallback
+提示，并回退到内置 OpenXR-to-ROS 轴映射。诊断旧行为时可显式使用 ``axis_map``：
+
+.. code:: bash
+
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --headless \
+       --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
+       --teleop_device xrobotoolkit \
+       --xrobotoolkit_mapping_mode axis_map
 
 视频流开关
 ----------

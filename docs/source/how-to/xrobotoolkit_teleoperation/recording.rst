@@ -41,9 +41,33 @@
    * - ``--xrobotoolkit_control_mode``
      - 任务配置值
      - 覆盖 XRoboToolkit 控制模式。
+   * - ``--xrobotoolkit_mapping_mode``
+     - 任务配置值
+     - 覆盖 XRoboToolkit 映射模式，支持 ``world_frame_calibrated`` 和 ``axis_map``。
+   * - ``--xrobotoolkit_calibration_json``
+     - ``None``
+     - 使用可视化标定脚本生成的 world-frame calibration JSON。
    * - ``--xrobotoolkit_debug_mapping``
      - ``False``
      - 打印原始与映射后的控制器增量。
+
+使用标定 JSON
+-------------
+
+推荐先运行可视化校准脚本，使用通过质量门槛的 JSON 录制：
+
+.. code:: bash
+
+   TERM=xterm ./isaaclab.sh -p scripts/tools/record_demos.py \
+       --headless \
+       --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
+       --teleop_device xrobotoolkit \
+       --xrobotoolkit_mapping_mode world_frame_calibrated \
+       --xrobotoolkit_calibration_json logs/piper_calibration/xrobotoolkit_world_frame_calibration_YYYYMMDD_HHMMSS.json \
+       --dataset_file ./datasets/piper_xrobo_demo.hdf5 \
+       --num_demos 10
+
+未提供 JSON 时会回退到内置 OpenXR-to-ROS 轴映射，并打印 uncalibrated fallback 提示。
 
 记录边界
 --------
