@@ -25,17 +25,35 @@ def _get_display_number(display: str | None) -> str | None:
     return display_name if display_name.isdigit() else None
 
 
+def _has_hostname(display: str) -> bool:
+    """Return True if the display string contains an explicit hostname (e.g. ``localhost:10.0``)."""
+    parts = display.rsplit(":", 1)
+    if len(parts) < 2:
+        return False
+    host = parts[0]
+    # Socket-based displays start with ":" (no host), e.g. ":10", ":10.0".
+    # Displays with a host like "localhost:10.0" or "myhost:0" are TCP-based.
+    return host != ""
+
+
 def get_x11_container_display(display: str | None = None) -> str | None:
     """Return the DISPLAY value that should be used inside the container.
 
     Docker containers can access a host X server most reliably through the mounted
-    ``/tmp/.X11-unix`` socket. If the host exposes a matching socket for a DISPLAY
-    value like ``localhost:10.0``, use ``:10`` in the container so GLFW does not try
-    to connect to the container's own localhost TCP port.
+    ``/tmp/.X11-unix`` socket.  If the host already uses a socket-based display (e.g.
+    ``:10``), map it to the same socket inside the container.
+
+    TCP-based displays (e.g. ``localhost:10.0``) are passed through unchanged because
+    the corresponding Unix socket may belong to a different X server or may be stale.
     """
     display = display if display is not None else os.environ.get("DISPLAY")
     if display is None:
         return None
+
+    # Only convert socket-based displays (no hostname prefix).
+    # TCP-based displays like "localhost:10.0" are passed through as-is.
+    if _has_hostname(display):
+        return display
 
     display_number = _get_display_number(display)
     if display_number is not None and Path(f"/tmp/.X11-unix/X{display_number}").exists():
