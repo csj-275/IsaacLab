@@ -10,7 +10,8 @@
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --xrobotoolkit_debug_mapping
@@ -19,7 +20,8 @@
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
+   TERM=xterm ./isaaclab.sh -p scripts/tools/record_demos.py \
+       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --xrobotoolkit_debug_mapping
@@ -68,11 +70,11 @@
 
 .. _xrobotoolkit-teleoperation-calibration-comparison:
 
-与 Piper 遥操 Sample 方案对比
-------------------------------
+与 Piper 硬件遥操方案对比
+--------------------------
 
-`XRoboToolkit-Teleop-Sample-Python <https://github.com/isaac-sim/XRoboToolkit-Teleop-Sample-Python>`_
-中提供了完整的 piper 硬件遥操参考实现，其映射和标定思路与当前 Isaac Lab 集成存在显著差异。
+``external/xrobotoolkit/xrobotoolkit`` submodule 中提供了完整的 piper 硬件遥操参考实现，
+其映射和标定思路与当前 Isaac Lab 集成存在显著差异。
 
 映射方式：delta vector vs 4x4 齐次矩阵
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -211,4 +213,3 @@ Sample 提供了完整的自动化标定管线（``scripts/hardware/calibrate_pi
 
 这相当于将 Sample 的 ``world_frame_calibrated_target()`` 逻辑从 4x4 矩阵框架
 移植到 Isaac Lab 的 delta vector 框架中。
-

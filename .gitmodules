@@ -1,0 +1,9 @@
+[submodule "external/xrobotoolkit/xrobotoolkit"]
+	path = external/xrobotoolkit/xrobotoolkit
+	url = git@172.16.2.92:kongqingwei/xrobotoolkit.git
+[submodule "external/xrobotoolkit/XRoboToolkit-PC-Service-Pybind"]
+	path = external/xrobotoolkit/XRoboToolkit-PC-Service-Pybind
+	url = https://github.com/XR-Robotics/XRoboToolkit-PC-Service-Pybind.git
+[submodule "external/xrobotoolkit/XRoboToolkit-PC-Service"]
+	path = external/xrobotoolkit/XRoboToolkit-PC-Service
+	url = https://github.com/XR-Robotics/XRoboToolkit-PC-Service.git

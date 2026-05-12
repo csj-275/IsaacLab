@@ -4,9 +4,9 @@
 # Prerequisites:
 #   The container must be started with the xrobotoolkit patch overlay, which
 #   bind-mounts the following host directories into /workspace:
-#     XRoboToolkit-Teleop-Sample-Python -> /workspace/XRoboToolkit-Teleop-Sample-Python
-#     XRoboToolkit-PC-Service-Pybind     -> /workspace/XRoboToolkit-PC-Service-Pybind
-#     XRoboToolkit-PC-Service            -> /workspace/XRoboToolkit-PC-Service
+#     external/xrobotoolkit/xrobotoolkit                    -> /workspace/xrobotoolkit
+#     external/xrobotoolkit/XRoboToolkit-PC-Service-Pybind  -> /workspace/XRoboToolkit-PC-Service-Pybind
+#     external/xrobotoolkit/XRoboToolkit-PC-Service         -> /workspace/XRoboToolkit-PC-Service
 #
 # Usage (inside the container):
 #   bash /workspace/isaaclab/scripts/tools/setup_xrobotoolkit_env.sh
@@ -17,7 +17,7 @@ ISAACLAB_SH="${ISAACLAB_PATH:-/workspace/isaaclab}/isaaclab.sh"
 
 XR_PC_PYBIND="/workspace/XRoboToolkit-PC-Service-Pybind"
 XR_PC_SERVICE="/workspace/XRoboToolkit-PC-Service"
-XR_TELEOP="/workspace/XRoboToolkit-Teleop-Sample-Python"
+XR_TELEOP="/workspace/xrobotoolkit"
 
 echo "=== XRoboToolkit Environment Setup ==="
 
@@ -64,7 +64,12 @@ echo "[3/4] Installing xrobotoolkit_sdk..."
 cd "$XR_PC_PYBIND"
 
 $ISAACLAB_SH -p -m pip uninstall -y xrobotoolkit_sdk 2>/dev/null || true
-$ISAACLAB_SH -p setup.py install
+if ! PYBIND11_CMAKE_DIR="$($ISAACLAB_SH -p -m pybind11 --cmakedir)"; then
+    echo "ERROR: pybind11 is not available in Isaac Lab Python. Rebuild the image or install pybind11 first."
+    exit 1
+fi
+CMAKE_PREFIX_PATH="${PYBIND11_CMAKE_DIR}${CMAKE_PREFIX_PATH:+:${CMAKE_PREFIX_PATH}}" \
+    $ISAACLAB_SH -p -m pip install --no-build-isolation --no-deps --force-reinstall .
 echo "  -> xrobotoolkit_sdk installed"
 
 # Step 4: Install xrobotoolkit_teleop (editable, no dependency resolution)

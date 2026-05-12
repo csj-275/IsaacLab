@@ -9,14 +9,55 @@
 让 Isaac Lab 的 Python 环境能够导入 XRoboToolkit 遥操客户端，同时避免把
 XRoboToolkit 仓库的完整依赖集合解析进 Isaac Lab 环境。
 
-最小安装
---------
+Submodule 准备
+--------------
+
+XRoboToolkit 相关源码作为当前仓库的 submodule 管理：
+
+.. code:: text
+
+   external/xrobotoolkit/xrobotoolkit
+   external/xrobotoolkit/XRoboToolkit-PC-Service-Pybind
+   external/xrobotoolkit/XRoboToolkit-PC-Service
+
+首次 checkout 后先初始化：
+
+.. code:: bash
+
+   git submodule update --init --recursive
+
+Docker 环境安装
+---------------
+
+启动容器时需要加载 XRoboToolkit compose patch：
+
+.. code:: bash
+
+   ./docker/container.py start base --files docker-compose.xrobotoolkit.patch.yaml
+   ./docker/container.py enter base
+
+容器内执行安装脚本：
+
+.. code:: bash
+
+   bash /workspace/isaaclab/scripts/tools/setup_xrobotoolkit_env.sh
+
+该脚本会使用以下容器路径：
+
+.. code:: text
+
+   /workspace/xrobotoolkit
+   /workspace/XRoboToolkit-PC-Service-Pybind
+   /workspace/XRoboToolkit-PC-Service
+
+非 Docker 最小安装
+------------------
 
 在 Isaac Lab 仓库根目录执行：
 
 .. code:: bash
 
-   ./isaaclab.sh -p -m pip install --no-deps -e /home/kongqingwei/XRoboToolkit-Teleop-Sample-Python
+   ./isaaclab.sh -p -m pip install --no-deps -e external/xrobotoolkit/xrobotoolkit
 
 如果运行时提示缺少 ``xrobotoolkit_sdk``，只把 XRoboToolkit PC Service Pybind 包安装到
 Isaac Lab Python 环境中。不要优先使用 XRoboToolkit 仓库的完整环境安装脚本覆盖 Isaac Lab 环境。
@@ -61,4 +102,4 @@ Pixi 任务
 
 * ``--no-deps -e`` 只负责让 Isaac Lab Python 能 import XRoboToolkit 源码。
 * XRoboToolkit PC 服务、头显端应用、控制器输入、网络连通性不由上述命令启动。
-* 若 Isaac Lab 在 Docker 容器中运行，容器内仍需要能访问本地 XRoboToolkit 源码路径。
+* 若 Isaac Lab 在 Docker 容器中运行，优先使用 ``setup_xrobotoolkit_env.sh``，不要使用宿主机路径。

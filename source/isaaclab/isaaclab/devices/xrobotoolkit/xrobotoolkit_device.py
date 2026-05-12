@@ -175,11 +175,18 @@ class XRoboToolkitDevice(DeviceBase):
         try:
             from xrobotoolkit_teleop.common.xr_client import XrClient
         except ModuleNotFoundError as exc:
-            raise ModuleNotFoundError(
-                "XRoboToolkitDevice requires xrobotoolkit_teleop in the Isaac Lab Python environment. "
-                "Install it with: ./isaaclab.sh -p -m pip install --no-deps -e "
-                "/home/kongqingwei/XRoboToolkit-Teleop-Sample-Python"
-            ) from exc
+            setup_hint = "bash /workspace/isaaclab/scripts/tools/setup_xrobotoolkit_env.sh"
+            if exc.name == "xrobotoolkit_teleop":
+                raise ModuleNotFoundError(
+                    "XRoboToolkitDevice requires xrobotoolkit_teleop in the Isaac Lab Python environment. "
+                    f"In the Docker container, install it with: {setup_hint}"
+                ) from exc
+            if exc.name == "xrobotoolkit_sdk":
+                raise ModuleNotFoundError(
+                    "XRoboToolkitDevice requires xrobotoolkit_sdk for XRoboToolkit PC Service access. "
+                    f"In the Docker container, build and install it with: {setup_hint}"
+                ) from exc
+            raise
 
         return XrClient()
 

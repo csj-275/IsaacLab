@@ -23,7 +23,8 @@
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --xrobotoolkit_video_listen 0.0.0.0:13579 \
@@ -33,7 +34,8 @@
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --xrobotoolkit_video_width 640 \
@@ -59,4 +61,3 @@ Piper 示例任务的 ``wrist_cam`` 挂在 ``camera_link`` 下，使用 RealSens
 
 如果画面全白、方向异常或没有视频，先分别排查 scene camera 内容和 XRoboToolkit 传输链路。
 不要把二者合并成同一个故障结论。
-

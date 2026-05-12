@@ -16,7 +16,28 @@
 
 .. code:: bash
 
-   ./isaaclab.sh -p -m pip install --no-deps -e /home/kongqingwei/XRoboToolkit-Teleop-Sample-Python
+   bash /workspace/isaaclab/scripts/tools/setup_xrobotoolkit_env.sh
+
+如果不在 Docker 容器中运行，可使用当前仓库 submodule：
+
+.. code:: bash
+
+   ./isaaclab.sh -p -m pip install --no-deps -e external/xrobotoolkit/xrobotoolkit
+
+容器窗口错误
+------------
+
+现象：
+
+.. code:: text
+
+   Cannot setup ExternalDragDrop without a default window
+   GLFW initialization failed
+
+处理：
+
+* 在 Docker 容器内运行 XRoboToolkit 遥操时显式传入 ``--headless``。
+* 若仍需 GUI，需要先确认容器启动时 X11 转发和 ``DISPLAY`` 可用；该路径不是当前默认遥操流程。
 
 Piper URDF mesh 解析失败
 ------------------------

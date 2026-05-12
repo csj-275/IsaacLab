@@ -10,7 +10,8 @@
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
+   TERM=xterm ./isaaclab.sh -p scripts/tools/record_demos.py \
+       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --dataset_file ./datasets/piper_xrobo_demo.hdf5 \
@@ -49,4 +50,3 @@
 
 ``record_demos.py`` 记录的是 Isaac Lab 环境中的演示轨迹，不证明真实机器人部署成功。
 如果要验证真机行为，需要在硬件遥操路径上独立检查关节、末端、夹爪和安全 reset 逻辑。
-

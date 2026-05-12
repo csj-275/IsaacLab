@@ -78,8 +78,8 @@ def _create_xr_client():
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
             "Calibration requires xrobotoolkit_sdk. "
-            "Install it from XRoboToolkit-Teleop-Sample-Python/dependencies/XRoboToolkit-PC-Service-Pybind/ "
-            "or ensure the XRoboToolkit PC Service is set up in the container."
+            "In the Docker container, run: "
+            "bash /workspace/isaaclab/scripts/tools/setup_xrobotoolkit_env.sh"
         ) from exc
 
     return XrClient()

@@ -10,9 +10,13 @@
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit
+
+Docker 容器内默认使用 ``--headless``。如果不加该参数，当前容器环境可能在创建默认窗口时触发
+``Cannot setup ExternalDragDrop without a default window`` 或 GLFW 初始化错误。
 
 交互语义
 --------
@@ -29,7 +33,8 @@
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --xrobotoolkit_control_mode absolute
@@ -38,7 +43,8 @@
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --xrobotoolkit_control_mode relative
@@ -51,7 +57,8 @@ Isaac Lab 相机并启动 XRoboToolkit 视频控制监听。若只想验证控�
 
 .. code:: bash
 
-   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --disable_xrobotoolkit_video_stream
@@ -61,4 +68,3 @@ XR 模式注意事项
 
 当前入口在 ``--xr`` 模式下会移除 scene camera configs；如果同时请求 XRoboToolkit 视频流，
 入口会禁用该视频流。因此 XRoboToolkit 腕部相机视频流与 ``--xr`` 不应同时作为默认路径使用。
-
