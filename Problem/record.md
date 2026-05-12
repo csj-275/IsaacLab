@@ -334,8 +334,35 @@ class Solution:
 输入：intervals = \[[4,7],[1,4]]
 输出：\[[1,7]]
 解释：区间 [1,4] 和 [4,7] 可被视为重叠区间。
+```python 
+class Solution:
+    def merge(self, intervals: List[List[int]]) -> List[List[int]]:
+        intervals.sort(key=lambda p: p[0]) # 按照左端点从小到大排序
+        ans = []
+        for p in intervals:
+            if ans and p[0] <= ans[-1][1]:
+                ans[-1][1] = max(ans[-1][1], p[1])
+            else:
+                ans.append(p)
+        return ans
+```
+
+
 
 ## 矩阵
+### 73.矩阵置零
+给定一个`m x n`的矩阵，如果一个元素为 0 ，则将其所在行和列的所有元素都设为 0 。请使用 原地算法。
+**示例1：**
+![alt text](image-10.png)
+输入：matrix = [[1,1,1],[1,0,1],[1,1,1]]
+输出：[[1,0,1],[0,0,0],[1,0,1]]
+**示例2：**
+![alt text](image-11.png)
+输入：matrix = [[0,1,2,0],[3,4,5,2],[1,3,1,5]]
+输出：[[0,0,0,0],[0,4,5,0],[0,3,1,0]]
+```python
+
+```
 
 ## 链表
 ### 160.相交链表

@@ -119,10 +119,10 @@ def main():
             "is deprecated. Please update the API to take action_noise_dict instead."
         )
 
-    # Set seed for generation
-    random.seed(env.cfg.datagen_config.seed)
-    np.random.seed(env.cfg.datagen_config.seed)
-    torch.manual_seed(env.cfg.datagen_config.seed)
+    # # Set seed for generation
+    # random.seed(env.cfg.datagen_config.seed)
+    # np.random.seed(env.cfg.datagen_config.seed)
+    # torch.manual_seed(env.cfg.datagen_config.seed)
 
     # Reset before starting
     env.reset()

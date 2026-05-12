@@ -84,7 +84,10 @@ class ContainerInterface:
         # except make sure that the docker name suffix is set from the script
         self.environ = os.environ.copy()
         self.environ["DOCKER_NAME_SUFFIX"] = self.suffix
-
+        # Use plain progress so long Dockerfile RUN steps stream their logs instead of only showing a spinner.
+        self.environ.setdefault("BUILDKIT_PROGRESS", "plain")
+        self.environ.setdefault("COMPOSE_PROGRESS", "plain")
+        
         # resolve the image extension through the passed yamls and envs
         self._resolve_image_extension(yamls, envs)
         # load the environment variables from the .env files
