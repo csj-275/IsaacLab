@@ -15,8 +15,33 @@
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit
 
-Docker 容器内默认使用 ``--headless``。如果不加该参数，当前容器环境可能在创建默认窗口时触发
-``Cannot setup ExternalDragDrop without a default window`` 或 GLFW 初始化错误。
+Docker 容器内默认使用 ``--headless``。如果需要 Isaac Sim 可视化窗口，必须从已经能访问本机
+X Server 的宿主机终端启动或重新进入容器：
+
+.. code:: bash
+
+   ./docker/container.py start base --files docker-compose.xrobotoolkit.patch.yaml
+   ./docker/container.py enter base
+
+``container.py enter`` 会刷新容器使用的 xauth 文件，并把 ``localhost:10.0`` 这类宿主机
+``DISPLAY`` 规范为容器内更稳定的 ``:10`` Unix socket 形式。进入容器后可检查：
+
+.. code:: bash
+
+   printf 'DISPLAY=%s\nXAUTHORITY=%s\n' "$DISPLAY" "$XAUTHORITY"
+
+窗口模式运行时不要传 ``--headless``：
+
+.. code:: bash
+
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
+       --teleop_device xrobotoolkit \
+       --xrobotoolkit_control_mode absolute
+
+如果仍然出现 ``Cannot setup ExternalDragDrop without a default window`` 或 GLFW 初始化错误，
+先在宿主机终端确认 ``xdpyinfo`` 能打开当前 ``DISPLAY``，再退出容器并重新执行
+``./docker/container.py enter base``。
 
 交互语义
 --------

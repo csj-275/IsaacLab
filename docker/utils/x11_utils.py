@@ -16,6 +16,43 @@ from pathlib import Path
 from .state_file import StateFile
 
 
+def _get_display_number(display: str | None) -> str | None:
+    """Extract the X11 display number from a DISPLAY value."""
+    if display is None:
+        return None
+
+    display_name = display.rsplit(":", 1)[-1].split(".", 1)[0]
+    return display_name if display_name.isdigit() else None
+
+
+def get_x11_container_display(display: str | None = None) -> str | None:
+    """Return the DISPLAY value that should be used inside the container.
+
+    Docker containers can access a host X server most reliably through the mounted
+    ``/tmp/.X11-unix`` socket. If the host exposes a matching socket for a DISPLAY
+    value like ``localhost:10.0``, use ``:10`` in the container so GLFW does not try
+    to connect to the container's own localhost TCP port.
+    """
+    display = display if display is not None else os.environ.get("DISPLAY")
+    if display is None:
+        return None
+
+    display_number = _get_display_number(display)
+    if display_number is not None and Path(f"/tmp/.X11-unix/X{display_number}").exists():
+        return f":{display_number}"
+
+    return display
+
+
+def _with_wildcard_xauth_family(xauth_cookie: str) -> str:
+    """Make xauth entries valid across host/container hostname boundaries."""
+    wildcard_lines = []
+    for line in xauth_cookie.splitlines():
+        if line.strip():
+            wildcard_lines.append(f"ffff{line[4:]}" if len(line) >= 4 else line)
+    return "\n".join(wildcard_lines) + ("\n" if wildcard_lines else "")
+
+
 # This method of x11 enabling forwarding was inspired by osrf/rocker
 # https://github.com/osrf/rocker
 def configure_x11(statefile: StateFile) -> dict[str, str]:
@@ -35,6 +72,7 @@ def configure_x11(statefile: StateFile) -> dict[str, str]:
 
         - "__ISAACLAB_TMP_XAUTH": The path to the temporary .xauth file.
         - "__ISAACLAB_TMP_DIR": The path to the directory where the temporary .xauth file is stored.
+        - "DISPLAY": The DISPLAY value to use from inside the container.
 
     """
     # check if xauth is installed
@@ -58,7 +96,12 @@ def configure_x11(statefile: StateFile) -> dict[str, str]:
     else:
         tmp_dir = Path(tmp_xauth_value).parent
 
-    return {"__ISAACLAB_TMP_XAUTH": str(tmp_xauth_value), "__ISAACLAB_TMP_DIR": str(tmp_dir)}
+    x11_envars = {"__ISAACLAB_TMP_XAUTH": str(tmp_xauth_value), "__ISAACLAB_TMP_DIR": str(tmp_dir)}
+    container_display = get_x11_container_display()
+    if container_display is not None:
+        x11_envars["DISPLAY"] = container_display
+
+    return x11_envars
 
 
 def x11_check(statefile: StateFile) -> tuple[list[str], dict[str, str]] | None:
@@ -168,10 +211,28 @@ def create_x11_tmpfile(tmpfile: Path | None = None, tmpdir: Path | None = None) 
         tmpfile.touch()
         tmp_xauth = tmpfile
 
-    # Derive current MIT-MAGIC-COOKIE and make it universally addressable
-    xauth_cookie = subprocess.run(
-        ["xauth", "nlist", os.environ["DISPLAY"]], capture_output=True, text=True, check=True
-    ).stdout.replace("ffff", "")
+    # Derive current MIT-MAGIC-COOKIE and make it universally addressable. The wildcard
+    # family lets the cookie match even when the container hostname differs from the host.
+    xauth_displays = [os.environ["DISPLAY"]]
+    container_display = get_x11_container_display(os.environ["DISPLAY"])
+    if container_display is not None and container_display not in xauth_displays:
+        xauth_displays.append(container_display)
+
+    xauth_cookie = ""
+    xauth_error = ""
+    for xauth_display in xauth_displays:
+        xauth_result = subprocess.run(
+            ["xauth", "nlist", xauth_display], capture_output=True, text=True, check=False
+        )
+        if xauth_result.returncode == 0 and xauth_result.stdout.strip():
+            xauth_cookie = _with_wildcard_xauth_family(xauth_result.stdout)
+            break
+        xauth_error = xauth_result.stderr.strip()
+
+    if not xauth_cookie:
+        if xauth_error:
+            print(f"[ERROR] Failed to read X11 authorization data: {xauth_error}")
+        raise RuntimeError(f"Could not derive an xauth cookie from DISPLAY={os.environ['DISPLAY']!r}.")
 
     # Merge the new cookie into the create .tmp file
     subprocess.run(["xauth", "-f", tmp_xauth, "nmerge", "-"], input=xauth_cookie, text=True, check=True)
@@ -209,11 +270,12 @@ def x11_refresh(statefile: StateFile):
         status = "enabled" if is_x11_forwarding_enabled == "1" else "disabled"
         print(f"[INFO] X11 Forwarding is {status} from the settings in '.container.cfg'")
 
-    # if the file exists, delete it and create a new one
+    # if the file exists, create a replacement first so a temporary xauth failure
+    # does not remove the currently mounted credential file.
     if tmp_xauth_value is not None and Path(tmp_xauth_value).exists():
-        # remove the file and create a new one
-        Path(tmp_xauth_value).unlink()
-        create_x11_tmpfile(tmpfile=Path(tmp_xauth_value))
+        tmp_xauth_path = Path(tmp_xauth_value)
+        new_tmp_xauth = create_x11_tmpfile(tmpdir=tmp_xauth_path.parent)
+        new_tmp_xauth.replace(tmp_xauth_path)
         # update the statefile with the new path
         statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(tmp_xauth_value))
     elif tmp_xauth_value is None:

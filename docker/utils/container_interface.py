@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .state_file import StateFile
+from .x11_utils import get_x11_container_display
 
 
 class ContainerInterface:
@@ -203,9 +204,20 @@ class ContainerInterface:
         """
         if self.is_container_running():
             print(f"[INFO] Entering the existing '{self.container_name}' container in a bash session...\n")
+            self.statefile.namespace = "X11"
+            tmp_xauth = self.statefile.get_variable("__ISAACLAB_TMP_XAUTH")
+            container_display = get_x11_container_display()
+            x11_env = []
+            if container_display is not None:
+                x11_env += ["-e", f"DISPLAY={container_display}"]
+            if tmp_xauth is not None:
+                x11_env += ["-e", f"XAUTHORITY={tmp_xauth}", "-e", "QT_X11_NO_MITSHM=1"]
+            if "TERM" in os.environ:
+                x11_env += ["-e", f"TERM={os.environ['TERM']}"]
+
             cmd = (
                 ["docker", "exec", "--interactive", "--tty"]
-                + (["-e", f"DISPLAY={os.environ['DISPLAY']}"] if "DISPLAY" in os.environ else [])
+                + x11_env
                 + [self.container_name, "bash"]
             )
             subprocess.run(cmd)
