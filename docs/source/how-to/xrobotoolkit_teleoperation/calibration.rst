@@ -11,7 +11,6 @@
 .. code:: bash
 
    TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --headless \
        --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
        --teleop_device xrobotoolkit \
        --xrobotoolkit_debug_mapping
