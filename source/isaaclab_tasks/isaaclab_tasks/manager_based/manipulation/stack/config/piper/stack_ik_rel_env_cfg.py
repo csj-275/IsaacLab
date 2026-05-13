@@ -27,6 +27,24 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG  # isort: skip
 
 
+PIPER_D435_COLOR_INTRINSIC_640X480 = [
+    605.519378662109,
+    0.0,
+    320.0,
+    0.0,
+    605.519378662109,
+    240.0,
+    0.0,
+    0.0,
+    1.0,
+]
+"""Isaac Sim compatible D435 color intrinsics at 640x480 from ``rs-enumerate-devices -c``.
+
+Omniverse ignores camera aperture offsets and non-square pixels, so this uses the
+measured Color 640x480 average focal length with a centered principal point.
+"""
+
+
 @configclass
 class EventCfg:
     """Configuration for Piper stack reset events."""
@@ -115,11 +133,12 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             height=480,
             width=640,
             data_types=["rgb"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0,
-                focus_distance=400.0,
-                horizontal_aperture=20.955,
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
+                width=640,
+                height=480,
                 clipping_range=(0.1, 2.0),
+                focus_distance=400.0,
             ),
             # Convert the URDF RealSense camera_link frame to the optical frame expected by IsaacLab cameras.
             offset=CameraCfg.OffsetCfg(
@@ -135,11 +154,12 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             height=480,
             width=640,
             data_types=["rgb"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=18.0,
-                focus_distance=400.0,
-                horizontal_aperture=20.955,
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
+                width=640,
+                height=480,
                 clipping_range=(0.05, 10.0),
+                focus_distance=400.0,
             ),
             offset=CameraCfg.OffsetCfg(
                 pos=(0.0, 0.0, 0.0),

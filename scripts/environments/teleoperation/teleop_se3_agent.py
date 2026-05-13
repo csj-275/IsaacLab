@@ -524,25 +524,76 @@ def _compute_scene_aabb(prim_paths: list[str]):
     return center, half_extents, float(np.linalg.norm(half_extents))
 
 
-def _scene_check_points(prim_paths: list[str]) -> torch.Tensor | None:
-    """Get world-space AABB corners and center for the given prims.
-
-    Returns:
-        Tensor of shape (N, 3) or None.
-    """
-    result = _get_scene_aligned_range(prim_paths)
-    if result is None:
-        return None
-
-    overall_min, overall_max = result
-    mn = [overall_min[i] for i in range(3)]
-    mx = [overall_max[i] for i in range(3)]
+def _range_points(mn: list[float], mx: list[float]) -> list[list[float]]:
+    """Return center and corners for an aligned 3D range."""
     points = [[(mn[i] + mx[i]) * 0.5 for i in range(3)]]
     for dx in (0, 1):
         for dy in (0, 1):
             for dz in (0, 1):
                 points.append([mn[i] if v == 0 else mx[i] for i, v in enumerate((dx, dy, dz))])
+    return points
 
+
+def _points_aabb(points: torch.Tensor) -> tuple[np.ndarray, np.ndarray, float]:
+    """Compute center, half extents, and radius from world-space points."""
+    points_np = points.cpu().numpy()
+    points_min = points_np.min(axis=0)
+    points_max = points_np.max(axis=0)
+    center = (points_min + points_max) * 0.5
+    half_extents = (points_max - points_min) * 0.5
+    return center, half_extents, float(np.linalg.norm(half_extents))
+
+
+def _scene_check_points(prim_paths: list[str], entity_names: list[str]) -> torch.Tensor | None:
+    """Get world-space points that table_cam must observe.
+
+    The table contributes only top-surface workspace samples. Robot and cube
+    entities contribute full AABB samples and remain hard visibility targets.
+
+    Returns:
+        Tensor of shape (N, 3) or None.
+    """
+    table_range = None
+    required_points: list[list[float]] = []
+
+    for path, name in zip(prim_paths, entity_names):
+        result = _get_scene_aligned_range([path])
+        if result is None:
+            continue
+        aligned_min, aligned_max = result
+        mn = [aligned_min[i] for i in range(3)]
+        mx = [aligned_max[i] for i in range(3)]
+        if name.lower() == "table":
+            table_range = (mn, mx)
+        else:
+            required_points.extend(_range_points(mn, mx))
+
+    if table_range is not None:
+        table_min, table_max = table_range
+        table_top_z = table_max[2]
+        if required_points:
+            required_np = np.array(required_points)
+            workspace_min_xy = required_np[:, :2].min(axis=0)
+            workspace_max_xy = required_np[:, :2].max(axis=0)
+            workspace_size_xy = workspace_max_xy - workspace_min_xy
+            workspace_margin = max(float(workspace_size_xy.max()) * 0.15, 0.08)
+            surface_min_xy = np.maximum(workspace_min_xy - workspace_margin, np.array(table_min[:2]))
+            surface_max_xy = np.minimum(workspace_max_xy + workspace_margin, np.array(table_max[:2]))
+        else:
+            table_center_xy = (np.array(table_min[:2]) + np.array(table_max[:2])) * 0.5
+            table_half_xy = (np.array(table_max[:2]) - np.array(table_min[:2])) * 0.25
+            surface_min_xy = table_center_xy - table_half_xy
+            surface_max_xy = table_center_xy + table_half_xy
+
+        surface_center_xy = (surface_min_xy + surface_max_xy) * 0.5
+        required_points.append([surface_center_xy[0], surface_center_xy[1], table_top_z])
+        for x in (surface_min_xy[0], surface_max_xy[0]):
+            for y in (surface_min_xy[1], surface_max_xy[1]):
+                required_points.append([x, y, table_top_z])
+
+    points = required_points
+    if not points:
+        return None
     return torch.tensor(points, dtype=torch.float32)
 
 
@@ -578,16 +629,11 @@ def _setup_table_cam_with_frustum(env: gym.Env, table_cam, table_cam_cfg) -> Non
         logger.warning("No scene prims found; skipping frustum-based table_cam setup.")
         return
 
-    result = _compute_scene_aabb(paths)
-    if result is None:
-        logger.warning("Could not compute scene AABB; skipping frustum-based table_cam setup.")
-        return
-
-    scene_center, scene_half_extents, scene_radius = result
-    points = _scene_check_points(paths)
+    points = _scene_check_points(paths, fit_entity_names)
     if points is None:
         logger.warning("Could not compute scene check points; skipping frustum-based table_cam setup.")
         return
+    scene_center, scene_half_extents, scene_radius = _points_aabb(points)
 
     # Camera intrinsics from config
     focal_length = table_cam_cfg.spawn.focal_length
