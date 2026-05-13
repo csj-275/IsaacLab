@@ -55,6 +55,19 @@ def _pose(pos, rotvec=(0.0, 0.0, 0.0)) -> np.ndarray:
     return np.concatenate([np.asarray(pos, dtype=float), quat])
 
 
+def _wxyz_from_rotvec(rotvec) -> np.ndarray:
+    quat_xyzw = _pose([0.0, 0.0, 0.0], rotvec)[3:7]
+    return np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]], dtype=float)
+
+
+def _assert_quat_allclose(actual, expected, atol=1.0e-6) -> None:
+    actual = np.asarray(actual, dtype=float)
+    expected = np.asarray(expected, dtype=float)
+    if np.dot(actual, expected) < 0.0:
+        actual = -actual
+    np.testing.assert_allclose(actual, expected, atol=atol)
+
+
 def test_xrobotoolkit_device_cfg_defaults_to_absolute_control_mode():
     client = FakeXrClient()
     cfg = XRoboToolkitDeviceCfg(xr_client=client)
@@ -315,6 +328,157 @@ def test_calibration_json_identity(tmp_path):
     client.pose = _pose([0.1, 0.2, -0.3], [0.1, 0.2, -0.3])
     action = device.advance()
     np.testing.assert_allclose(action.cpu().numpy()[:6], np.array([0.1, 0.2, -0.3, 0.1, 0.2, -0.3]), atol=1.0e-6)
+
+
+def test_absolute_world_frame_calibrated_rotation_does_not_move_position(tmp_path):
+    """Absolute calibrated mode keeps TCP position fixed for pure controller rotation."""
+    import json
+
+    calib = _make_calib_json(np.eye(4, dtype=float))
+    json_path = tmp_path / "calib_identity.json"
+    json_path.write_text(json.dumps(calib))
+
+    client = FakeXrClient()
+    robot_ref_pos = np.array([0.4, 0.1, 0.2])
+    robot_ref_quat = np.array([1.0, 0.0, 0.0, 0.0])
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            xr_client=client,
+            ee_pose_provider=lambda: (robot_ref_pos.copy(), robot_ref_quat.copy()),
+            calibration_json=str(json_path),
+        )
+    )
+
+    client.pose = _pose([0.3, -0.2, 0.5])
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    client.pose = _pose([0.3, -0.2, 0.5], [0.0, 0.0, np.pi / 2.0])
+    action = device.advance().cpu().numpy()
+
+    np.testing.assert_allclose(action[:3], robot_ref_pos, atol=1.0e-6)
+    _assert_quat_allclose(action[3:7], _wxyz_from_rotvec([0.0, 0.0, np.pi / 2.0]))
+
+
+def test_absolute_world_frame_calibrated_translation_does_not_rotate_orientation(tmp_path):
+    """Absolute calibrated mode keeps TCP orientation fixed for pure controller translation."""
+    import json
+
+    calib = _make_calib_json(np.eye(4, dtype=float))
+    json_path = tmp_path / "calib_identity.json"
+    json_path.write_text(json.dumps(calib))
+
+    client = FakeXrClient()
+    robot_ref_pos = np.array([0.4, 0.1, 0.2])
+    robot_ref_quat = _wxyz_from_rotvec([np.pi / 2.0, 0.0, 0.0])
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            xr_client=client,
+            ee_pose_provider=lambda: (robot_ref_pos.copy(), robot_ref_quat.copy()),
+            calibration_json=str(json_path),
+        )
+    )
+
+    client.pose = _pose([0.3, -0.2, 0.5])
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    client.pose = _pose([0.4, -0.5, 0.7])
+    action = device.advance().cpu().numpy()
+
+    np.testing.assert_allclose(action[:3], robot_ref_pos + np.array([0.1, -0.3, 0.2]), atol=1.0e-6)
+    _assert_quat_allclose(action[3:7], robot_ref_quat)
+
+
+def test_absolute_world_frame_calibrated_uses_full_w_t_q_and_rot_map(tmp_path):
+    """Absolute calibrated mode matches split W_T_Q translation and R_rot_map rotation formulas."""
+    import json
+
+    W_R_Q = np.array(
+        [
+            [0.0, -1.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=float,
+    )
+    R_rot_map = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 1.0, 0.0],
+        ],
+        dtype=float,
+    )
+    W_T_Q = np.eye(4, dtype=float)
+    W_T_Q[:3, :3] = W_R_Q
+    W_T_Q[:3, 3] = np.array([1.0, 2.0, 3.0])
+    calib = _make_calib_json(W_T_Q, R_rot_map)
+    json_path = tmp_path / "calib_nonzero.json"
+    json_path.write_text(json.dumps(calib))
+
+    client = FakeXrClient()
+    robot_ref_pos = np.array([0.4, 0.1, 0.2])
+    robot_ref_quat = np.array([1.0, 0.0, 0.0, 0.0])
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            xr_client=client,
+            pos_sensitivity=2.0,
+            rot_sensitivity=0.5,
+            ee_pose_provider=lambda: (robot_ref_pos.copy(), robot_ref_quat.copy()),
+            calibration_json=str(json_path),
+        )
+    )
+
+    client.pose = _pose([0.2, -0.1, 0.05])
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+
+    controller_delta = np.array([0.1, 0.2, 0.3])
+    client.pose = _pose([0.3, 0.1, 0.35], [0.3, 0.0, 0.0])
+    action = device.advance().cpu().numpy()
+
+    expected_pos = robot_ref_pos + 2.0 * (W_R_Q @ controller_delta)
+    expected_quat = _wxyz_from_rotvec([0.0, 0.0, 0.15])
+    np.testing.assert_allclose(action[:3], expected_pos, atol=1.0e-6)
+    _assert_quat_allclose(action[3:7], expected_quat)
+
+
+def test_absolute_world_frame_calibrated_recaptures_controller_and_tcp_references(tmp_path):
+    """Releasing and pressing grip again maps the current controller pose to the current TCP pose."""
+    import json
+
+    calib = _make_calib_json(np.eye(4, dtype=float))
+    json_path = tmp_path / "calib_identity.json"
+    json_path.write_text(json.dumps(calib))
+
+    client = FakeXrClient()
+    robot_ref_pos = np.array([0.4, 0.1, 0.2])
+    robot_ref_quat = np.array([1.0, 0.0, 0.0, 0.0])
+    device = XRoboToolkitDevice(
+        XRoboToolkitDeviceCfg(
+            xr_client=client,
+            ee_pose_provider=lambda: (robot_ref_pos.copy(), robot_ref_quat.copy()),
+            calibration_json=str(json_path),
+        )
+    )
+
+    client.pose = _pose([0.0, 0.0, 0.0])
+    client.keys["right_grip"] = 1.0
+    _ = device.advance()
+    client.pose = _pose([0.1, 0.0, 0.0])
+    action = device.advance().cpu().numpy()
+    np.testing.assert_allclose(action[:3], np.array([0.5, 0.1, 0.2]), atol=1.0e-6)
+
+    client.keys["right_grip"] = 0.0
+    _ = device.advance()
+    robot_ref_pos[:] = np.array([0.8, -0.2, 0.3])
+    client.pose = _pose([5.0, 5.0, 5.0])
+    client.keys["right_grip"] = 1.0
+    action = device.advance().cpu().numpy()
+
+    np.testing.assert_allclose(action[:3], robot_ref_pos, atol=1.0e-6)
+    _assert_quat_allclose(action[3:7], robot_ref_quat)
 
 
 def test_calibration_json_rot_map(tmp_path):

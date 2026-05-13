@@ -83,11 +83,15 @@ Piper URDF 和 mesh 资产位于：
 --------
 
 当前 XRoboToolkit 默认映射策略为 ``world_frame_calibrated``。如果运行时提供
-``calibration_json``，设备使用 JSON 中的 ``W_T_Q[:3,:3]`` 映射平移/旋转轴，并用
-``R_rot_map`` 继续映射旋转方向。如果未提供 JSON，设备会打印一次 uncalibrated fallback
-提示，并回退到内置 OpenXR-to-ROS 轴映射。
+``calibration_json``，absolute 模式会在按下 ``right_grip`` 时捕获控制器参考位姿和
+当前 TCP 参考位姿，随后使用完整 ``W_T_Q`` 计算世界系平移 delta，并用 SO(3) delta +
+``R_rot_map`` 计算旋转 delta，最终输出绝对 TCP 目标位姿。relative 模式仍输出 6D
+delta-vector，使用 ``W_T_Q[:3,:3]`` 映射平移/旋转轴，并用 ``R_rot_map`` 继续映射旋转方向。
+如果未提供 JSON，设备会打印一次 uncalibrated fallback 提示，并回退到内置 OpenXR-to-ROS
+轴映射。
 
-fallback 映射面向 ROS 机器人基座语义：``X`` 前、``Y`` 左、``Z`` 上。它把 XR SDK 输入增量映射为：
+fallback 映射面向 ROS 机器人基座语义：``X`` 前、``Y`` 左、``Z`` 上。
+它把 XR SDK 输入增量映射为：
 
 .. code:: text
 

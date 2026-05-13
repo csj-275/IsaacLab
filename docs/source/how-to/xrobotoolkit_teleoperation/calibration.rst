@@ -9,8 +9,11 @@
 XRoboToolkit 设备默认使用 ``mapping_mode="world_frame_calibrated"``。该模式优先读取
 ``--xrobotoolkit_calibration_json`` 指向的标定 JSON：
 
-* 平移 delta 使用 ``W_T_Q[:3,:3]`` 映射到 Isaac Lab / ROS world 语义。
-* 旋转 delta 先使用 ``W_T_Q[:3,:3]`` 做轴映射，再使用 ``R_rot_map`` 做方向映射。
+* ``absolute`` 控制模式使用完整 ``W_T_Q`` 将控制器参考/当前位姿映射到 Isaac Lab / ROS world，
+  平移按世界系位置差计算，旋转按 SO(3) delta + ``R_rot_map`` 单独计算，最后拼成绝对
+  TCP 目标位姿。
+* ``relative`` 控制模式保留 Isaac Lab 的 6D delta-vector 接口：平移/旋转 delta 使用 ``W_T_Q[:3,:3]``
+  进入 world 语义，旋转再经过 ``R_rot_map`` 做方向映射。
 
 如果未提供标定 JSON，设备不会中止运行；它会打印一次 uncalibrated fallback 提示，并使用
 内置 OpenXR-to-ROS 轴映射。该 fallback 只用于兼容和诊断，不代表已经完成 world-frame 标定。
@@ -95,7 +98,8 @@ IsaacLab 可视化校准
 * 只在按住 ``right_grip`` 且机器人实际接受遥操命令时采集映射日志。
 * 先单轴移动控制器，确认 ``raw_*`` 与 ``mapped_*`` 的符号和轴向。
 * 以 ROS 基座语义为目标：``X`` 前、``Y`` 左、``Z`` 上。
-* 如果真实机器人效果与日志不一致，先确认 IK、末端 frame、任务 action 和硬件反馈，再修改映射。
+* 如果真实机器人效果与日志不一致，先确认 IK、末端 frame、任务 action 和硬件反馈，
+  再修改映射。
 
 fallback 映射
 -------------
@@ -124,26 +128,32 @@ fallback 映射
 ``external/xrobotoolkit/xrobotoolkit`` submodule 中提供了完整的 piper 硬件遥操参考实现，
 其映射和标定思路与当前 Isaac Lab 集成存在显著差异。
 
-映射方式：delta vector vs 4x4 齐次矩阵
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+映射方式：split world-frame target vs delta vector
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**当前 Isaac Lab 实现 —— 平移旋转完全分离**
+**当前 Isaac Lab absolute 实现 —— 与 Sample 对齐的 split world-frame 目标**
 
-设备使用 **delta vector + 独立 3x3 轴映射矩阵**。位置和旋转的 delta 各自独立计算、
-各自通过不同的 3x3 矩阵映射，二者不存在耦合：
+``control_mode="absolute"`` 且提供标定 JSON 时，设备在按下 ``right_grip`` 的上升沿同时捕获
+``Q_T_H0`` 和 ``W_T_TCP0``。后续每一帧先用完整 ``W_T_Q`` 把参考/当前控制器位姿映射到世界系，
+再分别计算平移 delta 和旋转 delta，最后输出 Isaac Lab absolute action：
 
 .. code:: python
 
     # source/isaaclab/isaaclab/devices/xrobotoolkit/xrobotoolkit_device.py
-    raw_delta_pos = (pos - self._ref_pos) * self.pos_sensitivity
-    delta_quat = _quat_multiply(quat, _quat_conjugate(self._ref_quat))
-    raw_delta_rot = _quat_to_rotvec(delta_quat) * self.rot_sensitivity
+    W_T_H0 = W_T_Q @ Q_T_H0
+    W_T_Ht = W_T_Q @ Q_T_Ht
 
-    delta_pos = self._delta_pos_axis_map @ raw_delta_pos   # 位置走 3x3 映射
-    delta_rot = self._delta_rot_axis_map @ raw_delta_rot   # 旋转走 3x3 映射
+    target_pos = W_p_TCP0 + pos_sensitivity * (W_p_Ht - W_p_H0)
 
-输出为 ``[dx, dy, dz, rx, ry, rz, gripper]``（relative 模式）或
-``[x, y, z, qw, qx, qy, qz, gripper]``（absolute 模式）。
+    R_delta_controller = project_to_so3(W_R_Ht @ W_R_H0.T)
+    delta_rot = rot_sensitivity * (R_rot_map @ so3_log(R_delta_controller))
+    target_rot = so3_exp(delta_rot) @ W_R_TCP0
+
+输出仍是 Isaac Lab 约定的 ``[x, y, z, qw, qx, qy, qz, gripper]``，因此
+``teleop_se3_agent.py`` 和 ``record_demos.py`` 不需要额外主循环分支。
+
+``relative`` 模式仍使用 ``[dx, dy, dz, rx, ry, rz, gripper]`` delta-vector 输出，用于兼容
+旧调试流程和不提供 absolute TCP provider 的任务。
 
 **Sample 实现 —— 4x4 齐次矩阵框架，但平移旋转分路径计算**
 
@@ -165,8 +175,8 @@ Sample 使用 4x4 SE(3) 矩阵作为统一框架，所有 delta 模式最终输�
     R_delta_target = apply_rotation_direction_map(R_delta_controller, R_rot_map)
     target[:3,:3] = project_to_so3(R_delta_target @ W_T_TCP0[:3,:3])
 
-Sample 的平移和旋转在 4x4 框架内部走的也是不同的计算路径（平移线性缩放、旋转 SO(3) log/exp），
-但它们共享同一个空间映射 ``W_T_Q``，最终合并为统一的 4x4 target。
+Sample 的平移和旋转在 4x4 框架内部走的也是不同的计算路径（平移线性缩放、旋转
+SO(3) log/exp），但它们共享同一个空间映射 ``W_T_Q``，最终合并为统一的 4x4 target。
 
 .. list-table:: 映射方式差异总结
    :header-rows: 1
@@ -176,22 +186,22 @@ Sample 的平移和旋转在 4x4 框架内部走的也是不同的计算路径�
      - IsaacLab
    * - 数学框架
      - 4x4 齐次矩阵
-     - 3-vector delta
+     - absolute 使用 4x4 参考帧；relative 使用 3-vector delta
    * - 空间映射
      - 单个 ``W_T_Q`` (4x4) 统一映射
-     - 标定 JSON 中的 ``W_T_Q[:3,:3]``；无 JSON 时回退到两个 3x3 fallback 矩阵
+     - absolute 使用完整 ``W_T_Q``；relative 使用 ``W_T_Q[:3,:3]``
    * - 映射来源
      - 标定（SVD 拟合）
      - IsaacLab 可视化标定 JSON；fallback 为硬编码常量
    * - 旋转处理
      - SO(3) delta + ``R_rot_map`` 方向映射
-     - rotation vector + ``W_T_Q[:3,:3]`` + ``R_rot_map``；fallback 为 3x3 axis map
+     - absolute 使用 SO(3) delta + ``R_rot_map``；relative/fallback 为 rotation vector 映射
    * - 输出形式
      - 4x4 target_T → Placo FrameTask
-     - (dx,dy,dz,rx,ry,rz) 或绝对位姿
+     - absolute pose action 或 relative delta action
    * - 耦合程度
      - 共享 W_T_Q 框架，分路径计算
-     - 共享 W_T_Q 的旋转部分，但仍输出 IsaacLab delta/absolute 命令
+     - absolute 共享 W_T_Q 框架并分路径计算；relative 保留 delta-vector 接口
 
 .. _xrobotoolkit-teleoperation-calibration-migration:
 
@@ -201,7 +211,8 @@ Sample 的平移和旋转在 4x4 框架内部走的也是不同的计算路径�
 Sample 的三阶段标定
 ^^^^^^^^^^^^^^^^^^^
 
-Sample 提供了完整的自动化标定管线（``scripts/hardware/calibrate_piper_vr_controller_frame_visual.py``）：
+Sample 提供了完整的自动化标定管线
+（``scripts/hardware/calibrate_piper_vr_controller_frame_visual.py``）：
 
 1. **单点锚定**：将手柄放在 TCP 位置，用 ``openxr_anchor_W_T_Q()`` 计算初始 ``W_T_Q``
    （旋转固定为 OPENXR_TO_ROS，平移由位置差确定）。
@@ -233,16 +244,16 @@ IsaacLab 已复用 Sample 中的标定数学模块（``piper_world_frame_mapping
 * ``load_piper_world_calibration_json()`` —— 标定 JSON 加载
 * 质量检查逻辑（reprojection error, rotation axis error）
 
-当前实现保留了 IsaacLab 的 delta vector / absolute pose 输出接口，因此仍有以下差异：
+当前实现保留了 IsaacLab 的 action 输出接口，因此仍有以下差异：
 
-1. **W_T_Q 的平移分量对 delta-from-reference 无效**：Isaac Lab 使用相对于激活参考的
-   delta 机制，平移的绝对原点会在差分化中消去。只有 ``W_T_Q`` 的 3x3 旋转分量
-   （即 ``W_T_Q[:3, :3]``）对 Isaac Lab 有意义——它等价于 ``delta_pos_axis_map``
-   和 ``delta_rot_axis_map`` 的功能。
+1. **absolute 与 relative 的 W_T_Q 使用方式不同**：absolute 模式保存完整 ``W_T_Q`` 和
+   4x4 参考帧，并按 split world-frame 公式输出绝对 TCP 目标；relative 模式仍是
+   delta-vector 输出，因此 ``W_T_Q`` 的平移分量会在差分中消去，只有 ``W_T_Q[:3,:3]``
+   对相对 delta 有意义。
 
 2. **R_rot_map 作为独立环节**：``world_frame_calibrated`` 模式中，旋转先由
-   ``W_T_Q[:3,:3]`` 进入 world 语义，再经 ``R_rot_map`` 做方向映射。``axis_map``
-   模式保留旧的 3x3 rotation-vector 映射。
+   ``W_T_Q`` 进入 world 语义，再经 ``R_rot_map`` 做方向映射。``axis_map`` 模式保留旧的
+   3x3 rotation-vector 映射。
 
 3. **标定脚本适配 Isaac Sim 环境**：Sample 的可视化脚本依赖 Placo/MeshCat 获取和显示
    TCP；IsaacLab 使用 ``InteractiveScene``、Piper asset 和 ``FrameTransformer`` 获取 TCP，
