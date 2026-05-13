@@ -114,6 +114,36 @@ Isaac Lab 相机并启动 XRoboToolkit 视频控制监听。若只想验证控�
        --teleop_device xrobotoolkit \
        --disable_xrobotoolkit_video_stream
 
+相机画面检查
+------------
+
+Piper 示例任务默认配置两个 640x480 RGB scene camera：
+
+* ``wrist_cam``：挂在 Piper ``camera_link`` 下，用于 XRoboToolkit 腕部相机视频流。
+* ``table_cam``：桌面观察相机，默认使用实机测试后手动调好的固定视角，画面关注机械臂和 cube。
+
+可在 Isaac Sim 窗口中直接显示相机画面：
+
+.. code:: bash
+
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
+       --teleop_device keyboard \
+       --show_camera_display \
+       --camera_display_cameras table_cam wrist_cam
+
+默认不会在运行时重新计算 ``table_cam`` 位姿。需要对其他桌面布局进行自动适配时，可显式开启
+视锥体定位：
+
+.. code:: bash
+
+   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task Isaac-Stack-Cube-Piper-IK-Rel-v0 \
+       --teleop_device keyboard \
+       --show_camera_display \
+       --camera_display_cameras table_cam \
+       --auto_table_cam_frustum
+
 XR 模式注意事项
 ---------------
 

@@ -138,6 +138,13 @@ parser.add_argument(
     default=["wrist_cam", "table_cam"],
     help="List of scene camera names to show in the camera display window.",
 )
+parser.add_argument(
+    "--auto_table_cam_frustum",
+    "--auto-table-cam-frustum",
+    action="store_true",
+    default=False,
+    help="Override the configured table_cam pose with frustum-based automatic placement.",
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -944,8 +951,8 @@ def main() -> None:
     env.reset()
     teleop_interface.reset()
 
-    # Position the table camera using frustum-based search
-    if "table_cam" in env.scene.keys() and hasattr(env_cfg.scene, "table_cam"):
+    # Optionally override the configured table camera pose using frustum-based search.
+    if args_cli.auto_table_cam_frustum and "table_cam" in env.scene.keys() and hasattr(env_cfg.scene, "table_cam"):
         table_cam = env.scene["table_cam"]
         _setup_table_cam_with_frustum(env, table_cam, env_cfg.scene.table_cam)
 

@@ -44,6 +44,21 @@ Omniverse ignores camera aperture offsets and non-square pixels, so this uses th
 measured Color 640x480 average focal length with a centered principal point.
 """
 
+PIPER_TABLE_CAM_DEFAULT_POS = (0.34176, -0.68861, 1.27572)
+"""Default manually tuned table camera position in environment-local coordinates, in meters."""
+
+PIPER_TABLE_CAM_DEFAULT_ROT_OPENGL = (
+    0.8018839542105457,
+    0.5901210502335589,
+    0.08262839518716511,
+    0.04372434516027575,
+)
+"""Default table camera orientation as an OpenGL/USD quaternion ``(w, x, y, z)``.
+
+Derived from the manually tuned viewport XYZ Euler orientation
+``(1.27572, 0.081, 0.169)`` in radians.
+"""
+
 
 @configclass
 class EventCfg:
@@ -147,7 +162,8 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                 convention="ros",
             ),
         )
-        # Set table view camera - pose set at runtime via set_world_poses_from_view.
+        # Set table view camera to the manually tuned default view. The teleop script can optionally
+        # override this at runtime with the frustum-based placement helper.
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
@@ -162,9 +178,9 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                 focus_distance=400.0,
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(0.0, 0.0, 0.0),
-                rot=(1.0, 0.0, 0.0, 0.0),
-                convention="ros",
+                pos=PIPER_TABLE_CAM_DEFAULT_POS,
+                rot=PIPER_TABLE_CAM_DEFAULT_ROT_OPENGL,
+                convention="opengl",
             ),
         )
         self.num_rerenders_on_reset = 3

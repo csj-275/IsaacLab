@@ -1,7 +1,7 @@
 .. _xrobotoolkit-teleoperation-video-stream:
 
-腕部相机视频流
-==============
+相机与视频流
+============
 
 入口行为
 --------
@@ -53,11 +53,32 @@ Piper 示例路径中作为默认能力声明。
 Piper 相机配置
 --------------
 
-Piper 示例任务的 ``wrist_cam`` 挂在 ``camera_link`` 下，使用 RealSense 光学坐标转换：
+Piper 示例任务的 ``wrist_cam`` 和 ``table_cam`` 使用相同的 RealSense D435 Color 640x480
+内参。当前配置来自 ``rs-enumerate-devices -c`` 的 Color 640x480 流，并按 Isaac Sim 兼容方式
+使用平均焦距和居中主点：
+
+.. code:: text
+
+   fx = fy = 605.519378662109 px
+   cx = 320.0 px
+   cy = 240.0 px
+
+``wrist_cam`` 挂在 ``camera_link`` 下，使用 RealSense 光学坐标转换：
 
 .. code:: text
 
    rot=(0.5, -0.5, 0.5, -0.5), convention="ros"
+
+``table_cam`` 默认使用实机测试后手动调好的固定视角，不再默认由运行时视锥体算法覆盖：
+
+.. code:: text
+
+   pos=(0.34176, -0.68861, 1.27572)
+   viewport XYZ Euler orientation=(1.27572, 0.081, 0.169) rad
+
+该默认视角的目标是观察桌面操作区域中的 Piper 机械臂和 cube，而不是完整覆盖桌子整体。
+如果更换桌面布局或资产尺寸，可在启动 ``teleop_se3_agent.py`` 时显式传入
+``--auto_table_cam_frustum``，让脚本使用 scene AABB 与相机视锥体检查重新定位 ``table_cam``。
 
 如果画面全白、方向异常或没有视频，先分别排查 scene camera 内容和 XRoboToolkit 传输链路。
 不要把二者合并成同一个故障结论。
