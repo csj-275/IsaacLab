@@ -165,6 +165,7 @@ simulation_app = app_launcher.app
 
 
 import logging
+import math
 
 import gymnasium as gym
 import numpy as np
@@ -328,6 +329,262 @@ def _submit_xrobotoolkit_video_frame(
         video_stream.submit_frame(frame)
     except Exception as exc:
         logger.warning("Failed to submit XRoboToolkit video frame: %s", exc)
+
+
+def _get_table_camera_fit_prims(env: gym.Env) -> tuple[list[str], list[str]]:
+    """Collect scene prims that should be visible in the table camera."""
+    excluded_names = {"terrain", "plane", "ground", "table_cam", "wrist_cam"}
+    excluded_tokens = ("camera", "cam", "frame", "marker", "light")
+    prim_paths: list[str] = []
+    entity_names: list[str] = []
+
+    for name in env.scene.keys():
+        lower_name = name.lower()
+        if lower_name in excluded_names or any(token in lower_name for token in excluded_tokens):
+            continue
+
+        try:
+            entity = env.scene[name]
+        except KeyError:
+            continue
+
+        entity_prim_paths = getattr(entity, "prim_paths", None)
+        if not entity_prim_paths:
+            continue
+
+        # Use env_0 for fitting. The resulting camera pose is shifted to other env origins below.
+        prim_paths.append(entity_prim_paths[0])
+        entity_names.append(name)
+
+    return prim_paths, entity_names
+
+
+def _get_scene_aligned_range(prim_paths: list[str]):
+    """Compute a combined world-space aligned range for the given prim subtrees."""
+    import omni.usd
+    from pxr import Gf, Usd, UsdGeom
+
+    stage = omni.usd.get_context().get_stage()
+    included_purposes = [
+        getattr(UsdGeom.Tokens, "default_", "default"),
+        getattr(UsdGeom.Tokens, "render", "render"),
+        getattr(UsdGeom.Tokens, "proxy", "proxy"),
+    ]
+    bbox_cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(), included_purposes, True)
+    overall_min = Gf.Vec3d(float("inf"))
+    overall_max = Gf.Vec3d(float("-inf"))
+    found = False
+
+    for path in prim_paths:
+        try:
+            prim = stage.GetPrimAtPath(path)
+            if not prim or not prim.IsValid():
+                continue
+            rng = bbox_cache.ComputeWorldBound(prim).ComputeAlignedRange()
+            if rng.IsEmpty():
+                continue
+            found = True
+            for i in range(3):
+                overall_min[i] = min(overall_min[i], rng.GetMin()[i])
+                overall_max[i] = max(overall_max[i], rng.GetMax()[i])
+        except Exception as exc:
+            logger.debug("Skipping prim '%s' during table_cam AABB fit: %s", path, exc)
+
+    if not found:
+        return None
+    return overall_min, overall_max
+
+
+def _check_points_in_camera_frustum(camera, points_world: torch.Tensor) -> bool:
+    """Check if all world-space points are visible in the camera's view frustum.
+
+    Args:
+        camera: An initialized Camera sensor.
+        points_world: World-space points to check, shape (N, 3).
+
+    Returns:
+        True if all points project to NDC within [-1, 1].
+    """
+    import omni.usd
+    from pxr import Usd, UsdGeom
+
+    stage = omni.usd.get_context().get_stage()
+    cam_prim = stage.GetPrimAtPath(camera.prim_paths[0])
+    if not cam_prim:
+        return False
+
+    gf_cam = UsdGeom.Camera(cam_prim).GetCamera(Usd.TimeCode.Default())
+    view_mat = torch.tensor(gf_cam.frustum.ComputeViewMatrix().GetMatrix(), dtype=torch.float64).reshape(4, 4)
+    proj_mat = torch.tensor(
+        gf_cam.frustum.ComputeProjectionMatrix().GetMatrix(), dtype=torch.float64
+    ).reshape(4, 4)
+
+    n = points_world.shape[0]
+    pts_h = torch.cat([points_world.double(), torch.ones(n, 1, dtype=torch.float64)], dim=1)
+    clip = (proj_mat @ view_mat @ pts_h.T).T
+    valid_w = clip[:, 3].abs() > 1e-12
+    if not bool(torch.all(valid_w)):
+        return False
+    ndc = clip[:, :3] / clip[:, 3:4]
+    return bool(torch.all(ndc.abs() <= 1.0))
+
+
+def _compute_scene_aabb(prim_paths: list[str]):
+    """Compute the combined world-space AABB for the given prim paths.
+
+    Returns:
+        Tuple of (center: np.ndarray[3], half_extents: np.ndarray[3], radius: float) or None.
+    """
+    result = _get_scene_aligned_range(prim_paths)
+    if result is None:
+        return None
+
+    overall_min, overall_max = result
+    center = np.array([(overall_min[i] + overall_max[i]) * 0.5 for i in range(3)])
+    half_extents = np.array([(overall_max[i] - overall_min[i]) * 0.5 for i in range(3)])
+    return center, half_extents, float(np.linalg.norm(half_extents))
+
+
+def _scene_check_points(prim_paths: list[str]) -> torch.Tensor | None:
+    """Get world-space AABB corners and center for the given prims.
+
+    Returns:
+        Tensor of shape (N, 3) or None.
+    """
+    result = _get_scene_aligned_range(prim_paths)
+    if result is None:
+        return None
+
+    overall_min, overall_max = result
+    mn = [overall_min[i] for i in range(3)]
+    mx = [overall_max[i] for i in range(3)]
+    points = [[(mn[i] + mx[i]) * 0.5 for i in range(3)]]
+    for dx in (0, 1):
+        for dy in (0, 1):
+            for dz in (0, 1):
+                points.append([mn[i] if v == 0 else mx[i] for i, v in enumerate((dx, dy, dz))])
+
+    return torch.tensor(points, dtype=torch.float32)
+
+
+def _set_table_camera_view(env: gym.Env, table_cam, eye: np.ndarray, target: np.ndarray) -> None:
+    """Set the table camera look-at pose for all cloned env cameras."""
+    eyes = torch.tensor([eye.tolist()], dtype=torch.float32, device=env.device)
+    targets = torch.tensor([target.tolist()], dtype=torch.float32, device=env.device)
+
+    camera_count = len(getattr(table_cam, "prim_paths", []))
+    if camera_count > 1 and hasattr(env.scene, "env_origins"):
+        origins = env.scene.env_origins[:camera_count].to(device=env.device, dtype=torch.float32)
+        origin_offsets = origins - origins[0:1]
+        eyes = eyes.repeat(camera_count, 1) + origin_offsets
+        targets = targets.repeat(camera_count, 1) + origin_offsets
+
+    table_cam.set_world_poses_from_view(eyes=eyes, targets=targets)
+
+
+def _setup_table_cam_with_frustum(env: gym.Env, table_cam, table_cam_cfg) -> None:
+    """Position the table camera using a frustum-based search.
+
+    Fits the camera around the combined scene AABB, orients it toward the
+    workspace center, and verifies the final pose with the USD camera frustum.
+
+    Args:
+        env: The simulation environment.
+        table_cam: An initialized Camera sensor for the table view.
+        table_cam_cfg: The CameraCfg used to create table_cam.
+    """
+    paths, fit_entity_names = _get_table_camera_fit_prims(env)
+
+    if not paths:
+        logger.warning("No scene prims found; skipping frustum-based table_cam setup.")
+        return
+
+    result = _compute_scene_aabb(paths)
+    if result is None:
+        logger.warning("Could not compute scene AABB; skipping frustum-based table_cam setup.")
+        return
+
+    scene_center, scene_half_extents, scene_radius = result
+    points = _scene_check_points(paths)
+    if points is None:
+        logger.warning("Could not compute scene check points; skipping frustum-based table_cam setup.")
+        return
+
+    # Camera intrinsics from config
+    focal_length = table_cam_cfg.spawn.focal_length
+    h_aperture = table_cam_cfg.spawn.horizontal_aperture
+    v_aperture = table_cam_cfg.spawn.vertical_aperture
+    width = table_cam_cfg.width
+    height = table_cam_cfg.height
+    if v_aperture is None:
+        v_aperture = h_aperture * height / width
+    h_fov = 2.0 * math.atan(h_aperture / (2.0 * focal_length))
+    v_fov = 2.0 * math.atan(v_aperture / (2.0 * focal_length))
+    min_half_fov = min(h_fov, v_fov) * 0.5
+    if min_half_fov <= 1e-6:
+        logger.warning("Invalid table_cam FOV; skipping frustum-based setup.")
+        return
+
+    target = scene_center.copy()
+    base_distance = max(scene_radius / math.sin(min_half_fov), 0.5) * 1.08
+    near_clip, far_clip = table_cam_cfg.spawn.clipping_range
+    if base_distance + scene_radius > far_clip:
+        logger.warning(
+            "table_cam far clipping range %.3f m may be too small for scene radius %.3f m and distance %.3f m.",
+            far_clip,
+            scene_radius,
+            base_distance,
+        )
+
+    candidate_azimuths = (-90.0, -45.0, -135.0, 0.0, 180.0, 45.0, 135.0, 90.0)
+    candidate_elevations = (30.0, 40.0, 50.0)
+    distance_scales = (1.0, 1.2, 1.5, 2.0)
+
+    for distance_scale in distance_scales:
+        distance = base_distance * distance_scale
+        if distance - scene_radius < near_clip:
+            distance = near_clip + scene_radius + 0.05
+        for elevation_deg in candidate_elevations:
+            elevation = math.radians(elevation_deg)
+            cos_elevation = math.cos(elevation)
+            for azimuth_deg in candidate_azimuths:
+                azimuth = math.radians(azimuth_deg)
+                direction = np.array(
+                    [
+                        math.cos(azimuth) * cos_elevation,
+                        math.sin(azimuth) * cos_elevation,
+                        math.sin(elevation),
+                    ],
+                    dtype=np.float64,
+                )
+                eye = target + direction * distance
+                eye[2] = max(eye[2], scene_center[2] + scene_half_extents[2] + 0.05)
+
+                _set_table_camera_view(env, table_cam, eye, target)
+                if _check_points_in_camera_frustum(table_cam, points):
+                    print(
+                        "Table camera placed via frustum: "
+                        f"entities={fit_entity_names}, eye={eye.round(3).tolist()}, "
+                        f"target={target.round(3).tolist()}, visible=True"
+                    )
+                    return
+
+    fallback_eye = target + np.array([-0.7, -1.0, 0.7], dtype=np.float64) * base_distance * 1.5
+    fallback_eye[2] = max(fallback_eye[2], scene_center[2] + scene_half_extents[2] + 0.05)
+    _set_table_camera_view(env, table_cam, fallback_eye, target)
+    if _check_points_in_camera_frustum(table_cam, points):
+        print(
+            "Table camera placed via frustum fallback: "
+            f"entities={fit_entity_names}, eye={fallback_eye.round(3).tolist()}, "
+            f"target={target.round(3).tolist()}, visible=True"
+        )
+    else:
+        logger.warning(
+            "Table camera fallback did not fully contain scene AABB. entities=%s eye=%s target=%s",
+            fit_entity_names,
+            fallback_eye.round(3).tolist(),
+            target.round(3).tolist(),
+        )
 
 
 def _setup_camera_viewports(env: gym.Env, camera_names: list[str]) -> None:
@@ -545,6 +802,11 @@ def main() -> None:
     # reset environment
     env.reset()
     teleop_interface.reset()
+
+    # Position the table camera using frustum-based search
+    if "table_cam" in env.scene.keys() and hasattr(env_cfg.scene, "table_cam"):
+        table_cam = env.scene["table_cam"]
+        _setup_table_cam_with_frustum(env, table_cam, env_cfg.scene.table_cam)
 
     print("Teleoperation started. Press 'R' to reset the environment.")
 

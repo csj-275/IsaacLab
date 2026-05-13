@@ -128,7 +128,7 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
                 convention="ros",
             ),
         )
-        # Set table view camera - overhead camera looking down at the workspace.
+        # Set table view camera - pose set at runtime via set_world_poses_from_view.
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
@@ -136,14 +136,14 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             width=640,
             data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0,
+                focal_length=18.0,
                 focus_distance=400.0,
                 horizontal_aperture=20.955,
-                clipping_range=(0.1, 2.0),
+                clipping_range=(0.05, 10.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(1.0, 0.0, 0.4),
-                rot=(0.35355, -0.61237, -0.61237, 0.35355),
+                pos=(0.0, 0.0, 0.0),
+                rot=(1.0, 0.0, 0.0, 0.0),
                 convention="ros",
             ),
         )
