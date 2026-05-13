@@ -348,15 +348,41 @@ def _get_table_camera_fit_prims(env: gym.Env) -> tuple[list[str], list[str]]:
         except KeyError:
             continue
 
-        entity_prim_paths = getattr(entity, "prim_paths", None)
-        if not entity_prim_paths:
+        prim_path = _get_entity_fit_prim_path(entity)
+        if prim_path is None:
             continue
 
         # Use env_0 for fitting. The resulting camera pose is shifted to other env origins below.
-        prim_paths.append(entity_prim_paths[0])
+        prim_paths.append(prim_path)
         entity_names.append(name)
 
     return prim_paths, entity_names
+
+
+def _get_entity_fit_prim_path(entity) -> str | None:
+    """Resolve the first concrete prim path for a scene entity."""
+    entity_prim_paths = getattr(entity, "prim_paths", None)
+    if entity_prim_paths:
+        return entity_prim_paths[0]
+
+    cfg = getattr(entity, "cfg", None)
+    cfg_prim_path = getattr(cfg, "prim_path", None)
+    if cfg_prim_path:
+        try:
+            import isaaclab.sim as sim_utils
+
+            matching_paths = sim_utils.find_matching_prim_paths(cfg_prim_path)
+            if matching_paths:
+                return matching_paths[0]
+        except Exception as exc:
+            logger.debug("Could not resolve scene entity cfg prim path '%s': %s", cfg_prim_path, exc)
+
+    root_physx_view = getattr(entity, "root_physx_view", None)
+    root_prim_paths = getattr(root_physx_view, "prim_paths", None)
+    if root_prim_paths:
+        return root_prim_paths[0]
+
+    return None
 
 
 def _get_scene_aligned_range(prim_paths: list[str]):
@@ -395,7 +421,38 @@ def _get_scene_aligned_range(prim_paths: list[str]):
     return overall_min, overall_max
 
 
-def _check_points_in_camera_frustum(camera, points_world: torch.Tensor) -> bool:
+def _get_camera_sensor_prims(camera) -> list:
+    """Return the UsdGeom.Camera prims owned by an Isaac Lab Camera sensor."""
+    sensor_prims = getattr(camera, "_sensor_prims", None)
+    if sensor_prims:
+        return sensor_prims
+
+    prim_paths = getattr(camera, "prim_paths", None)
+    if not prim_paths:
+        return []
+
+    import omni.usd
+    from pxr import UsdGeom
+
+    stage = omni.usd.get_context().get_stage()
+    camera_prims = []
+    for prim_path in prim_paths:
+        prim = stage.GetPrimAtPath(prim_path)
+        if prim and prim.IsValid() and prim.IsA(UsdGeom.Camera):
+            camera_prims.append(UsdGeom.Camera(prim))
+    return camera_prims
+
+
+def _check_points_in_camera_frustum(
+    camera,
+    points_world: torch.Tensor,
+    *,
+    eye: np.ndarray | None = None,
+    target: np.ndarray | None = None,
+    h_fov: float | None = None,
+    v_fov: float | None = None,
+    clipping_range: tuple[float, float] | None = None,
+) -> bool:
     """Check if all world-space points are visible in the camera's view frustum.
 
     Args:
@@ -405,19 +462,41 @@ def _check_points_in_camera_frustum(camera, points_world: torch.Tensor) -> bool:
     Returns:
         True if all points project to NDC within [-1, 1].
     """
-    import omni.usd
-    from pxr import Usd, UsdGeom
+    if eye is not None and target is not None and h_fov is not None and v_fov is not None:
+        eye_t = torch.tensor(eye, dtype=torch.float64)
+        target_t = torch.tensor(target, dtype=torch.float64)
+        points_t = points_world.to(dtype=torch.float64)
 
-    stage = omni.usd.get_context().get_stage()
-    cam_prim = stage.GetPrimAtPath(camera.prim_paths[0])
-    if not cam_prim:
+        forward = torch.nn.functional.normalize(target_t - eye_t, dim=0, eps=1e-12)
+        up_axis = torch.tensor([0.0, 0.0, 1.0], dtype=torch.float64)
+        right = torch.cross(forward, up_axis, dim=0)
+        if torch.linalg.norm(right) < 1e-8:
+            up_axis = torch.tensor([0.0, 1.0, 0.0], dtype=torch.float64)
+            right = torch.cross(forward, up_axis, dim=0)
+        right = torch.nn.functional.normalize(right, dim=0, eps=1e-12)
+        up = torch.nn.functional.normalize(torch.cross(right, forward, dim=0), dim=0, eps=1e-12)
+
+        rel = points_t - eye_t
+        depth = rel @ forward
+        x = rel @ right
+        y = rel @ up
+        near_clip, far_clip = clipping_range if clipping_range is not None else (0.0, float("inf"))
+        if not bool(torch.all((depth > near_clip) & (depth < far_clip))):
+            return False
+
+        max_x = depth * math.tan(h_fov * 0.5)
+        max_y = depth * math.tan(v_fov * 0.5)
+        return bool(torch.all(x.abs() <= max_x) and torch.all(y.abs() <= max_y))
+
+    from pxr import Usd
+
+    camera_prims = _get_camera_sensor_prims(camera)
+    if not camera_prims:
         return False
 
-    gf_cam = UsdGeom.Camera(cam_prim).GetCamera(Usd.TimeCode.Default())
-    view_mat = torch.tensor(gf_cam.frustum.ComputeViewMatrix().GetMatrix(), dtype=torch.float64).reshape(4, 4)
-    proj_mat = torch.tensor(
-        gf_cam.frustum.ComputeProjectionMatrix().GetMatrix(), dtype=torch.float64
-    ).reshape(4, 4)
+    gf_cam = camera_prims[0].GetCamera(Usd.TimeCode.Default())
+    view_mat = torch.tensor(np.array(gf_cam.frustum.ComputeViewMatrix()), dtype=torch.float64).reshape(4, 4)
+    proj_mat = torch.tensor(np.array(gf_cam.frustum.ComputeProjectionMatrix()), dtype=torch.float64).reshape(4, 4)
 
     n = points_world.shape[0]
     pts_h = torch.cat([points_world.double(), torch.ones(n, 1, dtype=torch.float64)], dim=1)
@@ -472,7 +551,7 @@ def _set_table_camera_view(env: gym.Env, table_cam, eye: np.ndarray, target: np.
     eyes = torch.tensor([eye.tolist()], dtype=torch.float32, device=env.device)
     targets = torch.tensor([target.tolist()], dtype=torch.float32, device=env.device)
 
-    camera_count = len(getattr(table_cam, "prim_paths", []))
+    camera_count = len(_get_camera_sensor_prims(table_cam))
     if camera_count > 1 and hasattr(env.scene, "env_origins"):
         origins = env.scene.env_origins[:camera_count].to(device=env.device, dtype=torch.float32)
         origin_offsets = origins - origins[0:1]
@@ -561,7 +640,15 @@ def _setup_table_cam_with_frustum(env: gym.Env, table_cam, table_cam_cfg) -> Non
                 eye[2] = max(eye[2], scene_center[2] + scene_half_extents[2] + 0.05)
 
                 _set_table_camera_view(env, table_cam, eye, target)
-                if _check_points_in_camera_frustum(table_cam, points):
+                if _check_points_in_camera_frustum(
+                    table_cam,
+                    points,
+                    eye=eye,
+                    target=target,
+                    h_fov=h_fov,
+                    v_fov=v_fov,
+                    clipping_range=table_cam_cfg.spawn.clipping_range,
+                ):
                     print(
                         "Table camera placed via frustum: "
                         f"entities={fit_entity_names}, eye={eye.round(3).tolist()}, "
@@ -572,7 +659,15 @@ def _setup_table_cam_with_frustum(env: gym.Env, table_cam, table_cam_cfg) -> Non
     fallback_eye = target + np.array([-0.7, -1.0, 0.7], dtype=np.float64) * base_distance * 1.5
     fallback_eye[2] = max(fallback_eye[2], scene_center[2] + scene_half_extents[2] + 0.05)
     _set_table_camera_view(env, table_cam, fallback_eye, target)
-    if _check_points_in_camera_frustum(table_cam, points):
+    if _check_points_in_camera_frustum(
+        table_cam,
+        points,
+        eye=fallback_eye,
+        target=target,
+        h_fov=h_fov,
+        v_fov=v_fov,
+        clipping_range=table_cam_cfg.spawn.clipping_range,
+    ):
         print(
             "Table camera placed via frustum fallback: "
             f"entities={fit_entity_names}, eye={fallback_eye.round(3).tolist()}, "
