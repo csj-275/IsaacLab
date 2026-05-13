@@ -44,15 +44,10 @@ Omniverse ignores camera aperture offsets and non-square pixels, so this uses th
 measured Color 640x480 average focal length with a centered principal point.
 """
 
-PIPER_TABLE_CAM_DEFAULT_POS = (0.34176, -0.68861, 1.27572)
+PIPER_TABLE_CAM_DEFAULT_POS = (0.4804880058635685,-0.6895463223929142,1.2665301203868786)
 """Default manually tuned table camera position in environment-local coordinates, in meters."""
 
-PIPER_TABLE_CAM_DEFAULT_ROT_OPENGL = (
-    0.8018839542105457,
-    0.5901210502335589,
-    0.08262839518716511,
-    0.04372434516027575,
-)
+PIPER_TABLE_CAM_DEFAULT_ROT_OPENGL =(0.9724436366453746, 0.2277544386785688, 0.04605009910256881, 0.018991513440805734)
 """Default table camera orientation as an OpenGL/USD quaternion ``(w, x, y, z)``.
 
 Derived from the manually tuned viewport XYZ Euler orientation
@@ -98,6 +93,9 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        self.decimation = 2
+        self.sim.render_interval = 2
+
 
         # Set Piper as robot
         self.events = EventCfg()
