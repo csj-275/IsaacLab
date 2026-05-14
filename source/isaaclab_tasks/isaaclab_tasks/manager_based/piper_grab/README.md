@@ -41,8 +41,21 @@ IK-Rel记录数据
 IK-Rel回放数据
 `./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Piper-Grab-IK-Rel-v0 --device cpu --dataset_file ./datasets/piper_dataset.hdf5`
 IK-Rel标注子任务
-`./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --device cpu --task Isaac-Piper-Grab-IK-Rel-Mimic-v0 --input_file ./datasets/piper_dataset.hdf5 --output_file ./datasets/annotated_piper_dataset.hdf5`
+`./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --device cpu --task Isaac-Piper-Grab-IK-Rel-Mimic-v0 --input_file ./datasets/piper_dataset.hdf5 --output_file ./datasets/annotated_dataset_piper.hdf5`
 数据生成
 `./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py --device cpu --generation_num_trials 10 --input_file ./datasets/annotated_piper_dataset.hdf5 --output_file ./datasets/generated_dataset_small_piper_grab.hdf5`
 
 `grab_joint_pos_env_cfg`中物体随机化的范围缩小后，生成数据成功率上升
+
+录制的演示
+- 状态：piper_dataset
+- 视觉：piper_visuo_dataset
+标注后的演示
+- 状态：annotated_dataset_piper
+- 视觉：annotated_dataset_piper_visuo
+小规模数据生成
+- 状态：generated_dataset_small_piper
+- 视觉：generated_dataset_small_piper_visuo
+大规模数据生成
+- 状态：generated_dataset_piper
+- 视觉：generated_dataset_piper_visuo
