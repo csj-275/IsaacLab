@@ -6,7 +6,6 @@
 """Sub-package with environment wrappers for Isaac Lab Mimic."""
 
 import gymnasium as gym
-
 ##
 # Inverse Kinematics - Relative Pose Control
 ##
@@ -50,6 +49,18 @@ gym.register(
     },
     disable_env_checker=True,
 )
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Mimic-v0",
+    entry_point=f"{__name__}.piper_grab_ik_rel_mimic_env:PiperGrabIKRelMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.piper_grab_ik_rel_mimic_env_cfg:PiperGrabIKRelMimicEnv"
+        ),
+    },
+    disable_env_checker=True,
+)
+
 
 gym.register(
     id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0",
@@ -159,3 +170,39 @@ gym.register(
     },
     disable_env_checker=True,
 )
+
+
+
+##############################################################################
+###############                added by csj                   ################
+##############################################################################
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Mimic-v0",
+    entry_point=f"{__name__}.piper_grab_ik_rel_mimic_env:PiperGrabIKRelMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_rel_mimic_env_cfg:PiperGrabIKRelMimicEnvCfg",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Skillgen-v0",
+    entry_point=f"{__name__}.piper_grab_ik_rel_mimic_env:PiperGrabIKRelMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_rel_skillgen_env_cfg:PiperGrabIKRelSkillgenEnvCfg",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v0",
+    entry_point=f"{__name__}.piper_grab_ik_rel_mimic_env:PiperGrabIKRelMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.piper_grab_ik_rel_visuomotor_mimic_env_cfg:PiperGrabIKRelVisuomotorMimicEnvCfg"
+        ),
+    },
+    disable_env_checker=True,
+)
+
