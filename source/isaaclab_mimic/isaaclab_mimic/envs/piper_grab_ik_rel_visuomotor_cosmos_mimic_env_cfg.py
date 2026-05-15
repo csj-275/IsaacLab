@@ -1,4 +1,4 @@
-# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0
@@ -6,15 +6,14 @@
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
+from isaaclab_tasks.manager_based.piper_grab.grab_ik_rel_visuomotor_cosmos_env_cfg import PiperGrabVisuomotorCosmosEnvCfg
 
-from isaaclab_tasks.manager_based.piper_grab.grab_ik_rel_visuomotor_env_cfg import (
-    PiperGrabVisuomotorEnvCfg,
-)
+
 
 @configclass
-class PiperGrabIKRelVisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvCfg):
+class PiperGrabIKRelVisuomotorCosmosMimicEnvCfg(PiperGrabVisuomotorCosmosEnvCfg, MimicEnvCfg):
     """
-    Isaac Lab Mimic environment config class for Piper Grab IK Rel Visuomotor env.
+    Isaac Lab Mimic environment config class for Piper Grab IK Rel Visuomotor Cosmos env.
     """
 
     def __post_init__(self):
@@ -22,7 +21,7 @@ class PiperGrabIKRelVisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvCfg
         super().__post_init__()
 
         # Override the existing values
-        self.datagen_config.name = "isaac_lab_piper_grab_ik_rel_visuomotor_D0"
+        self.datagen_config.name = "isaac_lab_franka_stack_ik_rel_visuomotor_cosmos_D0"
         self.datagen_config.generation_guarantee = True
         self.datagen_config.generation_keep_failed = True
         self.datagen_config.generation_num_trials = 10
@@ -85,5 +84,4 @@ class PiperGrabIKRelVisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvCfg
                 apply_noise_during_interpolation=False,
             )
         )
-
         self.subtask_configs["piper"] = subtask_configs

@@ -21,8 +21,20 @@ from . import grab_joint_pos_env_cfg
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.piper import PIPER_HIGH_PD_CFG  # isort: skip
+from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG  # isort: skip
 
+
+# PIPER_D435_COLOR_INTRINSIC_640X480 = [
+#     605.519378662109,
+#     0.0,
+#     320.0,
+#     0.0,
+#     605.519378662109,
+#     240.0,
+#     0.0,
+#     0.0,
+#     1.0,
+# ]
 
 @configclass
 class EventCfg(grab_joint_pos_env_cfg.EventCfg):
@@ -179,7 +191,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = PIPER_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
         self.gripper_joint_names = ["joint7", "joint8"]
@@ -198,16 +210,25 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         # Set cameras
         # Set wrist camera
         self.scene.wrist_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/piper_camera/camera_link/wrist_cam",
+            prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
             update_period=0.0,
             height=200,
             width=200,
             data_types=["rgb", "distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
+                # intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
+                focal_length=24.0, 
+                horizontal_aperture=20.955, 
+                clipping_range=(0.1, 2)
+                # width=640,
+                # height=480,
+                # clipping_range=(0.1, 2.0),
+                # focus_distance=400.0,
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0), convention="ros"
+                pos=(0.0, 0.0, 0.0), 
+                rot=(0.0, 0.0, 0.0, 1.0), 
+                convention="ros"
             ),
         )
 
@@ -219,10 +240,17 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             width=200,
             data_types=["rgb", "distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
+                # intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
+                # width=640,
+                # height=480,
+                focal_length=24.0, 
+                horizontal_aperture=20.955, 
+                clipping_range=(0.1, 2),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(1.0, 0.0, 0.4), rot=(0.35355, -0.61237, -0.61237, 0.35355), convention="ros"
+                pos=(1.0, 0.0, 0.4), 
+                rot=(0.35355, -0.61237, -0.61237, 0.35355), 
+                convention="ros"
             ),
         )
 

@@ -21,7 +21,7 @@ from . import grab_joint_pos_env_cfg
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets.robots.piper import PIPER_HIGH_PD_CFG  # isort: skip
+from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG  # isort: skip
 
 @configclass
 class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
@@ -31,7 +31,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
         # Set Piper as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
-        self.scene.robot = PIPER_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
         # [IK action]
         # Set actions for the specific robot type (piper)
