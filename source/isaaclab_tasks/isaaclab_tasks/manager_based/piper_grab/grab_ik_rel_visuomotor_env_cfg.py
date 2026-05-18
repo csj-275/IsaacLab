@@ -212,8 +212,8 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.scene.wrist_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
             update_period=0.0,
-            height=200,
-            width=200,
+            height=480,
+            width=640,
             data_types=["rgb", "distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg(
                 # intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
@@ -236,8 +236,8 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
-            height=200,
-            width=200,
+            height=480,
+            width=640,
             data_types=["rgb", "distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg(
                 # intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,

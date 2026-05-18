@@ -70,3 +70,20 @@ def object_a_is_into_b(
             raise ValueError("No gripper_joint_names found in environment config")
 
     return success
+
+
+
+# def task_done(
+#     env: ManagerBasedRLEnv,
+#     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+#     object_1_cfg: SceneEntityCfg = SceneEntityCfg("object_1"),
+#     object_2_cfg: SceneEntityCfg = SceneEntityCfg("object_2"),
+#     box_cfg: SceneEntityCfg = SceneEntityCfg("box"),
+#     xy_threshold: float = 0.03,  # xy_distance_threshold
+#     height_threshold: float = 0.04,  # height_distance_threshold
+#     height_diff: float = 0.0,  # expected height_diff
+# ) -> torch.Tensor:
+#     robot: Articulation = env.scene[robot_cfg.name]
+#     object_1: RigidObject = env.scene[object_1_cfg.name]
+#     object_2: RigidObject = env.scene[object_2_cfg.name]
+#     box: RigidObject = env.scene[box_cfg.name]

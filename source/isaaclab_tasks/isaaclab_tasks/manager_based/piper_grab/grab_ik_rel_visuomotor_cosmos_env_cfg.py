@@ -120,9 +120,11 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
         self.scene.wrist_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
             update_period=0.0,
-            height=200,
-            width=200,
-            data_types=["rgb", "distance_to_image_plane"],
+            height=480,
+            width=640,
+            data_types=["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"],
+            colorize_semantic_segmentation=True,
+            semantic_segmentation_mapping=SEMANTIC_MAPPING,
             spawn=sim_utils.PinholeCameraCfg(
                 # intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
                 focal_length=24.0, 
@@ -144,9 +146,11 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
-            height=200,
-            width=200,
-            data_types=["rgb", "distance_to_image_plane"],
+            height=480,
+            width=640,
+            data_types=["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"],
+            colorize_semantic_segmentation=True,
+            semantic_segmentation_mapping=SEMANTIC_MAPPING,
             spawn=sim_utils.PinholeCameraCfg(
                 # intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
                 # width=640,
@@ -168,3 +172,4 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
 
         # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]
+        self.sim.dt = 1 / 240

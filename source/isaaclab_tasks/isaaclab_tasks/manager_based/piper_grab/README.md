@@ -56,3 +56,6 @@
 
 **Cosmos记录数据**
 - `./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v0 --device cpu --teleop_device keyboard --dataset_file ./datasets/cosmos_dataset.hdf5 --num_demos 10 --enable_cameras`
+**Cosmos记录数据**
+- `./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --device cpu --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v0 --input_file ./datasets/cosmos_dataset.hdf5 --output_file ./datasets/cosmos_annotated_dataset.hdf5`
+**Cosmos生成数据**
