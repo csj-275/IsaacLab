@@ -11,17 +11,19 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.piper_grab import mdp
+from isaaclab_tasks.manager_based.piper_grab.V1.grab_ik_rel_env_cfg import SubtaskCfg
 
 from . import grab_ik_rel_visuomotor_env_cfg
+from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_640X480
 
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP."""
+    """Observation specifications for V1 cosmos task."""
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Observations for policy group with state values."""
+        """Observations for policy group with cosmos-specific image observations."""
 
         actions = ObsTerm(func=mdp.last_action)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
@@ -44,6 +46,13 @@ class ObservationsCfg:
         box_orientations = ObsTerm(
             func=mdp.object_poses_in_base_frame,
             params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
+        )
+        mug_positions = ObsTerm(
+            func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("mug"), "return_key": "pos"}
+        )
+        mug_orientations = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("mug"), "return_key": "quat"},
         )
         table_cam = ObsTerm(
             func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
@@ -80,37 +89,19 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
-    class SubtaskCfg(ObsGroup):
-        """Observations for subtask group."""
-
-        grasp_1 = ObsTerm(
-            func=mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("object_1"),
-            },
-        )
-
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = False
-
-    # observation groups
     policy: PolicyCfg = PolicyCfg()
     subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
 @configclass
 class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVisuomotorEnvCfg):
+    """Configuration for V1 two-stage pick-and-place cosmos environment."""
+
     observations: ObservationsCfg = ObservationsCfg()
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # set domeLight.upperLowerStrategy to 4 to remove rendering noise
         self.sim.render.dome_light_upper_lower_strategy = 4
 
         SEMANTIC_MAPPING = {
@@ -119,12 +110,12 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
             "class:table": (255, 237, 218, 255),
             "class:ground": (100, 100, 100, 255),
             "class:robot": (204, 110, 248, 255),
+            "class:mug": (255, 200, 100, 255),
             "class:UNLABELLED": (150, 150, 150, 255),
             "class:BACKGROUND": (200, 200, 200, 255),
         }
 
-        # Set cameras
-        # Set wrist camera
+        # Wrist camera with cosmos data types
         self.scene.wrist_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
             update_period=0.0,
@@ -134,7 +125,7 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
             colorize_semantic_segmentation=True,
             semantic_segmentation_mapping=SEMANTIC_MAPPING,
             spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
-                intrinsic_matrix=grab_ik_rel_visuomotor_env_cfg.PIPER_D435_COLOR_INTRINSIC_640X480,
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
                 width=640,
                 height=480,
                 clipping_range=(0.1, 2.0),
@@ -142,11 +133,11 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
             offset=CameraCfg.OffsetCfg(
                 pos=(0.0, 0.0, 0.0),
                 rot=(0.0, 0.0, 0.0, 1.0),
-                convention="ros"
+                convention="ros",
             ),
         )
 
-        # Set table view camera
+        # Table camera with cosmos data types
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
@@ -156,22 +147,19 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
             colorize_semantic_segmentation=True,
             semantic_segmentation_mapping=SEMANTIC_MAPPING,
             spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
-                intrinsic_matrix=grab_ik_rel_visuomotor_env_cfg.PIPER_D435_COLOR_INTRINSIC_640X480,
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
                 width=640,
                 height=480,
                 clipping_range=(0.1, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(1.0, 0.0, 0.4), 
-                rot=(0.35355, -0.61237, -0.61237, 0.35355), 
-                convention="ros"
+                pos=(1.0, 0.0, 0.4),
+                rot=(0.35355, -0.61237, -0.61237, 0.35355),
+                convention="ros",
             ),
         )
 
-        # Set settings for camera rendering
         self.num_rerenders_on_reset = 1
         self.sim.render.antialiasing_mode = "OFF"
 
-        # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]
-        self.sim.dt = 1 / 240

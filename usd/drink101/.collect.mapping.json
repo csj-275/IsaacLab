@@ -1,0 +1,17 @@
+{
+    "version": "1.0",
+    "file_records": [
+        {
+            "source_url": "https://omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/2023_2_1/Base/Glass/Clear_Glass.mdl",
+            "source_hash": "b852150663322d4624fa32e1f0acd06a8ceacbdf",
+            "target_url": "./omniverse-content-production.s3.us-west-2.amazonaws.com/Materials/2023_2_1/Base/Glass/Clear_Glass.mdl",
+            "target_hash": "6cb4a558f57ff4d4676b93b66f4f6422ed4bc26d"
+        },
+        {
+            "source_url": "C:/Users/Administrator/Desktop/beverage(1)/beverage/resource/img/39f6d86107d64c15cdaa27cb1a637c77.png",
+            "source_hash": "5078d6a91d4117d709f4cfd98f6f5853e87442d9",
+            "target_url": "./resource/img/39f6d86107d64c15cdaa27cb1a637c77.png",
+            "target_hash": "5078d6a91d4117d709f4cfd98f6f5853e87442d9"
+        }
+    ]
+}

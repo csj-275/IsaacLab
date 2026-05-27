@@ -10,10 +10,14 @@
   ./docker/container.py start base --files docker-compose.xrobotoolkit.patch.yaml
   ./docker/container.py enter base
   bash /workspace/isaaclab/scripts/tools/setup_xrobotoolkit_env.sh
+
+退出容器
+-------
+.. code:: bash
   exit
 
-.. code:: bash
-  TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Piper-IK-Rel-v0 --teleop_device xrobotoolkit --xrobotoolkit_mapping_mode world_frame_calibrated --xrobotoolkit_calibration_json logs/piper_calibration/xrobotoolkit_world_frame_calibration_20260515_095649.json
+.. .. code:: bash
+..   TERM=xterm ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py --task Isaac-Stack-Cube-Piper-IK-Rel-v0 --teleop_device xrobotoolkit --xrobotoolkit_mapping_mode world_frame_calibrated --xrobotoolkit_calibration_json logs/piper_calibration/xrobotoolkit_world_frame_calibration_20260515_095649.json
 
 重启容器
 ------
@@ -41,10 +45,15 @@
        --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v0 \
        --teleop_device xrobotoolkit \
        --xrobotoolkit_mapping_mode world_frame_calibrated \
-       --xrobotoolkit_calibration_json logs/piper_calibration/xrobotoolkit_world_frame_calibration_20260515_095649.json\
+       --xrobotoolkit_calibration_json logs/piper_calibration/xrobotoolkit_world_frame_calibration_20260520_023544.json\
        --dataset_file ./datasets/cosmos_xrobo_dataset.hdf5 \
        --num_demos 10 \
-       --enable_cameras
+       --xrobotoolkit_control_mode absolute \
+       --enable_cameras 
 
+标定数据
+---
 .. code:: bash
+  xrobotoolkit_world_frame_calibration_20260515_095649.json
   xrobotoolkit_world_frame_calibration_20260519_021821.json
+  xrobotoolkit_world_frame_calibration_20260520_023544.json

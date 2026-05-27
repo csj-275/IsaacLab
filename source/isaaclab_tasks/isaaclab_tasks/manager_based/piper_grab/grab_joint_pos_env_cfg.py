@@ -137,7 +137,7 @@ class PiperGrabEnvCfg(GrabEnvCfg):
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.1, 0.3, 0.0203), rot=(1.0, 0.0, 0.0, 0.0)),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
-                scale=(0.4, 0.6, 1.5), # l, w, h
+                scale=(0.6, 0.7, 1.5), # l, w, h
                 rigid_props=RigidBodyPropertiesCfg(),
                 semantic_tags=[("class", "box")],
             ),

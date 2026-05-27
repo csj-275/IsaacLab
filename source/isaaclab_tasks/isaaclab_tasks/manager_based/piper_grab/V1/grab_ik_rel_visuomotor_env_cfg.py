@@ -1,9 +1,12 @@
-# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2025-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import os
+
 import isaaclab.sim as sim_utils
+from isaaclab.assets import RigidObjectCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -11,30 +14,34 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
+from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR
 
 from isaaclab_tasks.manager_based.piper_grab import mdp
 from isaaclab_tasks.manager_based.piper_grab.mdp import piper_grab_events
+from isaaclab_tasks.manager_based.piper_grab.V1 import mdp as V1_mdp
+from isaaclab_tasks.manager_based.piper_grab.V1.grab_ik_rel_env_cfg import (
+    SubtaskCfg,
+    TerminationsCfg,
+)
 
-from . import grab_joint_pos_env_cfg
+from .. import grab_joint_pos_env_cfg
+from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_640X480
+
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG  # isort: skip
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
+# _MUG_USD_PATH = os.path.normpath(
+#     os.path.join(os.path.dirname(__file__), "../../../../../../usd/drink101/model_beverage13.usd")
+# )
 
-PIPER_D435_COLOR_INTRINSIC_640X480 = [
-    605.519378662109,
-    0.0,
-    320.0,
-    0.0,
-    605.519378662109,
-    240.0,
-    0.0,
-    0.0,
-    1.0,
-]
+_MUG_USD_PATH = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Mug/mug.usd"
+
 
 @configclass
 class EventCfg(grab_joint_pos_env_cfg.EventCfg):
@@ -116,11 +123,11 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP."""
+    """Observation specifications for V1 visuomotor task."""
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Observations for policy group with state values."""
+        """Observations for policy group with state and image values."""
 
         actions = ObsTerm(func=mdp.last_action)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
@@ -143,6 +150,13 @@ class ObservationsCfg:
         box_orientations = ObsTerm(
             func=mdp.object_poses_in_base_frame,
             params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
+        )
+        mug_positions = ObsTerm(
+            func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("mug"), "return_key": "pos"}
+        )
+        mug_orientations = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("mug"), "return_key": "quat"},
         )
         table_cam = ObsTerm(
             func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
@@ -171,50 +185,37 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = False
 
-    @configclass
-    class SubtaskCfg(ObsGroup):
-        """Observations for subtask group."""
-        grasp_1 = ObsTerm(
-            func=mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("object_1"),
-            },
-        )
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = False
-    # observation groups
     policy: PolicyCfg = PolicyCfg()
     subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
 @configclass
 class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
-    observations: ObservationsCfg = ObservationsCfg()
+    """Configuration for V1 two-stage pick-and-place visuomotor environment."""
 
-    # Evaluation settings
+    observations: ObservationsCfg = ObservationsCfg()
+    terminations: TerminationsCfg = TerminationsCfg()
+
     eval_mode = False
     eval_type = None
 
     def __post_init__(self):
-        # post init of parent
         super().__post_init__()
 
-        # Set events
+        # Override events
         self.events = EventCfg()
 
-        # Set Franka as robot
-        # We switch here to a stiffer PD controller for IK tracking to be better.
+        # Override robot to high-PD variant for IK tracking
         self.scene.robot = PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
+        # Gripper config
         self.gripper_joint_names = ["joint7", "joint8"]
-        # self.gripper_open_val = 0.05
         self.gripper_open_vals = [0.05, -0.05]
         self.gripper_threshold = 0.01
-        # Set actions for the specific robot type (franka)
+
+
+        # IK-rel action
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["joint[1-6]"],
@@ -222,10 +223,9 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=0.5,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
-        ) # 0.135/0.107 未测试
+        )
 
-        # Set cameras
-        # Set wrist camera
+        # Wrist camera
         self.scene.wrist_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
             update_period=0.0,
@@ -241,11 +241,11 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             offset=CameraCfg.OffsetCfg(
                 pos=(0.0, 0.0, 0.0),
                 rot=(0.0, 0.0, 0.0, 1.0),
-                convention="ros"
+                convention="ros",
             ),
         )
 
-        # Set table view camera
+        # Table camera
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
@@ -259,15 +259,66 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                 clipping_range=(0.1, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(1.0, 0.0, 0.4), 
-                rot=(0.35355, -0.61237, -0.61237, 0.35355), 
-                convention="ros"
+                pos=(1.0, 0.0, 0.4),
+                rot=(0.35355, -0.61237, -0.61237, 0.35355),
+                convention="ros",
             ),
         )
 
-        # Set settings for camera rendering
-        self.num_rerenders_on_reset = 3
-        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
+        # Add mug to scene
+        mug_properties = RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=1,
+            max_angular_velocity=1000.0,
+            max_linear_velocity=1000.0,
+            max_depenetration_velocity=5.0,
+            disable_gravity=False,
+        )
+        self.scene.mug = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/mug",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.0203), rot=(1, 0, 0, 0)),
+            spawn=UsdFileCfg(
+                usd_path=_MUG_USD_PATH,
+                scale=(0.8, 0.8, 0.7),
+                rigid_props=mug_properties,
+                semantic_tags=[("class", "mug")],
+            ),
+        )
 
-        # List of image observations in policy observations
+        # Combined cube + mug + box randomization with per-object pose ranges to avoid overlaps
+        del self.events.randomize_cube_positions
+        del self.events.randomize_box_positions
+
+        self.events.randomize_cube_and_mug_and_box_poses = EventTerm(
+            func=piper_grab_events.randomize_object_pose,
+            mode="reset",
+            params={
+                "pose_ranges": [
+                    {"x": (0.2, 0.4), "y": (-0.15, 0.15), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0)},  # cube
+                    {"x": (0.2, 0.4), "y": (-0.15, 0.15), "z": (0.0353, 0.0353), "yaw": (-1.0, 1.0)},  # mug
+                    {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.0155, 0.0155), "yaw": (-1.0, 1.0)},  # box
+                ],
+                "min_separation": 0.1,
+                "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],
+            },
+        )
+
+
+        # Color randomization
+        self.events.randomize_mug_color = EventTerm(
+            func=mdp.randomize_visual_color,
+            mode="reset",
+            params={
+                "event_name": "randomize_mug_color",
+                "asset_cfg": SceneEntityCfg("mug"),
+                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+                "mesh_name": "",
+            },
+        )
+
+        # Rendering settings
+        self.num_rerenders_on_reset = 3
+        self.sim.render.antialiasing_mode = "DLAA"
+
         self.image_obs_list = ["table_cam", "wrist_cam"]
+        self.sim.dt = 1 / 500

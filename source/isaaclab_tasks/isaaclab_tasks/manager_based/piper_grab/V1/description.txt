@@ -1,0 +1,499 @@
+================================================================================
+V1 数据集说明 - Piper Grab Two-Stage Pick-and-Place (全面参数)
+================================================================================
+
+三个配置文件：
+  - grab_ik_rel_env_cfg.py                 (state-only, IK-rel, 无相机观测)
+  - grab_ik_rel_visuomotor_env_cfg.py       (visuomotor, wrist + table 相机, RGB + Depth)
+  - grab_ik_rel_visuomotor_cosmos_env_cfg.py (visuomotor, 额外 semantic_segmentation + normals)
+
+================================================================================
+1. 场景物体
+================================================================================
+
+1.1 object_1 (方块 / cube)
+    USD 路径:     Isaac Nucleus "Props/Blocks/blue_block.usd"
+    Scale:        (1.0, 1.0, 1.0)
+    初始位置:     pos=(0.3, 0.0, 0.0203)
+    初始朝向:     rot=(1, 0, 0, 0)  (单位四元数)
+    类型:         RigidObject, 受重力
+    语义标签:     class:cube_1 → V1 重写为 class:object_1
+    颜色:         初始蓝色，每个 episode reset 时随机化 (见 §3.1)
+
+1.2 mug (马克杯)
+    USD 路径:     ISAACLAB_NUCLEUS "Objects/Mug/mug.usd"
+    Scale:        ik_rel: (1.0, 1.0, 1.0) / visuomotor & cosmos: (0.8, 0.8, 0.8)
+    初始位置:     pos=(0.4, -0.15, 0.0203)
+    初始朝向:     rot=(1, 0, 0, 0)
+    类型:         RigidObject, 受重力
+    语义标签:     class:mug
+    颜色:         初始白色，每个 episode reset 时随机化 (见 §3.1)
+
+1.3 box (盒子 / sorting bin)
+    USD 路径:     ISAACLAB_NUCLEUS "Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd"
+    Scale:        (0.5, 0.6, 1.5)  (l, w, h)
+    初始位置:     pos=(0.1, 0.3, 0.0203)
+    初始朝向:     rot=(1, 0, 0, 0)
+    类型:         RigidObject
+    语义标签:     class:box
+    颜色:         蓝色, V1 中不随机化
+
+1.4 table (桌面)
+    USD 路径:     Isaac Nucleus "Props/Mounts/SeattleLabTable/table_instanceable.usd"
+    初始位置:     pos=(0.5, 0, 0)
+    初始朝向:     rot=(0.707, 0, 0, 0.707)  (绕 X 轴 90°)
+    语义标签:     class:table
+
+1.5 ground (地面)
+    高度:         z = -1.05
+    类型:         GroundPlane
+    语义标签:     class:ground
+
+1.6 light (环境光)
+    类型:         DomeLight
+    默认颜色:     (0.75, 0.75, 0.75)
+    默认强度:     3000.0
+
+================================================================================
+2. 物体 RigidBody 物理属性
+================================================================================
+
+2.1 mug & object_1 (共用):
+    solver_position_iteration_count:  16
+    solver_velocity_iteration_count:  1
+    max_angular_velocity:            1000.0
+    max_linear_velocity:             1000.0
+    max_depenetration_velocity:      5.0
+    disable_gravity:                 False
+
+2.2 box:
+    RigidBodyPropertiesCfg()  使用默认参数
+
+2.3 全局仿真物理:
+    sim.physx.bounce_threshold_velocity:                   0.01
+    sim.physx.gpu_found_lost_aggregate_pairs_capacity:     1024 * 1024 * 4
+    sim.physx.gpu_total_aggregate_pairs_capacity:          16 * 1024
+    sim.physx.friction_correlation_distance:               0.00625
+
+================================================================================
+3. 物体颜色随机化
+================================================================================
+
+3.1 object_1 颜色 (randomize_object_1_color)
+    配置:         所有三个 V1 配置
+    触发:         reset (每个 episode)
+    参数:
+      event_name:  "randomize_object_1_color"
+      asset_cfg:   SceneEntityCfg("object_1")
+      colors:
+        r ∈ [0.0, 1.0]  均匀分布
+        g ∈ [0.0, 1.0]  均匀分布
+        b ∈ [0.0, 1.0]  均匀分布
+      mesh_name:   ""  (应用到所有 mesh)
+
+3.2 mug 颜色 (randomize_mug_color)
+    配置:         所有三个 V1 配置
+    触发:         reset
+    参数:
+      event_name:  "randomize_mug_color"
+      asset_cfg:   SceneEntityCfg("mug")
+      colors:
+        r ∈ [0.0, 1.0]
+        g ∈ [0.0, 1.0]
+        b ∈ [0.0, 1.0]
+      mesh_name:   ""
+
+3.3 box 颜色 (randomize_box_color) — 继承自父类
+    配置:         所有三个 V1 配置 (继承自 grab_joint_pos_env_cfg.EventCfg)
+    触发:         reset
+    参数:
+      event_name:  "randomize_box_color"
+      asset_cfg:   SceneEntityCfg("box")
+      colors:
+        r ∈ [0.0, 1.0]  均匀分布
+        g ∈ [0.0, 1.0]  均匀分布
+        b ∈ [0.0, 1.0]  均匀分布
+      mesh_name:   ""
+
+================================================================================
+4. 物体位姿随机化
+================================================================================
+
+4.1 object_1 + mug 联合位姿 (randomize_cube_and_mug_poses)
+    配置:         所有三个 V1 配置
+    触发:         reset
+    函数:         piper_grab_events.randomize_object_pose
+    参数:
+      pose_range:
+        x:        [0.25, 0.50]        均匀分布
+        y:        [-0.20, 0.20]       均匀分布
+        z:         0.0203             固定 (桌面高度)
+        yaw:      [-1.0, 1.0] rad     均匀分布 (约 ±57°), 仅绕 Z 轴旋转
+      min_separation: 0.1 m           object_1 与 mug 之间的最小间距
+      asset_cfgs:      [SceneEntityCfg("object_1"), SceneEntityCfg("mug")]
+
+4.2 box 位姿 (randomize_box_positions)
+    配置:         所有三个 V1 配置
+    触发:         reset
+    函数:         piper_grab_events.randomize_object_pose
+    参数:
+      pose_range:
+        x:        [0.05, 0.30]        均匀分布
+        y:        [0.15, 0.35]        均匀分布
+        z:         0.0203             固定
+        yaw:      [-1.0, 1.0] rad     均匀分布
+      min_separation: 0.1 m
+      asset_cfgs:      [SceneEntityCfg("box")]
+
+================================================================================
+5. 机械臂 (Piper)
+================================================================================
+
+5.1 模型
+    ik_rel / visuomotor / cosmos: PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG (高 PD 变体)
+    prim_path:                     {ENV_REGEX_NS}/Robot
+    语义标签:                      class:robot
+
+5.2 初始关节角
+    事件名:       init_piper_arm_pose
+    触发:         reset
+    函数:         piper_grab_events.set_default_joint_pose
+    参数:
+      default_pose: [0.0, 1.0, -1.0, 0.0, 2.0, 0.0, 0.0, 0.0]
+        joint1 = 0.0    (base rotation)
+        joint2 = 1.0    (shoulder)
+        joint3 = -1.0   (elbow)
+        joint4 = 0.0    (wrist1)
+        joint5 = 2.0    (wrist2)
+        joint6 = 0.0    (wrist3)
+        joint7 = 0.0    (gripper left finger)
+        joint8 = 0.0    (gripper right finger)
+
+5.3 关节随机噪声
+    事件名:       randomize_piper_joint_state
+    触发:         reset
+    函数:         piper_grab_events.randomize_joint_by_gaussian_offset
+    参数:
+      mean:       0.0
+      std:        0.02   (高斯噪声标准差)
+      asset_cfg:  SceneEntityCfg("robot")
+    说明:         对所有 8 个关节施加独立的高斯噪声
+
+5.4 动作控制 - 机械臂
+    类型:         DifferentialInverseKinematicsActionCfg
+    asset_name:   "robot"
+    joint_names:  ["joint[1-6]"]
+    body_name:    "link6"
+    scale:        0.5
+    body_offset:
+      pos:        (0.0, 0.0, 0.107)    末端执行器偏移
+    controller:
+      command_type:       "pose"
+      use_relative_mode:  True          相对位姿控制
+      ik_method:          "dls"         Damped Least Squares
+
+5.5 夹爪配置
+    gripper_joint_names:  ["joint7", "joint8"]
+    gripper_open_vals:    [0.05, -0.05]  (joint7 打开值, joint8 打开值)
+    gripper_threshold:     0.01          判断夹爪打开的距离阈值
+    判断逻辑:
+      gripper_open = |joint7_pos - 0.05| < 0.01 AND |joint8_pos - (-0.05)| < 0.01
+
+5.6 末端执行器坐标帧 (ee_frame)
+    类型:         FrameTransformerCfg
+    prim_path:    {ENV_REGEX_NS}/Robot/arm_base
+    目标帧:
+      - end_effector:    link6,  offset pos=(0, 0, 0)
+      - tool_leftfinger: link7,  offset pos=(0, 0, 0.135)
+      - tool_rightfinger: link8, offset pos=(0, 0, 0.135)
+
+================================================================================
+6. 观测空间 (Observations)
+================================================================================
+
+6.1 共有观测 (ik_rel + visuomotor + cosmos)
+    Policy 组 (policy):
+    +------------------------+------------------+-------------------------------------------+
+    | 观测项                  | MDP 函数          | 参数                                       |
+    +------------------------+------------------+-------------------------------------------+
+    | actions                 | last_action      | (无)                                       |
+    | joint_pos               | joint_pos_rel    | (无)                                       |
+    | joint_vel               | joint_vel_rel    | (无)                                       |
+    | eef_pos                 | ee_frame_pos     | (ik_rel 来自 ee_frame_cfg)                 |
+    | eef_quat                | ee_frame_quat    | (ik_rel 来自 ee_frame_cfg)                 |
+    | gripper_pos             | gripper_pos      | robot_cfg: SceneEntityCfg("robot")         |
+    | object                  | object_obs       | (无)                                       |
+    | object_1_positions      | object_poses_in_base_frame | object_cfg: SceneEntityCfg("object_1"), return_key: "pos" |
+    | object_1_orientations   | 同上              | object_cfg: SceneEntityCfg("object_1"), return_key: "quat" |
+    | box_positions           | 同上              | object_cfg: SceneEntityCfg("box"),      return_key: "pos" |
+    | box_orientations        | 同上              | object_cfg: SceneEntityCfg("box"),      return_key: "quat" |
+    | mug_positions           | 同上              | object_cfg: SceneEntityCfg("mug"),      return_key: "pos" |
+    | mug_orientations        | 同上              | object_cfg: SceneEntityCfg("mug"),      return_key: "quat" |
+    +------------------------+------------------+-------------------------------------------+
+    Policy 组设置: enable_corruption=False, concatenate_terms=False
+
+    Subtask 组 (subtask_terms):
+    +------------------------+---------------------+------------------------------------------+
+    | 观测项                  | MDP 函数             | 参数                                      |
+    +------------------------+---------------------+------------------------------------------+
+    | grasp_1                 | object_grasped      | robot_cfg: SceneEntityCfg("robot")        |
+    |                         |                     | ee_frame_cfg: SceneEntityCfg("ee_frame")  |
+    |                         |                     | object_cfg: SceneEntityCfg("object_1")    |
+    |                         |                     | diff_threshold: 0.15                      |
+    +------------------------+---------------------+------------------------------------------+
+    | placed_1                | object_a_is_into_b  | robot_cfg: SceneEntityCfg("robot")        |
+    |                         |                     | object_a_cfg: SceneEntityCfg("object_1")  |
+    |                         |                     | object_b_cfg: SceneEntityCfg("box")       |
+    |                         |                     | xy_threshold: 0.08                        |
+    |                         |                     | height_diff: 0.0                          |
+    |                         |                     | height_threshold: 0.08                    |
+    +------------------------+---------------------+------------------------------------------+
+    | grasp_2                 | object_grasped      | robot_cfg: SceneEntityCfg("robot")        |
+    |                         |                     | ee_frame_cfg: SceneEntityCfg("ee_frame")  |
+    |                         |                     | object_cfg: SceneEntityCfg("mug")         |
+    |                         |                     | diff_threshold: 0.15                      |
+    +------------------------+---------------------+------------------------------------------+
+    Subtask 组设置: enable_corruption=False, concatenate_terms=False
+
+6.2 visuomotor / cosmos 额外观测 (图像)
+    +------------------------+---------+--------------------------------------------------+
+    | 观测项                  | data_type              | 参数                                             |
+    +------------------------+-----------------------+--------------------------------------------------+
+    | table_cam               | rgb                    | sensor_cfg: SceneEntityCfg("table_cam")           |
+    |                         |                        | data_type: "rgb", normalize: False               |
+    | wrist_cam               | rgb                    | sensor_cfg: SceneEntityCfg("wrist_cam")           |
+    |                         |                        | data_type: "rgb", normalize: False               |
+    | table_cam_depth         | distance_to_image_plane| sensor_cfg: SceneEntityCfg("table_cam")           |
+    |                         |                        | normalize: True                                  |
+    | wrist_cam_depth         | distance_to_image_plane| sensor_cfg: SceneEntityCfg("wrist_cam")           |
+    |                         |                        | normalize: True                                  |
+    +------------------------+-----------------------+--------------------------------------------------+
+
+6.3 cosmos 专属额外观测
+    +------------------------+-----------------------+--------------------------------------------------+
+    | 观测项                  | data_type              | 参数                                             |
+    +------------------------+-----------------------+--------------------------------------------------+
+    | table_cam_segmentation  | semantic_segmentation  | sensor_cfg: SceneEntityCfg("table_cam")           |
+    |                         |                        | normalize: True                                  |
+    | table_cam_normals       | normals                | sensor_cfg: SceneEntityCfg("table_cam")           |
+    |                         |                        | normalize: True                                  |
+    +------------------------+-----------------------+--------------------------------------------------+
+
+================================================================================
+7. 相机配置 (visuomotor / cosmos)
+================================================================================
+
+7.1 相机内参 (共用, D435 640x480)
+    PIPER_D435_COLOR_INTRINSIC_640X480 = [
+        605.519378662109,  0.0,   320.0,
+        0.0,  605.519378662109,  240.0,
+        0.0,  0.0,  1.0
+    ]
+    分辨率:     640 x 480
+    fx = fy = 605.52, cx = 320, cy = 240
+
+7.2 Wrist Camera (腕部相机)
+    prim_path:     {ENV_REGEX_NS}/Robot/camera_link/wrist_cam
+    update_period: 0.0 (每帧更新)
+    分辨率:        640 x 480
+    clipping_range: (0.1, 2.0) m
+    offset:
+      pos: (0.0, 0.0, 0.0)
+      rot: (0.0, 0.0, 0.0, 1.0)  无偏移
+      convention: "ros"
+
+    visuomotor data_types:  ["rgb", "distance_to_image_plane"]
+    cosmos data_types:      ["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"]
+    cosmos 额外:
+      colorize_semantic_segmentation: True
+      semantic_segmentation_mapping:  见 §7.4
+
+7.3 Table Camera (桌面相机)
+    prim_path:     {ENV_REGEX_NS}/table_cam
+    update_period: 0.0
+    分辨率:        640 x 480
+    clipping_range: (0.1, 2.0) m
+    offset:
+      pos: (1.0, 0.0, 0.4)
+      rot: (0.35355, -0.61237, -0.61237, 0.35355)  (ROS convention)
+      convention: "ros"
+
+    visuomotor data_types:  ["rgb", "distance_to_image_plane"]
+    cosmos data_types:      ["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"]
+    cosmos 额外:
+      colorize_semantic_segmentation: True
+      semantic_segmentation_mapping:  见 §7.4
+
+7.4 Cosmos 语义分割映射
+    class:object_1   → (120, 230, 255, 255)
+    class:box        → (55,  255, 139, 255)
+    class:table      → (255, 237, 218, 255)
+    class:ground     → (100, 100, 100, 255)
+    class:robot      → (204, 110, 248, 255)
+    class:mug        → (255, 200, 100, 255)
+    class:UNLABELLED → (150, 150, 150, 255)
+    class:BACKGROUND → (200, 200, 200, 255)
+
+================================================================================
+8. 终止条件 (Terminations)
+================================================================================
+
+8.1 time_out
+    函数:         mdp.time_out
+    time_out:     True
+    说明:         episode_length_s = 30.0s, 超时则终止
+
+8.2 object_1_dropping (方块掉落)
+    函数:         mdp.root_height_below_minimum
+    参数:
+      minimum_height: -0.05
+      asset_cfg:      SceneEntityCfg("object_1")
+    说明:         物体 Z 坐标 < -0.05 时终止
+
+8.3 mug_dropping (马克杯掉落)
+    函数:         mdp.root_height_below_minimum
+    参数:
+      minimum_height: -0.05
+      asset_cfg:      SceneEntityCfg("mug")
+
+8.4 success (任务成功)
+    函数:         V1_mdp.objects_a_and_b_are_into_c
+    参数:
+      robot_cfg:      SceneEntityCfg("robot")
+      object_a_cfg:   SceneEntityCfg("object_1")
+      object_b_cfg:   SceneEntityCfg("mug")
+      object_c_cfg:   SceneEntityCfg("box")
+    (使用默认参数: xy_threshold=0.08, height_threshold=0.1, height_diff=0.0)
+    说明:         object_1 和 mug 都在 box 内，且夹爪打开 → 成功终止
+
+================================================================================
+9. 视觉域随机化 (visuomotor / cosmos 专属)
+================================================================================
+
+9.1 场景光照随机化 (randomize_light)
+    触发:         reset
+    函数:         piper_grab_events.randomize_scene_lighting_domelight
+    参数:
+      intensity_range:      (1500.0, 10000.0)
+      color_variation:      0.4
+      textures:             11 种 HDR 天空盒:
+        - abandoned_parking_4k.hdr     (Cloudy)
+        - evening_road_01_4k.hdr       (Cloudy)
+        - lakeside_4k.hdr              (Cloudy)
+        - autoshop_01_4k.hdr           (Indoor)
+        - carpentry_shop_01_4k.hdr     (Indoor)
+        - hospital_room_4k.hdr         (Indoor)
+        - hotel_room_4k.hdr            (Indoor)
+        - old_bus_depot_4k.hdr         (Indoor)
+        - small_empty_house_4k.hdr     (Indoor)
+        - surgery_4k.hdr               (Indoor)
+        - photo_studio_01_4k.hdr       (Studio)
+      default_intensity:    3000.0
+      default_color:        (0.75, 0.75, 0.75)
+      default_texture:      ""  (无默认 HDR)
+
+9.2 桌面纹理随机化 (randomize_table_visual_material)
+    触发:         reset
+    函数:         piper_grab_events.randomize_visual_texture_material
+    参数:
+      asset_cfg:  SceneEntityCfg("table")
+      textures:   12 种材质:
+        Wood  (8种): Ash, Bamboo_Planks, Birch, Cherry,
+                      Mahogany_Planks, Oak, Plywood, Timber,
+                      Timber_Cladding, Walnut_Planks
+        Stone (1种): Marble
+        Metal (1种): Steel_Stainless
+      default_texture: SeattleLabTable 默认纹理
+
+9.3 机械臂纹理随机化 (randomize_robot_arm_visual_texture)
+    触发:         reset
+    函数:         piper_grab_events.randomize_visual_texture_material
+    参数:
+      asset_cfg:  SceneEntityCfg("robot")
+      textures:   13 种金属材质:
+        Aluminum_Cast, Aluminum_Polished, Brass, Bronze,
+        Brushed_Antique_Copper, Cast_Metal_Silver_Vein, Copper,
+        Gold, Iron, RustedMetal, Silver, Steel_Carbon, Steel_Stainless
+
+================================================================================
+10. 遥操作设备 (仅 ik_rel state 版本)
+================================================================================
+
+    devices:
+      handtracking:
+        类型:               OpenXRDeviceCfg
+        绑定手:             HAND_RIGHT (右手)
+        retargeters:
+          - Se3RelRetargeterCfg:
+              zero_out_xy_rotation:    True
+              use_wrist_rotation:      False
+              use_wrist_position:      True
+              delta_pos_scale_factor:  10.0
+              delta_rot_scale_factor:  10.0
+          - GripperRetargeterCfg:
+              bound_hand:              HAND_RIGHT
+      keyboard:
+        类型:               Se3KeyboardCfg
+        pos_sensitivity:    0.05
+        rot_sensitivity:    0.05
+
+    注: visuomotor / cosmos 配置中未定义遥操作设备
+
+================================================================================
+11. 三种配置完整差异对比
+================================================================================
+
+                               | ik_rel (state)   | visuomotor          | visuomotor_cosmos
+-------------------------------|------------------|---------------------|--------------------
+相机 (wrist + table)           | 无               | RGB + Depth          | RGB + Depth + Segmentation + Normals
+图像分辨率                      | -                | 640x480 (D435)       | 640x480 (D435)
+mug scale                      | 1.0              | 0.8                 | 0.8
+场景光照随机化                   | 无               | 11 种 HDR            | 11 种 HDR
+桌面纹理随机化                   | 无               | 12 种材质            | 12 种材质
+机械臂纹理随机化                 | 无               | 13 种金属            | 13 种金属
+Semantic Segmentation          | 无               | 无                   | 有 (colorized, table_cam + wrist_cam)
+Normals                        | 无               | 无                   | 有 (table_cam + wrist_cam)
+sim.dt                         | 0.01 (100Hz)     | 0.01 (100Hz)        | 1/240 (240Hz)
+antialiasing_mode              | (默认)           | "DLAA"               | "OFF"
+num_rerenders_on_reset         | (默认)           | 3                    | 1
+dome_light_upper_lower_strategy | (默认)          | (默认)               | 4
+image_obs_list                 | -                | ["table_cam","wrist_cam"] | ["table_cam","wrist_cam"]
+遥操作设备                      | OpenXR + Keyboard | 无                  | 无
+
+================================================================================
+12. 全局仿真设置 (共用)
+================================================================================
+
+    num_envs:                    4096
+    env_spacing:                 2.5
+    replicate_physics:           False
+    decimation:                  5            (policy 运行频率 = 100/5 = 20Hz)
+    episode_length_s:            30.0         (最长 30 秒, 约 600 policy steps)
+    sim.dt:                      0.01 (100Hz) / cosmos: 1/240
+    sim.render_interval:         2            (每 2 步渲染一次)
+
+================================================================================
+13. 任务流程图 (V1 两步抓放)
+================================================================================
+
+    Reset → [Step 1: 抓取 object_1 (方块)]
+                   ↓ grasp_1 完成
+            [Step 2: 放入 box]
+                   ↓ placed_1 完成
+            [Step 3: 抓取 mug (马克杯)]
+                   ↓ grasp_2 完成
+            [Step 4: 放入 box]
+                   ↓ 夹爪释放
+            [SUCCESS: object_1 + mug 都在 box 内]
+
+    子任务检测参数:
+      grasp_1:  |eef_pos - object_1_pos| < 0.15 m  (object_grasped)
+      placed_1: |object_1_xy - box_xy| < 0.08 m AND |object_1_z - box_z| < 0.08 m
+      grasp_2:  |eef_pos - mug_pos| < 0.15 m
+      success:  |object_1_xy - box_xy| < 0.08 m AND |object_1_z - box_z| < 0.1 m
+            AND |mug_xy - box_xy| < 0.08 m AND |mug_z - box_z| < 0.1 m
+            AND gripper_open = True
+
+    中间失败:
+      - object_1 或 mug Z < -0.05 (掉落)
+      - 30s 超时
