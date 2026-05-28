@@ -19,8 +19,5 @@ services:
         source: ../datasets
         target: /workspace/isaaclab/datasets
       - type: bind
-        source: /data/simdata/V1
-        target: /workspace/isaaclab/data/simdata/V1
-      - type: bind
         source: ../usd
         target: /workspace/isaaclab/usd

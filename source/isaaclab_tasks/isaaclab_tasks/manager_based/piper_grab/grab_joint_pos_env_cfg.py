@@ -33,8 +33,8 @@ class EventCfg:
         func=piper_grab_events.set_default_joint_pose,
         mode="reset",
         params={
-             "default_pose": [0.0, 1.0, -1.0, 0.0, 1.57, 0.0, 0.0, 0.0],
-            # "default_pose": [0.0, 0.5, -0.5, 0.0, 0.00, 0.0, 0.0, 0.0],
+             "default_pose": [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.0, 0.0],
+            # "default_pose": [0.0, 1.0, -1.2, 0.0, 0.8, 0.0, 0.05, -0.05],
         },
     )
 
@@ -43,7 +43,7 @@ class EventCfg:
         mode="reset",
         params={
             "mean": 0.0,
-            "std": 0.02,
+            "std": 0.0,
             "asset_cfg": SceneEntityCfg("robot"),
         },
     )

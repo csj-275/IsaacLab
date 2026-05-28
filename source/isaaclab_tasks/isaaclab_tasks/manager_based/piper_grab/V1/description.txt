@@ -22,7 +22,7 @@ V1 数据集说明 - Piper Grab Two-Stage Pick-and-Place (全面参数)
 
 1.2 mug (马克杯)
     USD 路径:     ISAACLAB_NUCLEUS "Objects/Mug/mug.usd"
-    Scale:        ik_rel: (1.0, 1.0, 1.0) / visuomotor & cosmos: (0.8, 0.8, 0.8)
+    Scale:        ik_rel: (0.8, 0.8, 0.8) / visuomotor & cosmos: (0.8, 0.8, 0.7)
     初始位置:     pos=(0.4, -0.15, 0.0203)
     初始朝向:     rot=(1, 0, 0, 0)
     类型:         RigidObject, 受重力
@@ -31,7 +31,7 @@ V1 数据集说明 - Piper Grab Two-Stage Pick-and-Place (全面参数)
 
 1.3 box (盒子 / sorting bin)
     USD 路径:     ISAACLAB_NUCLEUS "Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd"
-    Scale:        (0.5, 0.6, 1.5)  (l, w, h)
+    Scale:        (0.6, 0.7, 1.5)  (l, w, h)
     初始位置:     pos=(0.1, 0.3, 0.0203)
     初始朝向:     rot=(1, 0, 0, 0)
     类型:         RigidObject
@@ -119,31 +119,26 @@ V1 数据集说明 - Piper Grab Two-Stage Pick-and-Place (全面参数)
 4. 物体位姿随机化
 ================================================================================
 
-4.1 object_1 + mug 联合位姿 (randomize_cube_and_mug_poses)
-    配置:         所有三个 V1 配置
+4.1 object_1 + mug + box 联合位姿 (randomize_cube_and_mug_and_box_poses)
+    配置:         所有三个 V1 配置 (替代父类的 randomize_cube_positions + randomize_box_positions)
     触发:         reset
     函数:         piper_grab_events.randomize_object_pose
-    参数:
-      pose_range:
-        x:        [0.25, 0.50]        均匀分布
-        y:        [-0.20, 0.20]       均匀分布
-        z:         0.0203             固定 (桌面高度)
-        yaw:      [-1.0, 1.0] rad     均匀分布 (约 ±57°), 仅绕 Z 轴旋转
-      min_separation: 0.1 m           object_1 与 mug 之间的最小间距
-      asset_cfgs:      [SceneEntityCfg("object_1"), SceneEntityCfg("mug")]
 
-4.2 box 位姿 (randomize_box_positions)
-    配置:         所有三个 V1 配置
-    触发:         reset
-    函数:         piper_grab_events.randomize_object_pose
-    参数:
-      pose_range:
-        x:        [0.05, 0.30]        均匀分布
-        y:        [0.15, 0.35]        均匀分布
-        z:         0.0203             固定
-        yaw:      [-1.0, 1.0] rad     均匀分布
+    ik_rel 参数:
+      pose_ranges (每个物体独立):
+        object_1:  x: [0.25, 0.50], y: [-0.20, 0.20], z: 0.0203 (固定), yaw: [-1.0, 1.0] rad
+        mug:       x: [0.25, 0.50], y: [-0.20, 0.20], z: 0.0353 (固定), yaw: [-1.0, 1.0] rad
+        box:       x: [0.05, 0.30], y: [0.15, 0.35],  z: 0.0005–0.005,      yaw: [-1.0, 1.0] rad
+      min_separation: 0.15 m  (任意两个物体之间的最小间距)
+      asset_cfgs:      [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")]
+
+    visuomotor / cosmos 参数:
+      pose_ranges (每个物体独立):
+        object_1:  x: [0.20, 0.40], y: [-0.15, 0.15], z: 0.0203 (固定), yaw: [-1.0, 1.0] rad
+        mug:       x: [0.20, 0.40], y: [-0.15, 0.15], z: 0.0353 (固定), yaw: [-1.0, 1.0] rad
+        box:       x: [0.05, 0.30], y: [0.15, 0.35],  z: 0.0155 (固定),      yaw: [-1.0, 1.0] rad
       min_separation: 0.1 m
-      asset_cfgs:      [SceneEntityCfg("box")]
+      asset_cfgs:      [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")]
 
 ================================================================================
 5. 机械臂 (Piper)
@@ -159,15 +154,17 @@ V1 数据集说明 - Piper Grab Two-Stage Pick-and-Place (全面参数)
     触发:         reset
     函数:         piper_grab_events.set_default_joint_pose
     参数:
-      default_pose: [0.0, 1.0, -1.0, 0.0, 2.0, 0.0, 0.0, 0.0]
+      default_pose: [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.0, 0.0]
         joint1 = 0.0    (base rotation)
         joint2 = 1.0    (shoulder)
-        joint3 = -1.0   (elbow)
+        joint3 = -0.6   (elbow)
         joint4 = 0.0    (wrist1)
-        joint5 = 2.0    (wrist2)
+        joint5 = 1.35   (wrist2)
         joint6 = 0.0    (wrist3)
         joint7 = 0.0    (gripper left finger)
         joint8 = 0.0    (gripper right finger)
+      备选注释值:
+        [0.0, 1.0, -1.2, 0.0, 0.8, 0.0, 0.05, -0.05]
 
 5.3 关节随机噪声
     事件名:       randomize_piper_joint_state
@@ -447,18 +444,19 @@ V1 数据集说明 - Piper Grab Two-Stage Pick-and-Place (全面参数)
 -------------------------------|------------------|---------------------|--------------------
 相机 (wrist + table)           | 无               | RGB + Depth          | RGB + Depth + Segmentation + Normals
 图像分辨率                      | -                | 640x480 (D435)       | 640x480 (D435)
-mug scale                      | 1.0              | 0.8                 | 0.8
+mug scale                      | (0.8, 0.8, 0.8)  | (0.8, 0.8, 0.7)     | (0.8, 0.8, 0.7)
 场景光照随机化                   | 无               | 11 种 HDR            | 11 种 HDR
 桌面纹理随机化                   | 无               | 12 种材质            | 12 种材质
 机械臂纹理随机化                 | 无               | 13 种金属            | 13 种金属
 Semantic Segmentation          | 无               | 无                   | 有 (colorized, table_cam + wrist_cam)
 Normals                        | 无               | 无                   | 有 (table_cam + wrist_cam)
-sim.dt                         | 0.01 (100Hz)     | 0.01 (100Hz)        | 1/240 (240Hz)
+sim.dt                         | 1/240 (≈240Hz)   | 1/500 (500Hz)        | 1/500 (500Hz, 继承 visuomotor)
 antialiasing_mode              | (默认)           | "DLAA"               | "OFF"
 num_rerenders_on_reset         | (默认)           | 3                    | 1
 dome_light_upper_lower_strategy | (默认)          | (默认)               | 4
 image_obs_list                 | -                | ["table_cam","wrist_cam"] | ["table_cam","wrist_cam"]
 遥操作设备                      | OpenXR + Keyboard | 无                  | 无
+物体位姿 min_separation         | 0.15             | 0.1                  | 0.1
 
 ================================================================================
 12. 全局仿真设置 (共用)
@@ -467,9 +465,9 @@ image_obs_list                 | -                | ["table_cam","wrist_cam"] | 
     num_envs:                    4096
     env_spacing:                 2.5
     replicate_physics:           False
-    decimation:                  5            (policy 运行频率 = 100/5 = 20Hz)
-    episode_length_s:            30.0         (最长 30 秒, 约 600 policy steps)
-    sim.dt:                      0.01 (100Hz) / cosmos: 1/240
+    decimation:                  5
+    episode_length_s:            30.0
+    sim.dt:                      1/240 (ik_rel) / 1/500 (visuomotor & cosmos)
     sim.render_interval:         2            (每 2 步渲染一次)
 
 ================================================================================

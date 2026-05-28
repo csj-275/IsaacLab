@@ -213,7 +213,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     {"x": (0.25, 0.5), "y": (-0.2, 0.2), "z": (0.0353, 0.0353), "yaw": (-1.0, 1.0)},  # mug
                     {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.005, 0.0005), "yaw": (-1.0, 1.0)},  # box
                 ],
-                "min_separation": 0.1,
+                "min_separation": 0.15,
                 "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],
             },
         )
