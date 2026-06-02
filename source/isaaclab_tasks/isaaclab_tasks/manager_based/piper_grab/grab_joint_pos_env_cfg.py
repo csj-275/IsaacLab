@@ -33,8 +33,8 @@ class EventCfg:
         func=piper_grab_events.set_default_joint_pose,
         mode="reset",
         params={
-             "default_pose": [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.0, 0.0],
-            # "default_pose": [0.0, 1.0, -1.2, 0.0, 0.8, 0.0, 0.05, -0.05],
+            #  "default_pose": [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.05, -0.05],
+            "default_pose": [0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.05, -0.05],
         },
     )
 

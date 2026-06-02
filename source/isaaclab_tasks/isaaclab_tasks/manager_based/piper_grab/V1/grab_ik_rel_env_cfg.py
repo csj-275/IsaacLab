@@ -32,10 +32,11 @@ from .. import grab_joint_pos_env_cfg
 from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG  # isort: skip
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-# _MUG_USD_PATH = os.path.normpath(
-#     os.path.join(os.path.dirname(__file__), "../../../../../../usd/drink101/model_beverage13.usd")
-# )
-_MUG_USD_PATH = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Mug/mug.usd"
+# _MUG_USD_PATH = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Mug/mug.usd"
+
+_MUG_USD_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "../../../../../../usd/bottle/bottle.usd")
+)
 
 @configclass
 class SubtaskCfg(ObsGroup):
@@ -189,6 +190,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             max_depenetration_velocity=5.0,
             disable_gravity=False,
         )
+
         self.scene.mug = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/mug",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.0203), rot=(1, 0, 0, 0)),
