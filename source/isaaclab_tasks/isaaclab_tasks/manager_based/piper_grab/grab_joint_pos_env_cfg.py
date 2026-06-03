@@ -17,13 +17,16 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_tasks.manager_based.piper_grab import mdp
 from isaaclab_tasks.manager_based.piper_grab.mdp import piper_grab_events
 from isaaclab_tasks.manager_based.piper_grab.grab_env_cfg import GrabEnvCfg
-
+import os
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_CFG  # isort: skip
 
+_MUG_BOX_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "../../../../../usd/box/box.usd")
+)
 
 @configclass
 class EventCfg:
@@ -33,8 +36,8 @@ class EventCfg:
         func=piper_grab_events.set_default_joint_pose,
         mode="reset",
         params={
-            #  "default_pose": [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.05, -0.05],
-            "default_pose": [0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.05, -0.05],
+             "default_pose": [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.05, -0.05],
+            # "default_pose": [0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.05, -0.05],
         },
     )
 
@@ -64,7 +67,7 @@ class EventCfg:
         func=piper_grab_events.randomize_object_pose,
         mode="reset",
         params={
-            "pose_range": {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
+            "pose_range": {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.2203, 0.2203), "yaw": (-1.0, 1, 0)},
             "min_separation": 0.1,
             "asset_cfgs": [SceneEntityCfg("box")],
         },
@@ -133,11 +136,13 @@ class PiperGrabEnvCfg(GrabEnvCfg):
         )
 
         self.scene.box = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/BlueSortingBin",
+            prim_path="{ENV_REGEX_NS}/box",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.1, 0.3, 0.0203), rot=(1.0, 0.0, 0.0, 0.0)),
             spawn=UsdFileCfg(
-                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
-                scale=(0.6, 0.7, 1.5), # l, w, h
+                usd_path = _MUG_BOX_PATH,
+                # usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
+                # scale=(0.6, 0.7, 1.5), # l, w, h
+                scale=(1, 1, 1), # l, w, h
                 rigid_props=RigidBodyPropertiesCfg(),
                 semantic_tags=[("class", "box")],
             ),

@@ -1,19 +1,19 @@
-"""Fix bottle.usd exported from URDF so it can be loaded as a RigidObject in Isaac Lab.
+"""Fix box.usd exported from URDF so it can be loaded as a RigidObject in Isaac Lab.
 
 URDF exports contain IsaacRobotAPI, IsaacLinkAPI, PhysicsArticulationRootAPI,
 PhysxArticulationAPI, and PhysicsFixedJoint which conflict with RigidObject
-loading and cause PhysX simulation view invalidation.
+loading and cause PhysX issues.
 
-Both the root layer and the referenced urdf/bottle/bottle.usd are cleaned.
+Both the root layer and the referenced urdf/box/box.usd are cleaned.
 
 Run inside the Isaac Sim container:
-    isaaclab --python scripts/tools/fix_bottle_usd.py --headless
+    isaaclab --python scripts/tools/fix_box_usd.py --headless
 """
 
 import argparse
 from isaaclab.app import AppLauncher
 
-parser = argparse.ArgumentParser(description="Fix bottle.usd for RigidObject usage.")
+parser = argparse.ArgumentParser(description="Fix box.usd for RigidObject usage.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 simulation_app = AppLauncher(args_cli).app
@@ -24,17 +24,17 @@ import os
 from pxr import Sdf, Usd, UsdPhysics
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "../.."))
-FIXED_MARKER = os.path.join(REPO_ROOT, "usd/bottle/.fix_applied")
+FIXED_MARKER = os.path.join(REPO_ROOT, "usd/box/.fix_applied")
 
 if os.path.exists(FIXED_MARKER):
     os.remove(FIXED_MARKER)
     print("Removed old fix marker — will re-fix all layers including configuration sublayers.")
 
 LAYER_PATHS = [
-    os.path.join(REPO_ROOT, "usd/bottle/urdf/bottle/bottle.usd"),                            # referenced layer
-    os.path.join(REPO_ROOT, "usd/bottle/bottle.usd"),                                         # root layer
-    os.path.join(REPO_ROOT, "usd/bottle/urdf/bottle/configuration/bottle_robot.usd"),        # robot config (has IsaacRobotAPI)
-    os.path.join(REPO_ROOT, "usd/bottle/urdf/bottle/configuration/bottle_physics.usd"),      # physics config (has ArticulationRoot)
+    os.path.join(REPO_ROOT, "usd/box/urdf/box/box.usd"),                            # referenced layer
+    os.path.join(REPO_ROOT, "usd/box/box.usd"),                                      # root layer
+    os.path.join(REPO_ROOT, "usd/box/urdf/box/configuration/box_robot.usd"),        # robot config (has IsaacRobotAPI)
+    os.path.join(REPO_ROOT, "usd/box/urdf/box/configuration/box_physics.usd"),      # physics config (has ArticulationRoot)
 ]
 BAD_APIS = {"IsaacRobotAPI", "IsaacLinkAPI", "PhysicsArticulationRootAPI", "PhysxArticulationAPI"}
 

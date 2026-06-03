@@ -36,36 +36,49 @@ from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_640X480
 from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG  # isort: skip
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-# _MUG_USD_PATH = os.path.normpath(
-#     os.path.join(os.path.dirname(__file__), "../../../../../../usd/drink101/model_beverage13.usd")
-# )
+_MUG_USD_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "../../../../../../usd/bottle/bottle.usd")
+)
 
-_MUG_USD_PATH = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Mug/mug.usd"
+
+# _MUG_USD_PATH = f"{ISAACLAB_NUCLEUS_DIR}/Objects/Mug/mug.usd"
 
 
 @configclass
 class EventCfg(grab_joint_pos_env_cfg.EventCfg):
     """Configuration for events."""
 
+    # Full randomization: lighting + sky texture (indoor scenes)
+    # randomize_light = EventTerm(
+    #     func=piper_grab_events.randomize_scene_lighting_domelight,
+    #     mode="reset",
+    #     params={
+    #         "intensity_range": (1500.0, 10000.0),
+    #         "color_variation": 0.4,
+    #         "textures": [
+    #             f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/autoshop_01_4k.hdr",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/carpentry_shop_01_4k.hdr",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/hospital_room_4k.hdr",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/hotel_room_4k.hdr",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/old_bus_depot_4k.hdr",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/small_empty_house_4k.hdr",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/surgery_4k.hdr",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/wooden_garage_4k.hdr",
+    #         ],
+    #         "default_intensity": 3000.0,
+    #         "default_color": (0.75, 0.75, 0.75),
+    #         "default_texture": "",
+    #     },
+    # )
+
+    # Lighting-only randomization: varies intensity + color, sky stays fixed indoor
     randomize_light = EventTerm(
         func=piper_grab_events.randomize_scene_lighting_domelight,
         mode="reset",
         params={
             "intensity_range": (1500.0, 10000.0),
             "color_variation": 0.4,
-            "textures": [
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/abandoned_parking_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/evening_road_01_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/lakeside_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/autoshop_01_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/carpentry_shop_01_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/hospital_room_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/hotel_room_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/old_bus_depot_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/small_empty_house_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/surgery_4k.hdr",
-                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Studio/photo_studio_01_4k.hdr",
-            ],
+            "textures": [f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/entrance_hall_4k.hdr"],
             "default_intensity": 3000.0,
             "default_color": (0.75, 0.75, 0.75),
             "default_texture": "",
@@ -239,7 +252,8 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                 clipping_range=(0.1, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(0.0, 0.0, 0.0),
+                # pos=(0.0, 0.0, 0.0),
+                pos=(0.0043, -0.0175, 0),
                 # w x y z
                 rot=(0.5, -0.5, 0.5, -0.5),
                 # rot=(0.6123724, -0.3535534, 0.3535534, -0.6123724),
@@ -278,10 +292,10 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         )
         self.scene.mug = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/mug",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.0203), rot=(1, 0, 0, 0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.0003), rot=(1, 0, 0, 0)),
             spawn=UsdFileCfg(
                 usd_path=_MUG_USD_PATH,
-                scale=(0.8, 0.8, 0.7),
+                scale=(1, 1, 1),
                 rigid_props=mug_properties,
                 semantic_tags=[("class", "mug")],
             ),
@@ -297,8 +311,8 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             params={
                 "pose_ranges": [
                     {"x": (0.2, 0.4), "y": (-0.15, 0.15), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0)},  # cube
-                    {"x": (0.2, 0.4), "y": (-0.15, 0.15), "z": (0.0353, 0.0353), "yaw": (-1.0, 1.0)},  # mug
-                    {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.0155, 0.0155), "yaw": (-1.0, 1.0)},  # box
+                    {"x": (0.2, 0.4), "y": (-0.15, 0.15), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # mug
+                    {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # box
                 ],
                 "min_separation": 0.1,
                 "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],
@@ -307,6 +321,28 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
 
         # Color randomization
+        self.events.randomize_cube_color = EventTerm(
+            func=mdp.randomize_visual_color,
+            mode="reset",
+            params={
+                "event_name": "randomize_cube_color",
+                "asset_cfg": SceneEntityCfg("object_1"),
+                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+                "mesh_name": "",
+            },
+        )
+
+        self.events.randomize_box_color = EventTerm(
+            func=mdp.randomize_visual_color,
+            mode="reset",
+            params={
+                "event_name": "randomize_box_color",
+                "asset_cfg": SceneEntityCfg("box"),
+                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+                "mesh_name": "",
+            },
+        )
+
         self.events.randomize_mug_color = EventTerm(
             func=mdp.randomize_visual_color,
             mode="reset",

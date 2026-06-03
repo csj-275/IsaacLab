@@ -57,9 +57,9 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "object_a_cfg": SceneEntityCfg("object_1"),
             "object_b_cfg": SceneEntityCfg("box"),
-            "xy_threshold": 0.08,
+            "xy_threshold": 0.05,
             "height_diff": 0.0,
-            "height_threshold": 0.08,
+            "height_threshold": 0.05,
         },
     )
     grasp_2 = ObsTerm(
@@ -196,7 +196,8 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.0203), rot=(1, 0, 0, 0)),
             spawn=UsdFileCfg(
                 usd_path=_MUG_USD_PATH,
-                scale=(0.8, 0.8, 0.8),
+                # scale=(0.8, 0.8, 0.8),
+                scale=(1, 1, 1),
                 rigid_props=mug_properties,
                 semantic_tags=[("class", "mug")],
             ),
@@ -221,6 +222,28 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         )
 
         # Color randomization
+        self.events.randomize_cube_color = EventTerm(
+            func=mdp.randomize_visual_color,
+            mode="reset",
+            params={
+                "event_name": "randomize_cube_color",
+                "asset_cfg": SceneEntityCfg("object_1"),
+                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+                "mesh_name": "",
+            },
+        )
+
+        self.events.randomize_box_color = EventTerm(
+            func=mdp.randomize_visual_color,
+            mode="reset",
+            params={
+                "event_name": "randomize_box_color",
+                "asset_cfg": SceneEntityCfg("box"),
+                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+                "mesh_name": "",
+            },
+        )
+
         self.events.randomize_mug_color = EventTerm(
             func=mdp.randomize_visual_color,
             mode="reset",

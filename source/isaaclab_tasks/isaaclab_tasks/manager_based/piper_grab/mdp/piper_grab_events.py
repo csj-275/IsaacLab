@@ -129,10 +129,11 @@ def randomize_scene_lighting_domelight(
 
     # if env.cfg.eval_type in ["light_texture", "all"]:
     if not is_eval or env.cfg.eval_type in ["light_texture", "all"]:
-        # Sample new light texture (background)
-        new_texture = random.sample(textures, 1)[0]
-        # Set light texture to light prim
-        texture_file_attr.Set(new_texture)
+        if len(textures) > 0:
+            # Sample new light texture (background)
+            new_texture = random.sample(textures, 1)[0]
+            # Set light texture to light prim
+            texture_file_attr.Set(new_texture)
 
 
 def sample_object_poses(

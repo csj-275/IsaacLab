@@ -3,22 +3,22 @@
      Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
      For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
 <robot
-  name="box">
+  name="bottle">
   <link
     name="base_link">
     <inertial>
       <origin
-        xyz="-4.78951016403975E-17 -7.24614443825989E-19 0.0128036064819368"
+        xyz="1.50791022765406E-05 2.42350086753079E-05 0.0347686721756358"
         rpy="0 0 0" />
       <mass
-        value="0.142440868845747" />
+        value="0.0137729793309302" />
       <inertia
-        ixx="0.000329725260961154"
-        ixy="-2.42777509784314E-19"
-        ixz="2.87574664829734E-20"
-        iyy="0.000221512784465087"
-        iyz="-8.36984009758776E-20"
-        izz="0.000481035646179957" />
+        ixx="4.60323702182234E-06"
+        ixy="-8.51742081203577E-10"
+        ixz="-3.20971108064316E-09"
+        iyy="4.60291583036679E-06"
+        iyz="-6.74096572002963E-09"
+        izz="4.17379591899535E-06" />
     </inertial>
     <visual>
       <origin
@@ -26,7 +26,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://box/meshes/base_link.STL" />
+          filename="package://bottle/meshes/base_link.STL" />
       </geometry>
       <material
         name="">
@@ -40,7 +40,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://box/meshes/base_link.STL" />
+          filename="package://bottle/meshes/base_link.STL" />
       </geometry>
     </collision>
   </link>
