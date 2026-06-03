@@ -76,10 +76,10 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
         func=piper_grab_events.randomize_scene_lighting_domelight,
         mode="reset",
         params={
-            "intensity_range": (1500.0, 10000.0),
+            "intensity_range": (500.0, 3000.0),
             "color_variation": 0.4,
             "textures": [f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/entrance_hall_4k.hdr"],
-            "default_intensity": 3000.0,
+            "default_intensity": 1500.0,
             "default_color": (0.75, 0.75, 0.75),
             "default_texture": "",
         },

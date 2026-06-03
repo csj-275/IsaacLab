@@ -62,7 +62,10 @@ _build
 /.pretrained_checkpoints/
 
 # Teleop Recorded Dataset
-/datasets/
+/datasets/**
+!/datasets/**/*.py
+# HDF5 dataset files are too large for git
+*.hdf5
 
 # Tests
 tests/
