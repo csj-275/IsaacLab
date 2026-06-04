@@ -14,6 +14,9 @@
 **/*.usdc
 **/*.usdz
 
+# Exception: allow USD files under usd/ (custom assets)
+!/usd/**
+
 # Python
 .DS_Store
 **/*.egg-info/
