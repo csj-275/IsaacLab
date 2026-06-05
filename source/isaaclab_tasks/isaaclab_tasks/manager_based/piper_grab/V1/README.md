@@ -1,15 +1,14 @@
 # V1 
-
-**容器启动**
-启动容器
---------
+**0.容器启动**
 ``` bash
-  ./docker/container.py start base --files docker-compose.xrobotoolkit.patch.yaml
-  ./docker/container.py enter base
-
-  docker restart $(docker ps -q)
+  ./docker/container.py start base --files docker-compose.xrobotoolkit.patch.yaml # 启动容器
+  ./docker/container.py enter base # 进入容器
+  docker restart $(docker ps -q) # 重启容器，Isaacsim卡住时使用
 ```
+
 -----------------------------------------------------
+- 主要使用的版本为IK, Visuo
+- Cosmos一般不使用
 
 **A1. IK录制演示**
 ``` bash

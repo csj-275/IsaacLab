@@ -126,7 +126,7 @@ class PiperGrabEnvCfg(GrabEnvCfg):
         # Set each stacking cube deterministically
         self.scene.object_1 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/object_1",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3, 0.0, 0.0203), rot=[1, 0, 0, 0]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3, 0.0, 0.0203), rot=(1, 0, 0, 0)),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                 scale=(1.0, 1.0, 1.0),

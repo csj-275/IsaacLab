@@ -187,7 +187,7 @@ class GrabEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 5
         self.episode_length_s = 30.0
         # simulation settings
-        self.sim.dt = 1/240  # 100Hz
+        self.sim.dt = 1/100  # 100Hz
         self.sim.render_interval = 2
 
         self.sim.physx.bounce_threshold_velocity = 0.2

@@ -166,6 +166,7 @@ def convert_hdf5_to_lerobot(
     state_obs_keys: list[str] | None = None,
     action_source: str = "actions",
     skip_videos: bool = False,
+    cameras: list[str] | None = None,
 ) -> None:
     """Convert an Isaac Lab HDF5 dataset to LeRobot v2.1 format.
 
@@ -312,6 +313,15 @@ def convert_hdf5_to_lerobot(
                         frames = (frames - f_min) / (f_max - f_min) * 255.0
                     frames = frames.astype(np.uint8)
                     frames = np.stack([frames, frames, frames], axis=-1)  # grayscale→RGB
+                elif frames.ndim == 4 and frames.shape[-1] == 1:
+                    # Single-channel image (e.g. depth) → expand to 3-channel
+                    frames = frames[..., 0]
+                    frames = frames.astype(np.float32)
+                    f_min, f_max = frames.min(), frames.max()
+                    if f_max - f_min > 0:
+                        frames = (frames - f_min) / (f_max - f_min) * 255.0
+                    frames = frames.astype(np.uint8)
+                    frames = np.stack([frames, frames, frames], axis=-1)
                 elif frames.ndim == 4 and frames.shape[-1] != 3:
                     frames = frames[..., :3]  # RGBA → RGB
 
@@ -372,6 +382,8 @@ def convert_hdf5_to_lerobot(
     }
 
     if has_images and not skip_videos:
+        if cameras is not None:
+            image_keys = [k for k in image_keys if k in cameras]
         for cam_key in image_keys:
             features[f"observation.images.{cam_key}"] = {"dtype": "video", "shape": [480, 640, 3]}
 
@@ -448,6 +460,12 @@ def main():
         "--no-images",
         action="store_true",
         help="Force state-only mode, ignore image observations",
+    )
+    parser.add_argument(
+        "--cameras",
+        nargs="*",
+        default=None,
+        help="Camera keys to include (default: all image obs). E.g. --cameras table_cam wrist_cam",
     )
 
     args = parser.parse_args()

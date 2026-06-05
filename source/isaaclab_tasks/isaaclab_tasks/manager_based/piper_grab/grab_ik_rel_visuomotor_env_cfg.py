@@ -36,6 +36,18 @@ PIPER_D435_COLOR_INTRINSIC_640X480 = [
     1.0,
 ]
 
+PIPER_D435_COLOR_INTRINSIC_1280X720 = [
+    1211.038757324218,
+    0.0,
+    640.0,
+    0.0,
+    908.279067993164,
+    360.0,
+    0.0,
+    0.0,
+    1.0,
+]
+
 @configclass
 class EventCfg(grab_joint_pos_env_cfg.EventCfg):
     """Configuration for events."""

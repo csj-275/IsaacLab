@@ -19,6 +19,11 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR
 
+from isaaclab.devices import DeviceBase, DevicesCfg, OpenXRDeviceCfg, Se3KeyboardCfg
+from isaaclab.devices.openxr.retargeters.manipulator.gripper_retargeter import GripperRetargeterCfg
+from isaaclab.devices.openxr.retargeters.manipulator.se3_rel_retargeter import Se3RelRetargeterCfg
+
+
 from isaaclab_tasks.manager_based.piper_grab import mdp
 from isaaclab_tasks.manager_based.piper_grab.mdp import piper_grab_events
 from isaaclab_tasks.manager_based.piper_grab.V1 import mdp as V1_mdp
@@ -28,7 +33,7 @@ from isaaclab_tasks.manager_based.piper_grab.V1.grab_ik_rel_env_cfg import (
 )
 
 from .. import grab_joint_pos_env_cfg
-from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_640X480
+from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_1280X720
 
 ##
 # Pre-defined configs
@@ -241,22 +246,24 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         # Wrist camera
         self.scene.wrist_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
-            update_period=0.0,
-            width=640,
-            height=480,
+            update_period=1 / 30,
+            width=1280,
+            height=720,
             data_types=["rgb", "distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
-                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
-                width=640,
-                height=480,
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_1280X720,
+                width=1280,
+                height=720,
                 clipping_range=(0.1, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                # pos=(0.0, 0.0, 0.0),
-                pos=(0.0043, -0.0175, 0),
+                pos=(0.0, 0.0, 0.0),
+                # pos=(0.0043, -0.0175, 0),
                 # w x y z
-                rot=(0.5, -0.5, 0.5, -0.5),
+                # rot=(0.5, -0.5, 0.5, -0.5),
+                rot=(0.4545, -0.5417, 0.5417, -0.4545),
                 # rot=(0.6123724, -0.3535534, 0.3535534, -0.6123724),
+                # rot=(0.3536, -0.6124, 0.6124, -0.3536),
                 convention="ros",
             ),
         )
@@ -264,22 +271,27 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         # Table camera
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
-            update_period=0.0,
-            width=640,
-            height=480,
+            update_period=1 / 30,
+            width=1280,
+            height=720,
             data_types=["rgb", "distance_to_image_plane"],
             spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
-                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
-                width=640,
-                height=480,
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_1280X720,
+                width=1280,
+                height=720,
                 clipping_range=(0.1, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(1.0, 0.0, 0.4),
-                rot=(0.35355, -0.61237, -0.61237, 0.35355),
+                pos=(0.0, 0.30, 0.5),
+                # rot=(0.9703, 0, 0.2419, 0), 
+                # rot=(-0.3536, 0.6124, -0.6124, 0.3536),
+                # rot=(-0.3044, 0.5272, -0.6870, 0.3967),
+                # rot=(-0.1162, 0.6119, -0.7424, 0.2467),
+                rot=(-0.1269, 0.6437, -0.7150, 0.2414),
                 convention="ros",
             ),
         )
+        # z 50-54 y 25 roty28
 
         # Add mug to scene
         mug_properties = RigidBodyPropertiesCfg(
@@ -310,11 +322,11 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             mode="reset",
             params={
                 "pose_ranges": [
-                    {"x": (0.2, 0.4), "y": (-0.15, 0.15), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0)},  # cube
-                    {"x": (0.2, 0.4), "y": (-0.15, 0.15), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # mug
-                    {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # box
+                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0)},  # cube
+                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # mug
+                    {"x": (0.1, 0.3), "y": (0.05, 0.35), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # box
                 ],
-                "min_separation": 0.1,
+                "min_separation": 0.12,
                 "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],
             },
         )
@@ -359,4 +371,32 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.sim.render.antialiasing_mode = "DLAA"
 
         self.image_obs_list = ["table_cam", "wrist_cam"]
-        self.sim.dt = 1 / 500
+        self.sim.dt = 1 / 150
+
+        self.teleop_devices = DevicesCfg(
+            devices={
+                "handtracking": OpenXRDeviceCfg(
+                    retargeters=[
+                        Se3RelRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
+                            zero_out_xy_rotation=True,
+                            use_wrist_rotation=False,
+                            use_wrist_position=True,
+                            delta_pos_scale_factor=10.0,
+                            delta_rot_scale_factor=10.0,
+                            sim_device=self.sim.device,
+                        ),
+                        GripperRetargeterCfg(
+                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
+                        ),
+                    ],
+                    sim_device=self.sim.device,
+                    xr_cfg=self.xr,
+                ),
+                "keyboard": Se3KeyboardCfg(
+                    pos_sensitivity=0.1,
+                    rot_sensitivity=0.1,
+                    sim_device=self.sim.device,
+                ),
+            }
+        )

@@ -277,8 +277,8 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     xr_cfg=self.xr,
                 ),
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.05,
+                    pos_sensitivity=0.01,
+                    rot_sensitivity=0.01,
                     sim_device=self.sim.device,
                 ),
             }

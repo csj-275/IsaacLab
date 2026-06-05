@@ -36,6 +36,8 @@
 - 具体机器人继承grab环境，配置robot和ee_frame以及待抓取物体，先关节空间，再任务空间；确定环境和随机环境无继承关系，通常任务空间环境继承自关节空间环境
 
 
+## 常用命令
+
 **1. IK-Rel记录数据**
 - `./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Mimic-v0 --device cpu --teleop_device keyboard --dataset_file ./datasets/piper_dataset.hdf5 --num_demos 10`
 
@@ -63,3 +65,8 @@
 - `./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v0 --device cpu --teleop_device keyboard --dataset_file ./datasets/cosmos_dataset.hdf5 --num_demos 10 --enable_cameras`
 **2. Cosmos标注数据**
 - `./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --device cpu --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v0 --input_file ./datasets/cosmos_dataset.hdf5 --output_file ./datasets/cosmos_annotated_dataset.hdf5`
+
+## 版本说明
+- 仿真任务：机械臂抓取Cube并放置于Box
+- 设计目的：快速验证仿真搭建流程
+- 作为base被其他版本的环境继承
