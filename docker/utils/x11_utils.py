@@ -288,6 +288,7 @@ def x11_refresh(statefile: StateFile):
         status = "enabled" if is_x11_forwarding_enabled == "1" else "disabled"
         print(f"[INFO] X11 Forwarding is {status} from the settings in '.container.cfg'")
 
+
     # if the file exists, create a replacement first so a temporary xauth failure
     # does not remove the currently mounted credential file.
     if tmp_xauth_value is not None and Path(tmp_xauth_value).exists():

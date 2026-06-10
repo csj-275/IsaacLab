@@ -110,7 +110,8 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
             ],
             "default_texture": (
-                f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/Materials/Textures/DemoTable_TableBase_BaseColor.png"
+                # f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/Materials/Textures/DemoTable_TableBase_BaseColor.png"
+                ""
             ),
         },
     )
@@ -254,7 +255,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                 intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_1280X720,
                 width=1280,
                 height=720,
-                clipping_range=(0.1, 2.0),
+                clipping_range=(0.01, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
                 pos=(0.0, 0.0, 0.0),
