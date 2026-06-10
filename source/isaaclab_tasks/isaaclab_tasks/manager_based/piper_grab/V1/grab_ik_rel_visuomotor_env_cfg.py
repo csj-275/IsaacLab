@@ -333,39 +333,110 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         )
 
 
-        # Color randomization
-        self.events.randomize_cube_color = EventTerm(
-            func=mdp.randomize_visual_color,
+        # ---------------------------------------------------------------------
+        # Object texture randomization (comment/uncomment to switch with color)
+        # ---------------------------------------------------------------------
+        self.events.randomize_cube_texture = EventTerm(
+            func=piper_grab_events.randomize_visual_texture_material,
             mode="reset",
             params={
-                "event_name": "randomize_cube_color",
                 "asset_cfg": SceneEntityCfg("object_1"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
+                "textures": [
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Ash/Ash_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Birch/Birch_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Plywood/Plywood_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Polished/Aluminum_Polished_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Gold/Gold_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Silver/Silver_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Stone/Marble/Marble_BaseColor.png",
+                ],
+                "default_texture": "",
             },
         )
 
-        self.events.randomize_box_color = EventTerm(
-            func=mdp.randomize_visual_color,
+        self.events.randomize_box_texture = EventTerm(
+            func=piper_grab_events.randomize_visual_texture_material,
             mode="reset",
             params={
-                "event_name": "randomize_box_color",
                 "asset_cfg": SceneEntityCfg("box"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
+                "textures": [
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Mahogany_Planks/Mahogany_Planks_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Cast/Aluminum_Cast_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Carbon/Steel_Carbon_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Iron/Iron_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/RustedMetal/RustedMetal_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brushed_Antique_Copper/Brushed_Antique_Copper_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Cast_Metal_Silver_Vein/Cast_Metal_Silver_Vein_BaseColor.png",
+                ],
+                "default_texture": "",
             },
         )
 
-        self.events.randomize_mug_color = EventTerm(
-            func=mdp.randomize_visual_color,
+        self.events.randomize_mug_texture = EventTerm(
+            func=piper_grab_events.randomize_visual_texture_material,
             mode="reset",
             params={
-                "event_name": "randomize_mug_color",
                 "asset_cfg": SceneEntityCfg("mug"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
+                "textures": [
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Polished/Aluminum_Polished_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Silver/Silver_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Gold/Gold_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Stone/Marble/Marble_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
+                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
+                ],
+                "default_texture": "",
             },
         )
+
+        # --- Color randomization (comment out to use texture above) ---
+        # self.events.randomize_cube_color = EventTerm(
+        #     func=mdp.randomize_visual_color,
+        #     mode="reset",
+        #     params={
+        #         "event_name": "randomize_cube_color",
+        #         "asset_cfg": SceneEntityCfg("object_1"),
+        #         "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+        #         "mesh_name": "",
+        #     },
+        # )
+        #
+        # self.events.randomize_box_color = EventTerm(
+        #     func=mdp.randomize_visual_color,
+        #     mode="reset",
+        #     params={
+        #         "event_name": "randomize_box_color",
+        #         "asset_cfg": SceneEntityCfg("box"),
+        #         "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+        #         "mesh_name": "",
+        #     },
+        # )
+        #
+        # self.events.randomize_mug_color = EventTerm(
+        #     func=mdp.randomize_visual_color,
+        #     mode="reset",
+        #     params={
+        #         "event_name": "randomize_mug_color",
+        #         "asset_cfg": SceneEntityCfg("mug"),
+        #         "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+        #         "mesh_name": "",
+        #     },
+        # )
 
         # Rendering settings
         self.num_rerenders_on_reset = 3
