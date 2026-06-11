@@ -39,10 +39,8 @@
 
 **B2. 视觉自动标注**
 ```bash
-./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py  --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v1 --input_file ./datasets/simdata/V1/visuo_dataset.hdf5 --output_file ./datasets/simdata/V1/annotated_visuo_dataset.hdf5 --enable_cameras --device cpu --headless --auto
+./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py  --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v1 --input_file ./datasets/simdata/V1/visuo_dataset.hdf5 --output_file ./datasets/simdata/V1/annotated_visuo_dataset.hdf5 --enable_cameras --device cuda:0 --headless --auto
 ```
-
-./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py   --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v1   --input_file ./datasets/simdata/V1/[0604]visuo_dataset.hdf5   --output_file ./datasets/simdata/V1/[0604]annotated_visuo_dataset.hdf5   --enable_cameras   --device cuda:0
 
 **B3. 视觉生成数据**
 ``` bash
@@ -52,7 +50,7 @@
 -----------------------------------------------
 **C1. Cosmos录制演示**
 ```bash
-    ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v1 --device cpu --teleop_device keyboard --dataset_file ./datasets/cosmos_dataset.hdf5 --num_demos 10 --enable_cameras
+    ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v1 --device cuda:0 --teleop_device keyboard --dataset_file ./datasets/cosmos_dataset.hdf5 --num_demos 10 --enable_cameras
 ```
 
 

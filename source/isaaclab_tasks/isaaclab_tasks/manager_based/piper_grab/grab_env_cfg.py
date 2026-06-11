@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import os
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
@@ -15,6 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
+from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -45,18 +47,28 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
                          scale=(1, 0.6, 1)),
     )
 
-    # plane
+    # Ground plane (invisible physics-only — warehouse provides visual floor)
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0, 0, -1.05)),
-        spawn=GroundPlaneCfg(),
+        spawn=UsdFileCfg(
+            usd_path=os.path.join(os.path.dirname(__file__), "../../../../../usd/ground/ground.usda"),
+            rigid_props=RigidBodyPropertiesCfg(disable_gravity=True),
+        ),
+    )
+
+    # Warehouse environment background (static, no physics)
+    warehouse = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Warehouse",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0, 0, -1.05)),
+        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/warehouse.usd"),
     )
 
     # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
-    )
+    # light = AssetBaseCfg(
+    #     prim_path="/World/light",
+    #     spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=50.0),
+    # )
     
 
 

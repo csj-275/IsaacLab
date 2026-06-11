@@ -77,18 +77,18 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
     # )
 
     # Lighting-only randomization: varies intensity + color, sky stays fixed indoor
-    randomize_light = EventTerm(
-        func=piper_grab_events.randomize_scene_lighting_domelight,
-        mode="reset",
-        params={
-            "intensity_range": (500.0, 3000.0),
-            "color_variation": 0.4,
-            "textures": [f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/entrance_hall_4k.hdr"],
-            "default_intensity": 1500.0,
-            "default_color": (0.75, 0.75, 0.75),
-            "default_texture": "",
-        },
-    )
+    # randomize_light = EventTerm(
+    #     func=piper_grab_events.randomize_scene_lighting_domelight,
+    #     mode="reset",
+    #     params={
+    #         "intensity_range": (500.0, 3000.0),
+    #         "color_variation": 0.4,
+    #         "textures": [f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/entrance_hall_4k.hdr"],
+    #         "default_intensity": 1500.0,
+    #         "default_color": (0.75, 0.75, 0.75),
+    #         "default_texture": "",
+    #     },
+    # )
 
     randomize_table_visual_material = EventTerm(
         func=piper_grab_events.randomize_visual_texture_material,
@@ -96,23 +96,31 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
         params={
             "asset_cfg": SceneEntityCfg("table"),
             "textures": [
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Ash/Ash_BaseColor.png",
+                # Wood
+                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Ash/Ash_BaseColor.png", # no
+                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Birch/Birch_BaseColor.png", # no
+                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Plywood/Plywood_BaseColor.png", # no
+
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Birch/Birch_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Mahogany_Planks/Mahogany_Planks_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Plywood/Plywood_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Stone/Marble/Marble_BaseColor.png",
+                # Stone
+                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Stone/Marble/Marble_BaseColor.png", # no
+                # Metals
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
+                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Carbon/Steel_Carbon_BaseColor.png", # no
+                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Cast/Aluminum_Cast_BaseColor.png", # no
+                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Polished/Aluminum_Polished_BaseColor.png", # no
+                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
+                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
+                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
+                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Iron/Iron_BaseColor.png", # no
             ],
-            "default_texture": (
-                # f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/Materials/Textures/DemoTable_TableBase_BaseColor.png"
-                ""
-            ),
+            "default_texture": "",
         },
     )
 
@@ -261,10 +269,11 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                 pos=(0.0, 0.0, 0.0),
                 # pos=(0.0043, -0.0175, 0),
                 # w x y z
-                # rot=(0.5, -0.5, 0.5, -0.5),
-                rot=(0.4545, -0.5417, 0.5417, -0.4545),
-                # rot=(0.6123724, -0.3535534, 0.3535534, -0.6123724),
-                # rot=(0.3536, -0.6124, 0.6124, -0.3536),
+                # 可行
+                # rot=(0.4545, -0.5417, 0.5417, -0.4545),
+                # 微调
+                rot=(0.4739127, -0.5647872, 0.5175321, -0.434261),
+
                 convention="ros",
             ),
         )
@@ -280,7 +289,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                 intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_1280X720,
                 width=1280,
                 height=720,
-                clipping_range=(0.1, 2.0),
+                clipping_range=(0.01, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
                 pos=(0.0, 0.30, 0.5),
@@ -334,28 +343,17 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
 
         # ---------------------------------------------------------------------
-        # Object texture randomization (comment/uncomment to switch with color)
+        # Object visual randomization (cube uses color, box/mug use texture)
         # ---------------------------------------------------------------------
-        self.events.randomize_cube_texture = EventTerm(
-            func=piper_grab_events.randomize_visual_texture_material,
+        # Cube: color randomization (texture doesn't work on non-converted USD)
+        self.events.randomize_cube_color = EventTerm(
+            func=mdp.randomize_visual_color,
             mode="reset",
             params={
+                "event_name": "randomize_cube_color",
                 "asset_cfg": SceneEntityCfg("object_1"),
-                "textures": [
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Ash/Ash_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Birch/Birch_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Plywood/Plywood_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Polished/Aluminum_Polished_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Gold/Gold_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Silver/Silver_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Stone/Marble/Marble_BaseColor.png",
-                ],
-                "default_texture": "",
+                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+                "mesh_name": "",
             },
         )
 
@@ -441,6 +439,19 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         # Rendering settings
         self.num_rerenders_on_reset = 3
         self.sim.render.antialiasing_mode = "DLAA"
+        self.sim.render.dome_light_upper_lower_strategy = 4
+        # Rendering quality settings
+        self.sim.render.rendering_mode = "quality"
+        self.sim.render.enable_translucency = True
+        self.sim.render.enable_reflections = True
+        self.sim.render.enable_global_illumination = True
+        self.sim.render.enable_ambient_occlusion = True
+        self.sim.render.enable_direct_lighting = True
+        self.sim.render.samples_per_pixel = 4
+        self.sim.render.enable_dl_denoiser = True
+        self.num_rerenders_on_reset = 1
+        self.sim.render.dlss_mode = 2
+
 
         self.image_obs_list = ["table_cam", "wrist_cam"]
         self.sim.dt = 1 / 150

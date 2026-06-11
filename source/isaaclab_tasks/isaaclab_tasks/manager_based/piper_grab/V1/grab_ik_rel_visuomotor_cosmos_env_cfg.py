@@ -14,7 +14,7 @@ from isaaclab_tasks.manager_based.piper_grab import mdp
 from isaaclab_tasks.manager_based.piper_grab.V1.grab_ik_rel_env_cfg import SubtaskCfg
 
 from . import grab_ik_rel_visuomotor_env_cfg
-from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_640X480
+from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_1280X720
 
 
 @configclass
@@ -60,14 +60,6 @@ class ObservationsCfg:
         wrist_cam = ObsTerm(
             func=mdp.image, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
         )
-        table_cam_segmentation = ObsTerm(
-            func=mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "semantic_segmentation", "normalize": True},
-        )
-        table_cam_normals = ObsTerm(
-            func=mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "normals", "normalize": True},
-        )
         table_cam_depth = ObsTerm(
             func=mdp.image,
             params={
@@ -84,6 +76,15 @@ class ObservationsCfg:
                 "normalize": True,
             },
         )
+        # Cosmos-specific observations
+        # table_cam_segmentation = ObsTerm(
+        #     func=mdp.image,
+        #     params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "semantic_segmentation", "normalize": True},
+        # )
+        # table_cam_normals = ObsTerm(
+        #     func=mdp.image,
+        #     params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "normals", "normalize": True},
+        # )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -104,6 +105,18 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
 
         self.sim.render.dome_light_upper_lower_strategy = 4
 
+        # Rendering quality settings
+        self.sim.render.rendering_mode = "quality"
+        self.sim.render.enable_translucency = True
+        self.sim.render.enable_reflections = True
+        self.sim.render.enable_global_illumination = True
+        self.sim.render.enable_ambient_occlusion = True
+        self.sim.render.enable_direct_lighting = True
+        self.sim.render.samples_per_pixel = 4
+        self.sim.render.enable_dl_denoiser = True
+        self.num_rerenders_on_reset = 1
+        self.sim.render.dlss_mode = 2
+        self.sim.render.antialiasing_mode = "DLAA"
         SEMANTIC_MAPPING = {
             "class:object_1": (120, 230, 255, 255),
             "class:box": (55, 255, 139, 255),
@@ -118,21 +131,21 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
         # Wrist camera with cosmos data types
         self.scene.wrist_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
-            update_period=0.0,
-            height=480,
-            width=640,
+            update_period=1 / 30,
+            height=720,
+            width=1280,
             data_types=["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"],
             colorize_semantic_segmentation=True,
             semantic_segmentation_mapping=SEMANTIC_MAPPING,
             spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
-                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
-                width=640,
-                height=480,
-                clipping_range=(0.1, 2.0),
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_1280X720,
+                width=1280,
+                height=720,
+                clipping_range=(0.01, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
                 pos=(0.0, 0.0, 0.0),
-                rot=(0.0, 0.0, 0.0, 1.0),
+                rot=(0.4739127, -0.5647872, 0.5175321, -0.434261),
                 convention="ros",
             ),
         )
@@ -140,26 +153,25 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
         # Table camera with cosmos data types
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
-            update_period=0.0,
-            height=480,
-            width=640,
+            update_period=1 / 30,
+            height=720,
+            width=1280,
             data_types=["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"],
             colorize_semantic_segmentation=True,
             semantic_segmentation_mapping=SEMANTIC_MAPPING,
             spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
-                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
-                width=640,
-                height=480,
-                clipping_range=(0.1, 2.0),
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_1280X720,
+                width=1280,
+                height=720,
+                clipping_range=(0.01, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(1.0, 0.0, 0.4),
-                rot=(0.35355, -0.61237, -0.61237, 0.35355),
+                pos=(0.0, 0.30, 0.5),
+                rot=(-0.1269, 0.6437, -0.7150, 0.2414),
                 convention="ros",
             ),
         )
 
-        self.num_rerenders_on_reset = 1
-        self.sim.render.antialiasing_mode = "OFF"
+        
 
         self.image_obs_list = ["table_cam", "wrist_cam"]
