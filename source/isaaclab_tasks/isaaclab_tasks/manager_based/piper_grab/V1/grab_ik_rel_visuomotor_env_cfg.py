@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
+# xrobotool
+from isaaclab.devices.xrobotoolkit import XRoboToolkitDeviceCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -464,8 +466,8 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                             zero_out_xy_rotation=True,
                             use_wrist_rotation=False,
                             use_wrist_position=True,
-                            delta_pos_scale_factor=10.0,
-                            delta_rot_scale_factor=10.0,
+                            delta_pos_scale_factor=15.0,
+                            delta_rot_scale_factor=15.0,
                             sim_device=self.sim.device,
                         ),
                         GripperRetargeterCfg(
@@ -474,6 +476,13 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     ],
                     sim_device=self.sim.device,
                     xr_cfg=self.xr,
+                ),
+                "xrobotoolkit": XRoboToolkitDeviceCfg(
+                    control_mode="absolute",
+                    mapping_mode="world_frame_calibrated",
+                    pos_sensitivity=1.5,
+                    rot_sensitivity=1.5,
+                    sim_device=self.sim.device,
                 ),
                 "keyboard": Se3KeyboardCfg(
                     pos_sensitivity=0.1,

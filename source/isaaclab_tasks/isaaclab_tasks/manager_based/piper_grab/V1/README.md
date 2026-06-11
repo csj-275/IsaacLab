@@ -16,9 +16,7 @@
     docker exec isaac-lab-base nvidia-smi
 ```
 
------------------------------------------------------
-- 主要使用的版本为IK, Visuo
-- Cosmos一般不使用
+------------------------------------------------
 
 **A1. IK录制演示**
 ``` bash
@@ -36,6 +34,17 @@
 ```bash
 ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v1 --teleop_device keyboard --dataset_file ./datasets/simdata/V1/visuo_dataset.hdf5 --num_demos 1 --enable_cameras --device cuda:0
 ```
+
+**B1-A. 视觉录制演示(Telo版本)**
+```bash
+./isaaclab.sh -p scripts/tools/record_demos.py --teleop_device xrobotoolkit \
+--xrobotoolkit_mapping_mode world_frame_calibrated \
+--xrobotoolkit_calibration_json logs/piper_calibration/xrobotoolkit_world_frame_calibration_20260520_023544.json \
+--task Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v1 \
+--dataset_file ./datasets/simdata/V1/visuo_dataset.hdf5 --num_demos 1 --enable_cameras --device cuda:0
+```
+
+
 
 **B2. 视觉自动标注**
 ```bash
