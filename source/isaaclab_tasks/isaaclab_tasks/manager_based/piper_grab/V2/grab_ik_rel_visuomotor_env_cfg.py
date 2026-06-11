@@ -26,8 +26,8 @@ from isaaclab.devices.openxr.retargeters.manipulator.se3_rel_retargeter import S
 
 from isaaclab_tasks.manager_based.piper_grab import mdp
 from isaaclab_tasks.manager_based.piper_grab.mdp import piper_grab_events
-from isaaclab_tasks.manager_based.piper_grab.V1 import mdp as V1_mdp
-from isaaclab_tasks.manager_based.piper_grab.V1.grab_ik_rel_env_cfg import (
+from isaaclab_tasks.manager_based.piper_grab.V2 import mdp as V2_mdp
+from isaaclab_tasks.manager_based.piper_grab.V2.grab_ik_rel_env_cfg import (
     SubtaskCfg,
     TerminationsCfg,
 )
@@ -150,7 +150,7 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for V1 visuomotor task."""
+    """Observation specifications for V2 visuomotor task."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -218,7 +218,7 @@ class ObservationsCfg:
 
 @configclass
 class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
-    """Configuration for V1 two-stage pick-and-place visuomotor environment."""
+    """Configuration for V2 two-stage pick-and-place visuomotor environment."""
 
     observations: ObservationsCfg = ObservationsCfg()
     terminations: TerminationsCfg = TerminationsCfg()

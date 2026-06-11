@@ -11,7 +11,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.piper_grab import mdp
-from isaaclab_tasks.manager_based.piper_grab.V1.grab_ik_rel_env_cfg import SubtaskCfg
+from isaaclab_tasks.manager_based.piper_grab.V2.grab_ik_rel_env_cfg import SubtaskCfg
 
 from . import grab_ik_rel_visuomotor_env_cfg
 from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_1280X720
@@ -19,7 +19,7 @@ from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_1280X720
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for V1 cosmos task."""
+    """Observation specifications for V2 cosmos task."""
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -96,7 +96,7 @@ class ObservationsCfg:
 
 @configclass
 class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVisuomotorEnvCfg):
-    """Configuration for V1 two-stage pick-and-place cosmos environment."""
+    """Configuration for V2 two-stage pick-and-place cosmos environment."""
 
     observations: ObservationsCfg = ObservationsCfg()
 
