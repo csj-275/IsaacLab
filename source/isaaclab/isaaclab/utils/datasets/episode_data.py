@@ -213,7 +213,7 @@ class EpisodeData:
         def pre_export_helper(data):
             for key, value in data.items():
                 if isinstance(value, list):
-                    data[key] = torch.stack(value)
+                    data[key] = torch.stack([v.cpu() for v in value])
                 elif isinstance(value, dict):
                     pre_export_helper(value)
 
