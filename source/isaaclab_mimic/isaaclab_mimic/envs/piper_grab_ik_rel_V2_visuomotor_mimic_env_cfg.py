@@ -6,17 +6,17 @@
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.piper_grab.V1.grab_ik_rel_visuomotor_env_cfg import PiperGrabVisuomotorEnvCfg
+from isaaclab_tasks.manager_based.piper_grab.V2.grab_ik_rel_visuomotor_env_cfg import PiperGrabVisuomotorEnvCfg
 
 
 @configclass
-class PiperGrabIKRelV1VisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvCfg):
-    """Mimic environment config for Piper Grab IK Rel Visuomotor V1 two-stage task."""
+class PiperGrabIKRelV2VisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvCfg):
+    """Mimic environment config for Piper Grab IK Rel Visuomotor V2 (V1 + distractor)."""
 
     def __post_init__(self):
         super().__post_init__()
 
-        self.datagen_config.name = "isaac_lab_piper_grab_V1_visuomotor_D0"
+        self.datagen_config.name = "isaac_lab_piper_grab_V2_visuomotor_D0"
         self.datagen_config.generation_guarantee = True
         self.datagen_config.generation_keep_failed = True
         self.datagen_config.generation_num_trials = 10

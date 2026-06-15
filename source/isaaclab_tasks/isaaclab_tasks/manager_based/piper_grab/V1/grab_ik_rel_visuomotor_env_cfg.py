@@ -126,6 +126,20 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
         },
     )
 
+    # Warehouse RectLight: dim initial + slow large drift during episode
+    randomize_warehouse_lights = EventTerm(
+        func=piper_grab_events.randomize_warehouse_light_intensity,
+        mode="reset",
+        params={"intensity_range": (200.0, 1200.0), "delta_range": (0.0, 0.0)},
+    )
+    randomize_warehouse_lights_dynamic = EventTerm(
+        func=piper_grab_events.randomize_warehouse_light_intensity,
+        mode="interval",
+        interval_range_s=(1.5, 4.0),
+        params={"delta_range": (-600.0, 600.0)},
+    )
+
+
     # randomize_robot_arm_visual_texture = EventTerm(
     #     func=piper_grab_events.randomize_visual_texture_material,
     #     mode="reset",

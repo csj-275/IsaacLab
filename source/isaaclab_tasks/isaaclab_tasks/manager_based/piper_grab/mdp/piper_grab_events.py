@@ -17,6 +17,7 @@ from isaacsim.core.utils.extensions import enable_extension
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, AssetBase
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -332,3 +333,32 @@ def randomize_visual_texture_material(
         rep.randomizer.texture(
             textures=textures, project_uvw=True, texture_rotate=rep.distribution.uniform(*texture_rotation)
         )
+
+
+def randomize_warehouse_light_intensity(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    intensity_range: tuple[float, float] = (500.0, 3000.0),
+    delta_range: tuple[float, float] = (-200.0, 200.0),
+):
+    """Randomize the intensity of all RectLight prims in the warehouse.
+
+    In reset mode, sets each RectLight to a random absolute intensity within intensity_range.
+    In interval mode, applies a small random delta to each RectLight for smooth drift.
+
+    Args:
+        env: The environment.
+        env_ids: Environment indices (unused, applies globally).
+        intensity_range: (min, max) absolute intensity for reset mode.
+        delta_range: (min, max) delta per step for interval mode (smooth drift).
+    """
+    from pxr import UsdLux
+
+    stage = get_current_stage()
+    for prim in stage.TraverseAll():
+        if prim.GetTypeName() == "RectLight":
+            rect_light = UsdLux.RectLight(prim)
+            current = rect_light.GetIntensityAttr().Get()
+            delta = random.uniform(*delta_range)
+            new_val = max(100.0, min(5000.0, current + delta))  # clamp to reasonable range
+            rect_light.GetIntensityAttr().Set(new_val)
