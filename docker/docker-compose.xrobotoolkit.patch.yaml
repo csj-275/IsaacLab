@@ -21,3 +21,6 @@ services:
       - type: bind
         source: ../usd
         target: /workspace/isaaclab/usd
+      - type: bind
+        source: ../logs
+        target: /workspace/isaaclab/logs

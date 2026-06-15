@@ -254,3 +254,12 @@ gym.register(
     },
     disable_env_checker=True,
 )
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Abs-Visuomotor-Mimic-v1",
+    entry_point=f"{__name__}.piper_grab_ik_rel_V1_mimic_env:PiperGrabIKRelV1MimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_rel_V1_abs_visuomotor_mimic_env_cfg:PiperGrabIKRelV1AbsVisuomotorMimicEnvCfg",
+    },
+    disable_env_checker=True,
+)
