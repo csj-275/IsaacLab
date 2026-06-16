@@ -10,7 +10,7 @@ from isaaclab_tasks.manager_based.piper_grab.V1.grab_ik_abs_visuomotor_env_cfg i
 
 
 @configclass
-class PiperGrabIKRelV1AbsVisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvCfg):
+class PiperGrabIKAbsV1VisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvCfg):
     """Mimic env for Piper Grab IK ABS Visuomotor V1 (absolute IK)."""
 
     def __post_init__(self):
