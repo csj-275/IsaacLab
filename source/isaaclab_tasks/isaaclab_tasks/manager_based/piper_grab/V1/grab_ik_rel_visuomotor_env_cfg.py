@@ -469,7 +469,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
 
         self.image_obs_list = ["table_cam", "wrist_cam"]
-        self.sim.dt = 1 / 150
+        self.sim.dt = 1 / 100
 
         self.teleop_devices = DevicesCfg(
             devices={
@@ -499,8 +499,8 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     sim_device=self.sim.device,
                 ),
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.1,
-                    rot_sensitivity=0.1,
+                    pos_sensitivity=0.03,
+                    rot_sensitivity=0.15,
                     sim_device=self.sim.device,
                 ),
             }
