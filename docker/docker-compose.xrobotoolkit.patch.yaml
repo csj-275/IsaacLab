@@ -24,3 +24,6 @@ services:
       - type: bind
         source: ../logs
         target: /workspace/isaaclab/logs
+      - type: bind
+        source: ../../lerobot
+        target: /workspace/lerobot
