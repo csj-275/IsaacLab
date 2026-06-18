@@ -75,3 +75,25 @@ DISPLAY= CUDA_VISIBLE_DEVICES=1 ./isaaclab.sh -p \
   --headless --enable_cameras --device cuda:0 \
   --fps 30
 ```
+
+
+
+--------------------------------------
+## IK录制-Visuo标注
+``` bash
+# IK录制
+./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Mimic-v1  --teleop_device keyboard --dataset_file ./datasets/simdata/V1/piper_dataset.hdf5 --num_demos 3
+# Visuo标注
+./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py  --task Isaac-Piper-Grab-IK-Rel-Mimic-v1 --input_file ./datasets/simdata/V1/piper_dataset.hdf5 --output_file ./datasets/simdata/V1/annotated_piper_dataset.hdf5 --device cuda:0 --auto --headless
+# lerobot生成
+./isaaclab.sh -p \
+scripts/imitation_learning/isaaclab_mimic/generate_dataset_lerobot.py \
+--task Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v1 \
+--input_file ./datasets/simdata/V1/annotated_piper_dataset.hdf5 \
+--output_file ./datasets/simdata/V1/lerobot_generated_N5_IK \
+--generation_num_trials 10 \
+--headless --enable_cameras --device cuda:0 \
+--fps 30
+
+# 注意及时修改数据名称，防止被覆盖
+```

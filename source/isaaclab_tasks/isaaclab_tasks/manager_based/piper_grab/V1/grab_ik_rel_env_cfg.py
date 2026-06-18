@@ -59,9 +59,9 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "object_a_cfg": SceneEntityCfg("object_1"),
             "object_b_cfg": SceneEntityCfg("box"),
-            "xy_threshold": 0.12,
+            "xy_threshold": 0.06,
             "height_diff": 0.0,
-            "height_threshold": 0.08,
+            "height_threshold": 0.05,
         },
     )
     grasp_2 = ObsTerm(
@@ -286,8 +286,8 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     sim_device=self.sim.device,
                 ),
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.03,
-                    rot_sensitivity=0.15,
+                    pos_sensitivity=0.05,
+                    rot_sensitivity=0.2,
                     sim_device=self.sim.device,
                 ),
             }
