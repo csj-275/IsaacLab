@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
+# xrobotool
+from isaaclab.devices.xrobotoolkit import XRoboToolkitDeviceCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
@@ -193,7 +195,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
         self.scene.mug = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/mug",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.0203), rot=(1, 0, 0, 0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.0003), rot=(1, 0, 0, 0)),
             spawn=UsdFileCfg(
                 usd_path=_MUG_USD_PATH,
                 # scale=(0.8, 0.8, 0.8),
@@ -212,11 +214,11 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             mode="reset",
             params={
                 "pose_ranges": [
-                    {"x": (0.25, 0.5), "y": (-0.2, 0.2), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0)},  # cube
-                    {"x": (0.25, 0.5), "y": (-0.2, 0.2), "z": (0.0353, 0.0353), "yaw": (-1.0, 1.0)},  # mug
-                    {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.005, 0.0005), "yaw": (-1.0, 1.0)},  # box
+                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0)},  # cube
+                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # mug
+                    {"x": (0.1, 0.3), "y": (0.05, 0.35), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # box
                 ],
-                "min_separation": 0.15,
+                "min_separation": 0.12,
                 "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],
             },
         )
@@ -265,8 +267,8 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                             zero_out_xy_rotation=True,
                             use_wrist_rotation=False,
                             use_wrist_position=True,
-                            delta_pos_scale_factor=10.0,
-                            delta_rot_scale_factor=10.0,
+                            delta_pos_scale_factor=15.0,
+                            delta_rot_scale_factor=15.0,
                             sim_device=self.sim.device,
                         ),
                         GripperRetargeterCfg(
@@ -276,9 +278,16 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     sim_device=self.sim.device,
                     xr_cfg=self.xr,
                 ),
+                "xrobotoolkit": XRoboToolkitDeviceCfg(
+                    control_mode="absolute",
+                    mapping_mode="world_frame_calibrated",
+                    pos_sensitivity=1.0,
+                    rot_sensitivity=1.0,
+                    sim_device=self.sim.device,
+                ),
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.01,
-                    rot_sensitivity=0.01,
+                    pos_sensitivity=0.03,
+                    rot_sensitivity=0.15,
                     sim_device=self.sim.device,
                 ),
             }

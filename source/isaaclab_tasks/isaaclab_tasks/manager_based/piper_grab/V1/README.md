@@ -43,7 +43,7 @@ bash /workspace/isaaclab/scripts/tools/setup_xrobotoolkit_env.sh
 --xrobotoolkit_mapping_mode world_frame_calibrated \
 --xrobotoolkit_calibration_json logs/piper_calibration/xrobotoolkit_world_frame_calibration_20260612_022755.json \
 --task Isaac-Piper-Grab-IK-Abs-Visuomotor-Mimic-v1 \
---dataset_file ./datasets/simdata/V1/visuo_dataset.hdf5 --num_demos 20 --enable_cameras --device cuda:0
+--dataset_file ./datasets/simdata/V1/visuo_dataset.hdf5 --num_demos 5 --enable_cameras --device cuda:0
 ```
 
 ### B2. 视觉自动标注
