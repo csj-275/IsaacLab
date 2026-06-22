@@ -22,4 +22,4 @@ def explore_hdf5(file_path):
         f.visititems(print_structure)
 
 
-explore_hdf5("./datasets/simdata/V1/annotated_visuo_dataset.hdf5")
+explore_hdf5("./datasets/hdf5/[0622]annotated_piper_dataset_N10_K.hdf5")
