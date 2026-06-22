@@ -469,7 +469,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
 
         self.image_obs_list = ["table_cam", "wrist_cam"]
-        self.sim.dt = 1 / 30
+        self.sim.dt = 1 / 150
 
         self.teleop_devices = DevicesCfg(
             devices={

@@ -258,7 +258,8 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         )
 
 
-        self.sim.dt = 1 / 30
+        self.sim.dt = 1 / 100
+        self.decimation = 5
         # Teleop devices
         self.teleop_devices = DevicesCfg(
             devices={
@@ -288,7 +289,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     sim_device=self.sim.device,
                 ),
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.01,
+                    pos_sensitivity=0.02,
                     rot_sensitivity=0.1,
                     sim_device=self.sim.device,
                 ),
