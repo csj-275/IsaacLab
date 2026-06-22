@@ -1,5 +1,5 @@
 # V1 
-## 0.容器启
+## 0.容器启动
 ``` bash
   ./docker/container.py start base --files docker-compose.xrobotoolkit.patch.yaml # 启动容器
   ./docker/container.py enter base # 进入容器
@@ -25,7 +25,7 @@
 
 ### A2. IK自动标注
 ``` bash
-./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --auto --device cpu --task Isaac-Piper-Grab-IK-Rel-Mimic-v1 --input_file ./datasets/piper_dataset.hdf5 --output_file ./datasets/annotated_piper_dataset.hdf5
+./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --task Isaac-Piper-Grab-IK-Rel-Mimic-v1 --input_file ./datasets/piper_dataset.hdf5 --output_file ./datasets/annotated_piper_dataset.hdf5 --auto --device cpu
 ```
 
 -----------------------------------------

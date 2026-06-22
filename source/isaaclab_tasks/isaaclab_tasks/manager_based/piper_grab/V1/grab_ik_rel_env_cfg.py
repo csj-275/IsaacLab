@@ -50,7 +50,7 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "ee_frame_cfg": SceneEntityCfg("ee_frame"),
             "object_cfg": SceneEntityCfg("object_1"),
-            "diff_threshold": 0.15,
+            "diff_threshold": 0.18,
         },
     )
     placed_1 = ObsTerm(
@@ -59,7 +59,7 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "object_a_cfg": SceneEntityCfg("object_1"),
             "object_b_cfg": SceneEntityCfg("box"),
-            "xy_threshold": 0.06,
+            "xy_threshold": 0.07,
             "height_diff": 0.0,
             "height_threshold": 0.05,
         },
@@ -70,7 +70,7 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "ee_frame_cfg": SceneEntityCfg("ee_frame"),
             "object_cfg": SceneEntityCfg("mug"),
-            "diff_threshold": 0.15,
+            "diff_threshold": 0.18,
         },
     )
 
@@ -195,7 +195,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
         self.scene.mug = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/mug",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.0003), rot=(1, 0, 0, 0)),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.203), rot=(1, 0, 0, 0)),
             spawn=UsdFileCfg(
                 usd_path=_MUG_USD_PATH,
                 # scale=(0.8, 0.8, 0.8),
@@ -257,6 +257,8 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             },
         )
 
+
+        self.sim.dt = 1 / 30
         # Teleop devices
         self.teleop_devices = DevicesCfg(
             devices={
@@ -286,8 +288,8 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     sim_device=self.sim.device,
                 ),
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.2,
+                    pos_sensitivity=0.01,
+                    rot_sensitivity=0.1,
                     sim_device=self.sim.device,
                 ),
             }
