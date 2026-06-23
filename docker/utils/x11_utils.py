@@ -231,6 +231,9 @@ def create_x11_tmpfile(tmpfile: Path | None = None, tmpdir: Path | None = None) 
 
     # Derive current MIT-MAGIC-COOKIE and make it universally addressable. The wildcard
     # family lets the cookie match even when the container hostname differs from the host.
+    if "DISPLAY" not in os.environ:
+        print("[WARN] DISPLAY environment variable is not set. Skipping X11 credential refresh.")
+        return None
     xauth_displays = [os.environ["DISPLAY"]]
     container_display = get_x11_container_display(os.environ["DISPLAY"])
     if container_display is not None and container_display not in xauth_displays:
@@ -294,9 +297,10 @@ def x11_refresh(statefile: StateFile):
     if tmp_xauth_value is not None and Path(tmp_xauth_value).exists():
         tmp_xauth_path = Path(tmp_xauth_value)
         new_tmp_xauth = create_x11_tmpfile(tmpdir=tmp_xauth_path.parent)
-        new_tmp_xauth.replace(tmp_xauth_path)
-        # update the statefile with the new path
-        statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(tmp_xauth_value))
+        if new_tmp_xauth is not None:
+            new_tmp_xauth.replace(tmp_xauth_path)
+            # update the statefile with the new path
+            statefile.set_variable("__ISAACLAB_TMP_XAUTH", str(tmp_xauth_value))
     elif tmp_xauth_value is None:
         if is_x11_forwarding_enabled is not None and is_x11_forwarding_enabled == "1":
             print(
