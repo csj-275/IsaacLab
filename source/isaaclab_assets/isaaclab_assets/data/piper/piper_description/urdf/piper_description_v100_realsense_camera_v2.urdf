@@ -275,6 +275,7 @@
     <child link="link8"/>
     <axis xyz="0 0 1"/>
     <limit effort="100" lower="-0.05" upper="0" velocity="1"/>
+    <!-- <mimic joint="joint7" multiplier="-1.0" offset="0.0"/> -->  <!-- uncomment for UI import only -->
   </joint>
   <link name="camera_stand_link">
     <inertial>

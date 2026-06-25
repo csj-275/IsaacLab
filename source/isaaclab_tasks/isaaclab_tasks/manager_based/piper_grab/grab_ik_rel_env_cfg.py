@@ -46,8 +46,8 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
 
         self.gripper_joint_names = ["joint7", "joint8"]
-        self.gripper_open_val = 0.05
-        self.gripper_threshold = 0.06
+        self.gripper_open_vals = [0.05, -0.05]
+        self.gripper_threshold = 0.01
 
         self.teleop_devices = DevicesCfg(
             devices={

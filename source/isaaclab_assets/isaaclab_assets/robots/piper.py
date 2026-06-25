@@ -33,6 +33,13 @@ PIPER_STANDARD_WITH_GRIPPER_URDF = str(
 PIPER_USD_CONVERSION_DIR = "/tmp/isaaclab_piper_assets"
 """Output directory for the generated Piper USD."""
 
+# PIPER_MIMIC_USD_PATH = str(PIPER_ASSET_ROOT / "piper_mimic.usd")
+PIPER_MIMIC_USD_PATH = "./usd/piper_mimic.usd"
+"""Path to the Piper USD with mimic joint coupling between joint7 and joint8.
+
+Generated from the URDF via Isaac Sim UI importer with ``parse_mimic=True``.
+"""
+
 
 def _prepend_ros_package_path(path: Path) -> None:
     """Expose repository-local URDF packages for package:// mesh resolution."""
@@ -93,7 +100,7 @@ PIPER_STANDARD_WITH_GRIPPER_CFG = ArticulationCfg(
             joint_names_expr=["joint[7-8]"],
             effort_limit_sim=10.0,
             velocity_limit_sim=1.0,
-            stiffness=2.0e3,
+            stiffness=2.0e5,
             damping=1.0e2,
         ),
     },
@@ -107,6 +114,72 @@ PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
 PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG.actuators["piper_arm"].stiffness = 400.0
 PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG.actuators["piper_arm"].damping = 80.0
 """Configuration of the standard Piper robot with stiffer PD control for differential IK."""
+
+
+# ───────────────────────────────────────────────
+# Mimic-coupled variant (joint8 = -joint7 via PhysX gear joint in USD)
+# Use this with action configs that only drive joint7.
+# ───────────────────────────────────────────────
+
+PIPER_MIMIC_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=PIPER_MIMIC_USD_PATH,
+        activate_contact_sensors=False,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            max_depenetration_velocity=5.0,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=0,
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        joint_pos={
+            "joint1": 0.0,
+            "joint2": 1.0,
+            "joint3": -1.2,
+            "joint4": 0.0,
+            "joint5": 0.8,
+            "joint6": 0.0,
+            "joint7": 0.05,  # joint8 auto-mirrors via mimic
+        },
+    ),
+    actuators={
+        "piper_arm": ImplicitActuatorCfg(
+            joint_names_expr=["joint[1-6]"],
+            effort_limit_sim=100.0,
+            velocity_limit_sim=5.0,
+            stiffness=80.0,
+            damping=4.0,
+        ),
+        # Active drive for the master gripper joint
+        "gripper_drive": ImplicitActuatorCfg(
+            joint_names_expr=["joint7"],
+            effort_limit_sim=10.0,
+            velocity_limit_sim=1.0,
+            stiffness=2.0e5,
+            damping=1.0e2,
+        ),
+        # Passive follower (joint8 mirrors joint7 via PhysX gear joint in USD)
+        "gripper_passive": ImplicitActuatorCfg(
+            joint_names_expr=["joint8"],
+            effort_limit_sim=10.0,
+            velocity_limit_sim=1.0,
+            stiffness=0.0,
+            damping=0.0,
+        ),
+    },
+    soft_joint_pos_limit_factor=1.0,
+)
+"""Configuration of the Piper robot with mimic-coupled gripper (joint8 mirrors joint7)."""
+
+PIPER_MIMIC_HIGH_PD_CFG = PIPER_MIMIC_CFG.copy()
+PIPER_MIMIC_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
+PIPER_MIMIC_HIGH_PD_CFG.actuators["piper_arm"].stiffness = 400.0
+PIPER_MIMIC_HIGH_PD_CFG.actuators["piper_arm"].damping = 80.0
+"""Configuration of the mimic-coupled Piper robot with stiffer PD control for differential IK."""
 
 
 ###################################################
@@ -150,8 +223,8 @@ PIPER_CFG = ArticulationCfg(
         "piper_gripper": ImplicitActuatorCfg(
             joint_names_expr=["joint[7-8]"],
             effort_limit_sim=100.0,
-            stiffness=80.0,
-            damping=4.0,
+            stiffness=2e3,
+            damping=1e2,
         ),
     },
     soft_joint_pos_limit_factor=1.0,

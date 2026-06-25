@@ -56,14 +56,20 @@ def object_a_is_into_b(
             gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
             assert len(gripper_joint_ids) == 2, "Terminations only support parallel gripper for now"
 
+            # resolve open targets (supports both scalar gripper_open_val and list gripper_open_vals)
+            if hasattr(env.cfg, "gripper_open_vals"):
+                open_vals = env.cfg.gripper_open_vals
+            else:
+                open_vals = [env.cfg.gripper_open_val] * len(gripper_joint_ids)
+
             success = torch.logical_and(
                 success,
-                torch.abs(torch.abs(robot.data.joint_pos[:, gripper_joint_ids[0]]) - env.cfg.gripper_open_val)
+                torch.abs(torch.abs(robot.data.joint_pos[:, gripper_joint_ids[0]]) - open_vals[0])
                 < env.cfg.gripper_threshold,
             )
             success = torch.logical_and(
                 success,
-                torch.abs(torch.abs(robot.data.joint_pos[:, gripper_joint_ids[1]]) - env.cfg.gripper_open_val)
+                torch.abs(torch.abs(robot.data.joint_pos[:, gripper_joint_ids[1]]) - open_vals[1])
                 < env.cfg.gripper_threshold,
             )
         else:

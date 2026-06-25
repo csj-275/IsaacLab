@@ -104,16 +104,14 @@ class PiperGrabEnvCfg(GrabEnvCfg):
 
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
-            joint_names=["joint[7-8]"],        
-            # open_command_expr={"joint7": 0.1,"joint8": -0.1},
-            # close_command_expr={"joint7": -0.1,"joint8": 0.1},
+            joint_names=["joint[7-8]"],
             open_command_expr={"joint7": 0.05, "joint8": -0.05},
             close_command_expr={"joint7": -0.05, "joint8": 0.05},
         )
         # utilities for gripper status check
         self.gripper_joint_names = ["joint[7-8]"]
-        self.gripper_open_val = 0.04 # need to check
-        self.gripper_threshold = 0.005
+        self.gripper_open_vals = [0.05, -0.05]
+        self.gripper_threshold = 0.01
 
         # Rigid body properties of each cube
         cube_properties = RigidBodyPropertiesCfg(
