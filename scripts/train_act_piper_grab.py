@@ -10,11 +10,13 @@
   - task: "pick cube then grab bottle"
 
 用法:
-    conda activate lerobot_py312
-    python scripts/train_act_piper_grab.py
+    conda activate lerobot
+    python scripts/train_act_piper_grab.py                          # 从头训练
+    python scripts/train_act_piper_grab.py --resume <checkpoint_dir>  # 续训
 """
 
 import logging
+import argparse
 from pathlib import Path
 
 import torch
@@ -54,12 +56,17 @@ def _find_dataset_root() -> Path:
     """自动查找数据集根目录，兼容容器内/外环境。"""
     candidates = [
         Path("/workspace/isaaclab/datasets/lerobot/piper_grab_v1"),  # Docker 容器内
-        Path("/home/chenshengjia/company/isaaclab/datasets/lerobot/piper_grab_v1"),  # 主机
+        Path("/home/chenshengjia/Company/isaaclab/datasets/lerobot/piper_grab_v1"),  # 主机
     ]
     for p in candidates:
         if (p / "meta" / "info.json").exists():
             return p
     raise FileNotFoundError(f"Dataset not found. Tried: {candidates}")
+
+# 命令行参数
+parser = argparse.ArgumentParser(description="Train ACT policy on piper_grab_v1 dataset")
+parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint directory to resume from")
+args = parser.parse_args()
 
 DATASET_ROOT = _find_dataset_root()
 OUTPUT_DIR = DATASET_ROOT.parent / "piper_grab_v1_act_checkpoints"
@@ -72,7 +79,7 @@ logger.info(f"Using device: {DEVICE}")
 BATCH_SIZE = 8             # 双路 1280x720 图片，ResNet 占用大量显存
 NUM_EPOCHS = 500           # 根据收敛情况调整
 LOG_FREQ = 10
-SAVE_FREQ = 200
+SAVE_FREQ = 5000
 LR = 1e-5                  # ACT 默认学习率
 LR_BACKBONE = 1e-5
 
@@ -150,17 +157,31 @@ def main():
     logger.info(f"Config: dim_model={cfg.dim_model}, n_heads={cfg.n_heads}, "
                 f"chunk_size={cfg.chunk_size}, use_vae={cfg.use_vae}")
 
-    # 4. 创建 Policy
+    # 4. 创建 / 恢复 Policy
     logger.info("=" * 60)
-    logger.info("Step 4: Creating ACT policy")
+    logger.info("Step 4: Creating / loading ACT policy")
     logger.info("=" * 60)
-    policy = ACTPolicy(cfg)
+
+    if args.resume:
+        resume_dir = Path(args.resume)
+        if not resume_dir.exists():
+            raise FileNotFoundError(f"Checkpoint not found: {resume_dir}")
+        logger.info(f"Resuming from checkpoint: {resume_dir}")
+        policy = ACTPolicy.from_pretrained(str(resume_dir))
+        logger.info("Policy loaded from checkpoint")
+
+        # 加载 pre/post processors
+        preprocessor = PolicyPreprocessor.from_pretrained(str(resume_dir))
+        postprocessor = PolicyPostprocessor.from_pretrained(str(resume_dir))
+        logger.info("Pre/post processors loaded from checkpoint")
+    else:
+        policy = ACTPolicy(cfg)
+        # 创建 pre/post processors
+        preprocessor, postprocessor = make_pre_post_processors(cfg, dataset_stats=ds_meta.stats)
+        logger.info("Pre/post processors created")
+
     policy.train()
     policy.to(DEVICE)
-
-    # 创建 pre/post processors
-    preprocessor, postprocessor = make_pre_post_processors(cfg, dataset_stats=ds_meta.stats)
-    logger.info("Pre/post processors created")
 
     # 5. 构建 delta_timestamps
     logger.info("=" * 60)
