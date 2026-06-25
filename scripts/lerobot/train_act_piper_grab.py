@@ -41,11 +41,12 @@ def _patch_get_safe_version():
 
 _patch_get_safe_version()
 
-from lerobot.configs import FeatureType, NormalizationMode
-from lerobot.datasets import LeRobotDataset, LeRobotDatasetMetadata
-from lerobot.policies.act import ACTConfig, ACTPolicy
-from lerobot.policies import make_pre_post_processors
-from lerobot.utils.feature_utils import dataset_to_policy_features
+from lerobot.configs.types import FeatureType, NormalizationMode
+from lerobot.datasets.lerobot_dataset import LeRobotDataset, LeRobotDatasetMetadata
+from lerobot.datasets.utils import dataset_to_policy_features
+from lerobot.policies.act.configuration_act import ACTConfig
+from lerobot.policies.act.modeling_act import ACTPolicy
+from lerobot.policies.factory import make_pre_post_processors
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ logger.info(f"Using device: {DEVICE}")
 
 # 训练参数
 BATCH_SIZE = 8             # 双路 1280x720 图片，ResNet 占用大量显存
-NUM_EPOCHS = 500           # 根据收敛情况调整
+NUM_EPOCHS = 100           # 根据收敛情况调整
 LOG_FREQ = 10
 SAVE_FREQ = 5000
 LR = 1e-5                  # ACT 默认学习率
@@ -128,6 +129,13 @@ def main():
     logger.info(f"Input features: {list(input_features.keys())}")
     logger.info(f"Output features: {list(output_features.keys())}")
 
+    # 根据最短 episode 自动 clamp chunk_size（放在 ACT 配置之前）
+    min_ep_len = min(ds_meta.episodes["length"]) if "length" in ds_meta.episodes.column_names else CHUNK_SIZE
+    actual_chunk_size = min(CHUNK_SIZE, min_ep_len)
+    actual_n_action_steps = min(N_ACTION_STEPS, actual_chunk_size)
+    if actual_chunk_size < CHUNK_SIZE:
+        logger.warning(f"CHUNK_SIZE clamped from {CHUNK_SIZE} to {actual_chunk_size} (min episode length = {min_ep_len})")
+
     # 3. 创建 ACT 配置
     logger.info("=" * 60)
     logger.info("Step 3: Creating ACT config")
@@ -163,7 +171,7 @@ def main():
         optimizer_lr_backbone=LR_BACKBONE,
         # 视觉
         vision_backbone="resnet18",
-        pretrained_backbone_weights="ResNet18_Weights.IMAGENET1K_V1",
+        pretrained_backbone_weights=None,  # None = 从头训练，无需下载
         replace_final_stride_with_dilation=False,
     )
     logger.info(f"Config: dim_model={cfg.dim_model}, n_heads={cfg.n_heads}, "
@@ -180,17 +188,14 @@ def main():
             raise FileNotFoundError(f"Checkpoint not found: {resume_dir}")
         logger.info(f"Resuming from checkpoint: {resume_dir}")
         policy = ACTPolicy.from_pretrained(str(resume_dir))
-        logger.info("Policy loaded from checkpoint")
-
-        # 加载 pre/post processors
-        preprocessor = PolicyPreprocessor.from_pretrained(str(resume_dir))
-        postprocessor = PolicyPostprocessor.from_pretrained(str(resume_dir))
-        logger.info("Pre/post processors loaded from checkpoint")
+        preprocessor, postprocessor = make_pre_post_processors(
+            cfg, pretrained_path=str(resume_dir), dataset_stats=ds_meta.stats,
+        )
+        logger.info("Policy and processors loaded from checkpoint")
     else:
         policy = ACTPolicy(cfg)
-        # 创建 pre/post processors
         preprocessor, postprocessor = make_pre_post_processors(cfg, dataset_stats=ds_meta.stats)
-        logger.info("Pre/post processors created")
+        logger.info("Policy and processors created")
 
     policy.train()
     policy.to(DEVICE)
@@ -212,13 +217,6 @@ def main():
             k for k, ft in ds_meta.features.items()
             if ft.get("dtype") == "image"
         ]
-
-    # 根据最短 episode 自动 clamp chunk_size
-    min_ep_len = min(ds_meta.episodes["length"]) if "length" in ds_meta.episodes.column_names else CHUNK_SIZE
-    actual_chunk_size = min(CHUNK_SIZE, min_ep_len)
-    actual_n_action_steps = min(N_ACTION_STEPS, actual_chunk_size)
-    if actual_chunk_size < CHUNK_SIZE:
-        logger.warning(f"CHUNK_SIZE clamped to {actual_chunk_size} (min episode length = {min_ep_len})")
 
     delta_timestamps = {
         # 所有图像的当前帧

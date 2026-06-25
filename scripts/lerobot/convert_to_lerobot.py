@@ -40,14 +40,17 @@ from datasets import Dataset
 from tqdm import tqdm
 
 from lerobot.datasets.compute_stats import aggregate_stats, compute_episode_stats
-from lerobot.datasets.feature_utils import create_empty_dataset_info
-from lerobot.datasets.io_utils import write_episodes, write_info, write_stats, write_tasks
-from lerobot.datasets.dataset_metadata import CODEBASE_VERSION
 from lerobot.datasets.utils import (
+    create_empty_dataset_info,
+    write_episodes,
+    write_info,
+    write_stats,
+    write_tasks,
     DEFAULT_DATA_PATH,
     DEFAULT_EPISODES_PATH,
     DEFAULT_VIDEO_PATH,
 )
+from lerobot.datasets.lerobot_dataset import CODEBASE_VERSION
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -296,11 +299,9 @@ def main():
         video_files_size_in_mb=200,
     )
     # 更新 total_episodes, total_frames, total_tasks
-    num_episodes = full_df["episode_index"].nunique()
-    num_frames = len(full_df)
-    info.total_episodes = num_episodes
-    info.total_frames = num_frames
-    info.total_tasks = 1
+    info["total_episodes"] = full_df["episode_index"].nunique()
+    info["total_frames"] = len(full_df)
+    info["total_tasks"] = 1
     write_info(info, output_dir)
     logger.info(f"info.json written to {output_dir / 'meta/info.json'}")
 
