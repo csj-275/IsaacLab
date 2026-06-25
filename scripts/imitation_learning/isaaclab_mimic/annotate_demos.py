@@ -275,14 +275,20 @@ def main():
     env.reset()
 
     # Only enables inputs if this script is NOT headless mode
+    keyboard_interface = None
     if not args_cli.headless and not os.environ.get("HEADLESS", 0):
-        keyboard_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
-        keyboard_interface.add_callback("N", play_cb)
-        keyboard_interface.add_callback("B", pause_cb)
-        keyboard_interface.add_callback("Q", skip_episode_cb)
-        if not args_cli.auto:
-            keyboard_interface.add_callback("S", mark_subtask_cb)
-        keyboard_interface.reset()
+        try:
+            keyboard_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
+            keyboard_interface.add_callback("N", play_cb)
+            keyboard_interface.add_callback("B", pause_cb)
+            keyboard_interface.add_callback("Q", skip_episode_cb)
+            if not args_cli.auto:
+                keyboard_interface.add_callback("S", mark_subtask_cb)
+            keyboard_interface.reset()
+        except RuntimeError as e:
+            print(f"[WARN] Keyboard not available: {e}")
+            print("[WARN] Falling back to --auto mode (no manual annotation controls).")
+            args_cli.auto = True
 
     # simulate environment -- run everything in inference mode
     exported_episode_count = 0

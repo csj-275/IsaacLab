@@ -231,9 +231,6 @@ def create_x11_tmpfile(tmpfile: Path | None = None, tmpdir: Path | None = None) 
 
     # Derive current MIT-MAGIC-COOKIE and make it universally addressable. The wildcard
     # family lets the cookie match even when the container hostname differs from the host.
-    if "DISPLAY" not in os.environ:
-        print("[WARN] DISPLAY environment variable is not set. Skipping X11 credential refresh.")
-        return None
     xauth_displays = [os.environ["DISPLAY"]]
     container_display = get_x11_container_display(os.environ["DISPLAY"])
     if container_display is not None and container_display not in xauth_displays:
