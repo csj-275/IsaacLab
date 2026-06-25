@@ -231,6 +231,9 @@ def create_x11_tmpfile(tmpfile: Path | None = None, tmpdir: Path | None = None) 
 
     # Derive current MIT-MAGIC-COOKIE and make it universally addressable. The wildcard
     # family lets the cookie match even when the container hostname differs from the host.
+    if "DISPLAY" not in os.environ:
+        print("[WARN] DISPLAY environment variable is not set. X11 forwarding will be skipped.")
+        return None
     xauth_displays = [os.environ["DISPLAY"]]
     container_display = get_x11_container_display(os.environ["DISPLAY"])
     if container_display is not None and container_display not in xauth_displays:
@@ -246,6 +249,24 @@ def create_x11_tmpfile(tmpfile: Path | None = None, tmpdir: Path | None = None) 
             xauth_cookie = _with_wildcard_xauth_family(xauth_result.stdout)
             break
         xauth_error = xauth_result.stderr.strip()
+
+    if not xauth_cookie:
+        # For TCP-based displays (e.g. Xming "172.16.101.128:1.0"), xauth may not
+        # have a pre-existing cookie. Generate a fresh one with mcookie and register it.
+        if shutil.which("mcookie"):
+            print(f"[INFO] No existing xauth cookie found for {os.environ['DISPLAY']!r}, generating a new one.")
+            new_cookie = subprocess.run(
+                ["mcookie"], capture_output=True, text=True, check=True
+            ).stdout.strip()
+            disp = os.environ["DISPLAY"]
+            subprocess.run(
+                ["xauth", "add", disp, ".", new_cookie], capture_output=True, text=True, check=True
+            )
+            xauth_result = subprocess.run(
+                ["xauth", "nlist", disp], capture_output=True, text=True, check=False
+            )
+            if xauth_result.returncode == 0 and xauth_result.stdout.strip():
+                xauth_cookie = _with_wildcard_xauth_family(xauth_result.stdout)
 
     if not xauth_cookie:
         if xauth_error:

@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 """
-使用 LeRobot ACT 算法在 piper_grab_v1 数据集上训练策略。
-
-数据: 100 episodes, 26376 frames, 30 FPS
-  - observation.images.front: 1280x720 RGB
-  - observation.images.wrist: 1280x720 RGB
-  - observation.state: 63-dim (robot + object states)
-  - action: 8-dim (IK delta pose + gripper)
-  - task: "pick cube then grab bottle"
+使用 LeRobot ACT 算法训练策略，适配 isaaclab/datasets/simdata 中的所有数据集。
 
 用法:
     conda activate lerobot
-    python scripts/train_act_piper_grab.py                          # 从头训练
-    python scripts/train_act_piper_grab.py --resume <checkpoint_dir>  # 续训
+
+    # 从头训练（必须指定 --dataset-root）
+    python scripts/lerobot/train_act_piper_grab.py \
+        --dataset-root /home/chenshengjia/company/isaaclab/datasets/lerobot/piper_grab_v1
+
+    # 续训
+    python scripts/lerobot/train_act_piper_grab.py \
+        --dataset-root /home/chenshengjia/company/isaaclab/datasets/lerobot/piper_grab_v1 \
+        --resume <checkpoint_dir>
+
+    # Docker 容器内
+    python scripts/lerobot/train_act_piper_grab.py \
+        --dataset-root /workspace/isaaclab/datasets/lerobot/piper_grab_v1
 """
 
 import logging
@@ -47,30 +51,38 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # ============================================================
-# 配置
-# ============================================================
-# ============================================================
-# 配置 — 自动适配容器内/外路径
-# ============================================================
-def _find_dataset_root() -> Path:
-    """自动查找数据集根目录，兼容容器内/外环境。"""
-    candidates = [
-        Path("/workspace/isaaclab/datasets/lerobot/piper_grab_v1"),  # Docker 容器内
-        Path("/home/chenshengjia/Company/isaaclab/datasets/lerobot/piper_grab_v1"),  # 主机
-    ]
-    for p in candidates:
-        if (p / "meta" / "info.json").exists():
-            return p
-    raise FileNotFoundError(f"Dataset not found. Tried: {candidates}")
-
 # 命令行参数
-parser = argparse.ArgumentParser(description="Train ACT policy on piper_grab_v1 dataset")
-parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint directory to resume from")
+# ============================================================
+parser = argparse.ArgumentParser(description="Train ACT policy on a LeRobot dataset")
+parser.add_argument(
+    "--dataset-root",
+    type=str,
+    required=True,
+    help="LeRobot 数据集根目录路径 (包含 meta/info.json)",
+)
+parser.add_argument(
+    "--output-dir",
+    type=str,
+    default=None,
+    help="训练输出目录 (默认: {dataset-root} 的父目录下创建 {name}_act_checkpoints)",
+)
+parser.add_argument(
+    "--resume",
+    type=str,
+    default=None,
+    help="Path to checkpoint directory to resume from",
+)
 args = parser.parse_args()
 
-DATASET_ROOT = _find_dataset_root()
-OUTPUT_DIR = DATASET_ROOT.parent / "piper_grab_v1_act_checkpoints"
+DATASET_ROOT = Path(args.dataset_root)
+if not (DATASET_ROOT / "meta" / "info.json").exists():
+    raise FileNotFoundError(f"Dataset not found: {DATASET_ROOT} (missing meta/info.json)")
+
+DATASET_NAME = DATASET_ROOT.name
+OUTPUT_DIR = Path(args.output_dir) if args.output_dir else (DATASET_ROOT.parent / f"{DATASET_NAME}_act_checkpoints")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+logger.info(f"Dataset root: {DATASET_ROOT}")
+logger.info(f"Output dir: {OUTPUT_DIR}")
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 logger.info(f"Using device: {DEVICE}")
@@ -102,7 +114,7 @@ def main():
     logger.info("=" * 60)
     logger.info("Step 1: Loading dataset metadata")
     logger.info("=" * 60)
-    ds_meta = LeRobotDatasetMetadata("piper_grab_v1", root=DATASET_ROOT)
+    ds_meta = LeRobotDatasetMetadata(DATASET_NAME, root=DATASET_ROOT)
     logger.info(f"Dataset: {ds_meta.total_episodes} episodes, {ds_meta.total_frames} frames, {ds_meta.fps} FPS")
     logger.info(f"Features: {list(ds_meta.features.keys())}")
 
@@ -124,8 +136,8 @@ def main():
         input_features=input_features,
         output_features=output_features,
         # ACT 核心参数
-        chunk_size=CHUNK_SIZE,
-        n_action_steps=N_ACTION_STEPS,
+        chunk_size=actual_chunk_size,
+        n_action_steps=actual_n_action_steps,
         n_obs_steps=1,
         # Transformer 架构 (减小以适配 CPU 训练)
         dim_model=256,
@@ -183,20 +195,40 @@ def main():
     policy.train()
     policy.to(DEVICE)
 
-    # 5. 构建 delta_timestamps
+    # 5. 构建 delta_timestamps（自动检测图像 key）
     logger.info("=" * 60)
     logger.info("Step 5: Building delta_timestamps")
     logger.info("=" * 60)
     fps = ds_meta.fps
+
+    # 自动检测视觉特征 key（dtype="video"）
+    image_keys = [
+        k for k, ft in ds_meta.features.items()
+        if ft.get("dtype") == "video"
+    ]
+    # 如果无视频特征，尝试检测 "dtype": "image"
+    if not image_keys:
+        image_keys = [
+            k for k, ft in ds_meta.features.items()
+            if ft.get("dtype") == "image"
+        ]
+
+    # 根据最短 episode 自动 clamp chunk_size
+    min_ep_len = min(ds_meta.episodes["length"]) if "length" in ds_meta.episodes.column_names else CHUNK_SIZE
+    actual_chunk_size = min(CHUNK_SIZE, min_ep_len)
+    actual_n_action_steps = min(N_ACTION_STEPS, actual_chunk_size)
+    if actual_chunk_size < CHUNK_SIZE:
+        logger.warning(f"CHUNK_SIZE clamped to {actual_chunk_size} (min episode length = {min_ep_len})")
+
     delta_timestamps = {
-        # 当前时刻的图像
-        "observation.images.front": [0],
-        "observation.images.wrist": [0],
-        # observation.state 不加 delta — ACT 内部自己处理 (n_obs_steps=1)
+        # 所有图像的当前帧
+        **{k: [0] for k in image_keys},
         # ACT 需要预测未来 chunk_size 个 action
-        "action": [i / fps for i in range(CHUNK_SIZE)],
+        "action": [i / fps for i in range(actual_chunk_size)],
     }
-    logger.info(f"Delta timestamps: {{'images': [0], 'action': [0..{CHUNK_SIZE - 1}]}}, state: raw")
+    logger.info(f"Image keys: {image_keys}")
+    logger.info(f"chunk_size={actual_chunk_size}, n_action_steps={actual_n_action_steps}")
+    logger.info(f"Delta timestamps: action=[0..{actual_chunk_size - 1}]")
 
     # 6. 加载数据集
     logger.info("=" * 60)
@@ -204,7 +236,7 @@ def main():
     logger.info("=" * 60)
     image_transforms = build_image_transforms()
     dataset = LeRobotDataset(
-        "piper_grab_v1",
+        DATASET_NAME,
         root=DATASET_ROOT,
         delta_timestamps=delta_timestamps,
         image_transforms=image_transforms,

@@ -1,13 +1,29 @@
 #!/usr/bin/env python3
 """
-将 IsaacLab SIM-PIPER-GRAB 数据转换为 LeRobot v3.0 格式。
+将 isaaclab/datasets/simdata 中的 IsaacLab 数据转换为 LeRobot v3.0 格式。
 
-数据说明:
+用法:
+    conda activate lerobot
+
+    # 指定源数据集和输出目录
+    python scripts/lerobot/convert_to_lerobot.py \
+        --src-dir /home/chenshengjia/company/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1 \
+        --output-dir /home/chenshengjia/company/isaaclab/datasets/lerobot/piper_grab_v1
+
+    # 跳过视频
+    python scripts/lerobot/convert_to_lerobot.py --skip-videos \
+        --src-dir ... --output-dir ...
+
+    # Docker 容器内
+    python scripts/lerobot/convert_to_lerobot.py \
+        --src-dir /workspace/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1 \
+        --output-dir /workspace/isaaclab/datasets/lerobot/piper_grab_v1
+
+数据格式:
   - action: 8维 (IK空间下 delta pose + gripper)
   - observation.state: 63维 (robot state + object states)
-  - observation.images.front: 1280x720 @ 30fps 前视相机
-  - observation.images.wrist: 1280x720 @ 30fps 腕部相机
-  - 100 episodes, 26376 frames total
+  - observation.images.front: 1280x720 @ 30fps
+  - observation.images.wrist: 1280x720 @ 30fps
 """
 
 import argparse
