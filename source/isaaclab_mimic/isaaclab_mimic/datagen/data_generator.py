@@ -288,24 +288,30 @@ class DataGenerator:
             subtask_start_ind = src_demo_current_subtask_boundaries[i][0]
             subtask_end_ind = src_demo_current_subtask_boundaries[i][1]
 
-            # Get subtask segment using indices
+            # Get subtask segment using indices (move to GPU for selection strategy computation)
             src_subtask_datagen_infos.append(
                 DatagenInfo(
-                    eef_pose=src_ep_datagen_info.eef_pose[eef_name][subtask_start_ind:subtask_end_ind],
+                    eef_pose=src_ep_datagen_info.eef_pose[eef_name][subtask_start_ind:subtask_end_ind].to(
+                        self.env.device
+                    ),
                     # Only include object pose for relevant object in subtask
                     object_poses=(
                         {
                             subtask_object_name: src_ep_datagen_info.object_poses[subtask_object_name][
                                 subtask_start_ind:subtask_end_ind
-                            ]
+                            ].to(self.env.device)
                         }
                         if (subtask_object_name is not None)
                         else None
                     ),
                     # Subtask termination signal is unused
                     subtask_term_signals=None,
-                    target_eef_pose=src_ep_datagen_info.target_eef_pose[eef_name][subtask_start_ind:subtask_end_ind],
-                    gripper_action=src_ep_datagen_info.gripper_action[eef_name][subtask_start_ind:subtask_end_ind],
+                    target_eef_pose=src_ep_datagen_info.target_eef_pose[eef_name][subtask_start_ind:subtask_end_ind].to(
+                        self.env.device
+                    ),
+                    gripper_action=src_ep_datagen_info.gripper_action[eef_name][subtask_start_ind:subtask_end_ind].to(
+                        self.env.device
+                    ),
                 )
             )
 
@@ -464,17 +470,17 @@ class DataGenerator:
         src_ep_datagen_info = self.src_demo_datagen_info_pool.datagen_infos[selected_src_demo_ind]
         src_subtask_eef_poses = src_ep_datagen_info.eef_pose[eef_name][
             selected_src_subtask_boundary[0] : selected_src_subtask_boundary[1]
-        ]
+        ].to(self.env.device)
         src_subtask_target_poses = src_ep_datagen_info.target_eef_pose[eef_name][
             selected_src_subtask_boundary[0] : selected_src_subtask_boundary[1]
-        ]
+        ].to(self.env.device)
         src_subtask_gripper_actions = src_ep_datagen_info.gripper_action[eef_name][
             selected_src_subtask_boundary[0] : selected_src_subtask_boundary[1]
-        ]
+        ].to(self.env.device)
 
         # Get reference object pose from source demo
         src_subtask_object_pose = (
-            src_ep_datagen_info.object_poses[subtask_object_name][selected_src_subtask_boundary[0]]
+            src_ep_datagen_info.object_poses[subtask_object_name][selected_src_subtask_boundary[0]].to(self.env.device)
             if (subtask_object_name is not None)
             else None
         )
