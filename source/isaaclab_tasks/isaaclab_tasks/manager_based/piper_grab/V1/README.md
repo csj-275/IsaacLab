@@ -83,7 +83,7 @@ DISPLAY= CUDA_VISIBLE_DEVICES=1 ./isaaclab.sh -p \
 ``` bash
 # IK录制
 ./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Mimic-v1  --teleop_device keyboard --dataset_file ./datasets/simdata/V1/piper_dataset.hdf5 --num_demos 3
-# Visuo标注
+# IK标注
 ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py  --task Isaac-Piper-Grab-IK-Rel-Mimic-v1 --input_file ./datasets/simdata/V1/piper_dataset.hdf5 --output_file ./datasets/simdata/V1/annotated_piper_dataset.hdf5 --device cuda:0 --auto --headless
 # lerobot生成
 ./isaaclab.sh -p \

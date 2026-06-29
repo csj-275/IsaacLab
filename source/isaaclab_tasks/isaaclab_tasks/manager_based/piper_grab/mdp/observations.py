@@ -200,10 +200,18 @@ def object_grasped(
             open_targets = _gripper_open_targets(env, robot, gripper_joint_ids)
             gripper_pos = robot.data.joint_pos[:, gripper_joint_ids]
 
-            # DEBUG: only print borderline failures (one condition met, the other not)
             pose_ok = pose_diff < diff_threshold
             gripper_ok = torch.all(torch.abs(gripper_pos - open_targets) > env.cfg.gripper_threshold, dim=1)
             grasped = torch.logical_and(pose_ok, gripper_ok)
+
+            # if not torch.any(grasped):
+            #     import logging
+            #     _log = logging.getLogger(__name__)
+            #     _log.warning(
+            #         f"[object_grasped] pose_diff={pose_diff[0].item():.4f} th={diff_threshold} ok={pose_ok[0].item()}, "
+            #         f"gripper={gripper_pos[0].tolist()} open_targets={open_targets.tolist()} th={env.cfg.gripper_threshold} "
+            #         f"gripper_ok={gripper_ok[0].item()}, gap={torch.abs(gripper_pos[0] - open_targets).tolist()}"
+            #     )
 
     return grasped
 

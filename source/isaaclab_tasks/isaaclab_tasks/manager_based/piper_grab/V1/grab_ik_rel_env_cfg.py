@@ -61,7 +61,8 @@ class SubtaskCfg(ObsGroup):
             "object_b_cfg": SceneEntityCfg("box"),
             "xy_threshold": 0.07,
             "height_diff": 0.0,
-            "height_threshold": 0.05,
+            "height_threshold": 0.13,
+            "gripper_threshold": 0.03,  # 独立阈值，比 grasp 宽松
         },
     )
     grasp_2 = ObsTerm(
@@ -181,8 +182,9 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.gripper_joint_names = ["joint7", "joint8"]
         # self.gripper_open_val = 0.05
         # self.gripper_threshold = 0.06
+        
         self.gripper_open_vals = [0.05, -0.05]
-        self.gripper_threshold = 0.01
+        self.gripper_threshold = 0.015
         # Add mug to scene
         mug_properties = RigidBodyPropertiesCfg(
             solver_position_iteration_count=16,

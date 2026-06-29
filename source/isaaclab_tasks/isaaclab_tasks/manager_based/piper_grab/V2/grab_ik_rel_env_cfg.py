@@ -57,9 +57,9 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "object_a_cfg": SceneEntityCfg("object_1"),
             "object_b_cfg": SceneEntityCfg("box"),
-            "xy_threshold": 0.05,
+            "xy_threshold": 0.15,
             "height_diff": 0.0,
-            "height_threshold": 0.05,
+            "height_threshold": 0.10,
         },
     )
     grasp_2 = ObsTerm(
