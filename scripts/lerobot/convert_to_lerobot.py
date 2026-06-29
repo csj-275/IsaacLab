@@ -36,7 +36,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
-from datasets import Dataset
+from datasets import Dataset, Features, Sequence, Value
 from tqdm import tqdm
 
 from lerobot.datasets.compute_stats import aggregate_stats, compute_episode_stats
@@ -144,34 +144,41 @@ def build_episodes_metadata(full_df: pd.DataFrame, output_dir: Path, features: d
     return Dataset.from_pandas(episodes_df)
 
 
-def save_data_parquet_files(full_df: pd.DataFrame, output_dir: Path) -> None:
-    """将 IsaacLab 数据重新保存为 LeRobot 兼容的 parquet 文件。
+def save_data_parquet_files(full_df: pd.DataFrame, output_dir: Path, features: dict) -> None:
+    """用纯 pyarrow 写 parquet（不带 HuggingFace 元数据），FixedSizeList Schema。
 
     每 episode 一个 file-{ep_idx:03d}.parquet，放在 chunk-000 下。
-    LeRobot v3.0 通过 datasets.Dataset.from_parquet() 读取，因此我们使用
-    HuggingFace datasets 兼容的格式写入。
-    跳过 observation.images.* (视频存在 mp4 中)。
     """
-    data_pattern = DEFAULT_DATA_PATH  # "data/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet"
+    data_pattern = DEFAULT_DATA_PATH
 
-    columns_to_save = ["action", "observation.state", "timestamp", "frame_index",
-                       "episode_index", "index", "task_index"]
+    action_len = features["action"]["shape"][0]
+    state_len = features["observation.state"]["shape"][0]
+
+    # 构建完全匹配 HF datasets.Sequence 的 FixedSizeList Arrow 类型
+    action_type = pa.list_(pa.field("item", pa.float32(), nullable=False), list_size=action_len)
+    state_type = pa.list_(pa.field("item", pa.float32(), nullable=False), list_size=state_len)
 
     for ep_idx, group in tqdm(full_df.groupby("episode_index"), desc="Saving data parquet"):
         ep_idx = int(ep_idx)
         group = group.sort_values("frame_index")
-        ep_df = group[columns_to_save].copy()
 
-        # 确保列类型正确
-        ep_df["timestamp"] = ep_df["timestamp"].astype("float32")
-        ep_df["frame_index"] = ep_df["frame_index"].astype("int64")
-        ep_df["episode_index"] = ep_df["episode_index"].astype("int64")
-        ep_df["index"] = ep_df["index"].astype("int64")
-        ep_df["task_index"] = ep_df["task_index"].astype("int64")
+        action_arrays = [pa.array(row, type=pa.float32()) for row in group["action"].values]
+        state_arrays = [pa.array(row, type=pa.float32()) for row in group["observation.state"].values]
+
+        table = pa.table({
+            "action": pa.array(action_arrays, type=action_type),
+            "observation.state": pa.array(state_arrays, type=state_type),
+            "timestamp": pa.array(group["timestamp"].values, type=pa.float32()),
+            "frame_index": pa.array(group["frame_index"].values, type=pa.int64()),
+            "episode_index": pa.array(group["episode_index"].values, type=pa.int64()),
+            "index": pa.array(group["index"].values, type=pa.int64()),
+            "task_index": pa.array(group["task_index"].values, type=pa.int64()),
+        })
 
         fpath = output_dir / data_pattern.format(chunk_index=0, file_index=ep_idx)
         Path(fpath).parent.mkdir(parents=True, exist_ok=True)
-        ep_df.to_parquet(fpath, index=False)
+        # 显式指定 store_schema=False 避免写入 HuggingFace 元数据
+        pq.write_table(table, fpath, store_schema=True)
 
     logger.info(f"Saved {full_df['episode_index'].nunique()} data parquet files to {output_dir / 'data'}")
 
@@ -283,6 +290,10 @@ def main():
 
     # 2. 构建 features
     features = build_features()
+    use_videos = not args.skip_videos
+    if args.skip_videos:
+        # 去掉视频 feature，训练时不会找 mp4 文件
+        features = {k: v for k, v in features.items() if v.get("dtype") != "video"}
 
     # 3. 创建 info.json
     logger.info("=" * 60)
@@ -292,7 +303,7 @@ def main():
         codebase_version=CODEBASE_VERSION,
         fps=30,
         features=features,
-        use_videos=True,
+        use_videos=use_videos,
         robot_type="piper",
         chunks_size=1000,
         data_files_size_in_mb=100,
@@ -328,7 +339,7 @@ def main():
     logger.info("=" * 60)
     logger.info("Step 5: Saving data parquet files")
     logger.info("=" * 60)
-    save_data_parquet_files(full_df, output_dir)
+    save_data_parquet_files(full_df, output_dir, features)
 
     # 7. 计算并保存统计信息
     logger.info("=" * 60)

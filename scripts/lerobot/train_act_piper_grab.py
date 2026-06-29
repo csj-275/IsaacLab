@@ -27,19 +27,28 @@ import torch
 import torchvision.transforms.v2 as T
 from tqdm import tqdm
 
-# --- 修复本地数据集无需联网验证 Hub 版本 ---
-def _patch_get_safe_version():
+# --- 必须在所有 lerobot import 之前执行所有 monkey-patches ---
+def _apply_patches():
     import lerobot.datasets.utils as ds_utils
     import lerobot.datasets.lerobot_dataset as lds
 
+    # Patch 1: 修复本地数据集无需联网验证 Hub 版本
     def noop_get_safe_version(repo_id, version):
         return str(version)
-
     ds_utils.get_safe_version = noop_get_safe_version
     lds.get_safe_version = noop_get_safe_version
 
+    # Patch 2: 修复 pyarrow FixedSizeList child name 'element' vs HF 'item' 不兼容
+    original_load = ds_utils.load_nested_dataset
 
-_patch_get_safe_version()
+    def patched_load(pq_dir, features=None, episodes=None):
+        return original_load(pq_dir, features=None, episodes=episodes)
+
+    ds_utils.load_nested_dataset = patched_load
+    lds.load_nested_dataset = patched_load  # lerobot_dataset 作 module-level import，也需 patch
+
+
+_apply_patches()
 
 from lerobot.configs.types import FeatureType, NormalizationMode
 from lerobot.datasets.lerobot_dataset import LeRobotDataset, LeRobotDatasetMetadata
