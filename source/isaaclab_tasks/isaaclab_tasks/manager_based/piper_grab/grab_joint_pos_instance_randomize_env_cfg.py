@@ -92,11 +92,13 @@ class PiperGrabInstanceRandomizeEnvCfg(GrabInstanceRandomizeEnvCfg):
             asset_name="robot", joint_names=["joint[1-6]"],scale=1.0
         )
 
-        self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
+        self.actions.gripper_action = mdp.MimicBinaryJointPositionActionCfg(
             asset_name="robot",
-            joint_names=["joint[7-8]"],
-            open_command_expr={"joint7": 0.1, "joint8": -0.1},
-            close_command_expr={"joint7": -0.1, "joint8": 0.1},
+            joint_names=["joint7"],
+            open_command_expr={"joint7": 0.1},
+            close_command_expr={"joint7": -0.1},
+            mimic_joint_names=["joint8"],
+            mimic_multiplier=-1.0,
         )
         # utilities for gripper status check
         self.gripper_joint_names = ["joint[7-8]"]

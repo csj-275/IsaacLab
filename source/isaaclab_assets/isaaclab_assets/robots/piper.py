@@ -98,9 +98,9 @@ PIPER_STANDARD_WITH_GRIPPER_CFG = ArticulationCfg(
         ),
         "piper_gripper": ImplicitActuatorCfg(
             joint_names_expr=["joint[7-8]"],
-            effort_limit_sim=10.0,
+            effort_limit_sim=20.0,
             velocity_limit_sim=1.0,
-            stiffness=2.0e5,
+            stiffness=2.0e3,
             damping=1.0e2,
         ),
     },
@@ -157,15 +157,15 @@ PIPER_MIMIC_CFG = ArticulationCfg(
         # Active drive for the master gripper joint
         "gripper_drive": ImplicitActuatorCfg(
             joint_names_expr=["joint7"],
-            effort_limit_sim=10.0,
+            effort_limit_sim=20.0,
             velocity_limit_sim=1.0,
-            stiffness=2.0e5,
+            stiffness=2.0e3,
             damping=1.0e2,
         ),
         # Passive follower (joint8 mirrors joint7 via PhysX gear joint in USD)
         "gripper_passive": ImplicitActuatorCfg(
             joint_names_expr=["joint8"],
-            effort_limit_sim=10.0,
+            effort_limit_sim=200.0,
             velocity_limit_sim=1.0,
             stiffness=0.0,
             damping=0.0,

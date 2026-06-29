@@ -19,6 +19,7 @@ from isaaclab.utils import configclass
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
 from isaaclab_tasks.manager_based.manipulation.stack.config.franka import stack_joint_pos_env_cfg
 from isaaclab_tasks.manager_based.manipulation.stack.mdp import franka_stack_events
+from isaaclab_tasks.manager_based.piper_grab.mdp.mimic_joint_actions import MimicBinaryJointPositionActionCfg
 
 ##
 # Pre-defined configs
@@ -62,7 +63,7 @@ class EventCfg:
     init_piper_arm_pose = EventTerm(
         func=franka_stack_events.set_default_joint_pose,
         mode="reset",
-        params={"default_pose": [0.0, 1.0, -1.2, 0.0, 0.8, 0.0, 0.05, -0.05]},
+        params={"default_pose": [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.05, -0.05]},
     )
 
     randomize_piper_joint_state = EventTerm(
@@ -79,7 +80,7 @@ class EventCfg:
         func=franka_stack_events.randomize_object_pose,
         mode="reset",
         params={
-            "pose_range": {"x": (0.35, 0.55), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0, 0)},
+            "pose_range": {"x": (0.15, 0.35), "y": (-0.10, 0.10), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0, 0)},
             "min_separation": 0.1,
             "asset_cfgs": [SceneEntityCfg("cube_1"), SceneEntityCfg("cube_2"), SceneEntityCfg("cube_3")],
         },
@@ -111,11 +112,14 @@ class PiperCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
             scale=0.5,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.13503]),
         )
-        self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
+        self.actions.gripper_action = MimicBinaryJointPositionActionCfg(
             asset_name="robot",
-            joint_names=["joint[7-8]"],
-            open_command_expr={"joint7": 0.05, "joint8": -0.05},
-            close_command_expr={"joint7": 0.0, "joint8": 0.0},
+            joint_names=["joint7"],
+            open_command_expr={"joint7": 0.05},
+            close_command_expr={"joint7": -0.05},
+            mimic_joint_names=["joint8"],
+            mimic_multiplier=-1.0,
+            max_speed_per_step=0.005,  # 调这里：越大越快
         )
         self.gripper_joint_names = ["joint[7-8]"]
         self.gripper_open_val = 0.05
