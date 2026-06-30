@@ -34,7 +34,14 @@ parser.add_argument(
 )
 parser.add_argument("--num_episodes", type=int, default=10, help="Number of evaluation episodes.")
 parser.add_argument("--max_steps_per_episode", type=int, default=500, help="Max steps per episode.")
-parser.add_argument("--cpu", action="store_true", help="Load policy on CPU (for debugging).")
+parser.add_argument("--policy-cpu", action="store_true", help="Load policy on CPU (for debugging).")
+parser.add_argument(
+    "--record-video-to",
+    type=str,
+    default=None,
+    help="Output directory for video recording. If set, front camera frames are saved as MP4 per episode.",
+)
+parser.add_argument("--no-close", action="store_true", help="Keep window open after evaluation finishes.")
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -44,7 +51,7 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-from lerobot.configs.types import FeatureType
+from lerobot.configs.types import FeatureType, PolicyFeature
 from lerobot.policies.act.configuration_act import ACTConfig
 from lerobot.policies.act.modeling_act import ACTPolicy
 from lerobot.policies.factory import make_pre_post_processors
@@ -52,8 +59,6 @@ from lerobot.policies.factory import make_pre_post_processors
 import isaaclab_tasks  # noqa: F401
 
 from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg, BinaryJointPositionActionCfg
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.markers.config import FRAME_MARKER_CFG
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -63,7 +68,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 IMG_RESIZE = (224, 224)
 CHUNK_SIZE = 50      # 从 checkpoint config 读取，此处作为 fallback
-DEVICE_STR = "cpu" if args_cli.cpu else args_cli.device
+DEVICE_STR = "cpu" if args_cli.policy_cpu else args_cli.device
 
 # ---------------------------------------------------------------------------
 # 图像预处理 (与训练时完全一致: resize + ImageNet 标准化)
@@ -80,23 +85,42 @@ def build_image_transforms():
 # ---------------------------------------------------------------------------
 def load_policy(checkpoint_dir: str, device: torch.device):
     """从 checkpoint 加载 ACT 策略和前后处理器。"""
+    import json
+
     ckpt_path = Path(checkpoint_dir)
     if not ckpt_path.exists():
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
 
-    # 恢复 config
+    # 手动加载 config.json，去掉 draccus 不认识的字段
     config_path = ckpt_path / "config.json"
-    if config_path.exists():
-        cfg = ACTConfig.from_pretrained(str(ckpt_path))
-        logger.info(f"Loaded config from {config_path}")
-    else:
+    if not config_path.exists():
         raise FileNotFoundError(f"Config not found: {config_path}")
 
-    # 恢复 policy
+    with open(config_path) as f:
+        raw_config = json.load(f)
+
+    # 保留 features 信息（后面重建 PolicyFeature 对象）
+    input_features_raw = raw_config.pop("input_features", {})
+    output_features_raw = raw_config.pop("output_features", {})
+    raw_config.pop("type", None)  # draccus 不认这个字段
+
+    cfg = ACTConfig(**raw_config)
+    # 重建 input/output features
+    cfg.input_features = {
+        k: PolicyFeature(type=FeatureType(v["type"]), shape=tuple(v["shape"]))
+        for k, v in input_features_raw.items()
+    }
+    cfg.output_features = {
+        k: PolicyFeature(type=FeatureType(v["type"]), shape=tuple(v["shape"]))
+        for k, v in output_features_raw.items()
+    }
+    logger.info(f"Loaded config from {config_path}")
+
+    # 恢复 policy 权重 (使用 safetensors)
+    import safetensors.torch as sft
+    state_dict = sft.load_file(str(ckpt_path / "model.safetensors"), device=str(device))
     policy = ACTPolicy(cfg)
-    policy.load_state_dict(torch.load(
-        ckpt_path / "model.safetensors", map_location=device, weights_only=True
-    ))
+    policy.load_state_dict(state_dict)
     policy.to(device)
     policy.eval()
     logger.info(f"Policy loaded from {ckpt_path}, device={device}")
@@ -200,6 +224,13 @@ def main():
     success_count = 0
     total_steps = 0
 
+    # 视频录制路径
+    video_dir = None
+    if args_cli.record_video_to:
+        video_dir = Path(args_cli.record_video_to)
+        video_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Video recording to: {video_dir}")
+
     for episode in range(args_cli.num_episodes):
         logger.info(f"{'='*50}")
         logger.info(f"Episode {episode + 1}/{args_cli.num_episodes}")
@@ -208,9 +239,20 @@ def main():
         episode_steps = 0
         episode_done = False
 
+        # 收集 episode 帧用于视频录制
+        episode_frames = [] if video_dir else None
+
         while not episode_done and episode_steps < args_cli.max_steps_per_episode:
             # 从观测 dict 中提取 group
             obs_group = obs.get(policy_obs_group, obs)
+
+            # --- 录制视频帧 (table_cam) ---
+            if episode_frames is not None:
+                front_img = obs_group.get("table_cam")
+                if front_img is not None and isinstance(front_img, torch.Tensor):
+                    frame = front_img.squeeze(0)  # (H, W, 3)
+                    frame_np = frame.cpu().numpy().astype(np.uint8)
+                    episode_frames.append(frame_np)
 
             # --- 构建 policy 输入 ---
             batch = {}
@@ -234,40 +276,40 @@ def main():
             state_tensor = torch.cat(state_parts).unsqueeze(0).to(device)  # (1, 63)
             batch[state_key] = state_tensor
 
-            # Images
+            # Images: resize + ImageNet 标准化 (与训练时一致), 再由 preprocessor 归一化
             for obs_key, feat_key in cam_key_map.items():
                 val = obs_group.get(obs_key)
                 if val is not None and isinstance(val, torch.Tensor):
-                    img = val
+                    img = val.float()  # uint8 → float
                     if img.ndim == 3:
                         img = img.unsqueeze(0)  # (1, H, W, 3)
+                    # NHWC → NCHW
                     if img.ndim == 4 and img.shape[-1] == 3:
                         img = img.permute(0, 3, 1, 2).float()  # (1, 3, H, W)
                     elif img.ndim == 4 and img.shape[1] == 3:
                         pass  # already (1, 3, H, W)
                     img = img.to(device)
-                    if img.shape[-2:] != IMG_RESIZE:
-                        img = T.Resize(IMG_RESIZE, antialias=True)(img)
+                    # 应用与训练时一致的 image transforms
+                    img = image_transforms(img)
                     batch[feat_key] = img
                 else:
-                    # 创建占位黑图
                     batch[feat_key] = torch.zeros(1, 3, *IMG_RESIZE, device=device)
 
             # --- Preprocess & Infer ---
             batch = preprocessor(batch)
 
+            # ACT model 要求将图像汇聚到 observation.images 列表
+            # (ACTPolicy.forward() 会做这步，但我们直接用 policy.model)
+            if policy.config.image_features:
+                batch = dict(batch)  # shallow copy
+                batch["observation.images"] = [batch[k] for k in policy.config.image_features]
+
             with torch.inference_mode():
-                action = policy.predict_action(batch)  # (1, chunk_size, 8) or (1, 8)
+                actions_hat, _ = policy.model(batch)  # (1, chunk_size, 8)
 
-            # 取第一帧 action
-            if action.ndim == 3:
-                action = action[:, 0, :]  # (1, 8)
-            action = action.squeeze(0)  # (8,)
-
-            # 后处理
-            action_dict = {"action": action.unsqueeze(0).to(device)}
-            action_dict = postprocessor(action_dict)
-            action = action_dict["action"].squeeze(0).cpu().numpy()  # (8,)
+            # 取第一帧 action，后处理 (postprocessor 接收 tensor, 需要 CPU)
+            action = actions_hat[:, 0, :].cpu()  # (1, 8)
+            action = postprocessor(action).squeeze(0).numpy()  # (8,)
 
             # --- 映射到 env action ---
             # action[0:6] = joint1..joint6 位置
@@ -275,7 +317,7 @@ def main():
             arm_action = action[0:6]
             gripper_raw = action[6]  # joint7 值 (~0.05=开, ~-0.05=关)
 
-            env_action = np.zeros(env.action_space.shape, dtype=np.float32)
+            env_action = np.zeros(np.prod(env.action_space.shape), dtype=np.float32)
             env_action[0:6] = arm_action
             env_action[6] = rescale_gripper_action(gripper_raw)
             # 如果 action space 是 8D，第 8 维直接用
@@ -284,7 +326,7 @@ def main():
 
             # --- Step ---
             obs, reward, terminated, truncated, info = env.step(
-                torch.from_numpy(env_action).unsqueeze(0).to(env.device)
+                torch.from_numpy(env_action).reshape(env.action_space.shape).to(env.device)
             )
 
             episode_done = terminated.item() if hasattr(terminated, 'item') else bool(terminated)
@@ -305,6 +347,14 @@ def main():
             episode_steps += 1
             total_steps += 1
 
+        # --- 写入视频 ---
+        if episode_frames is not None and len(episode_frames) > 0:
+            import torchvision.io as tio
+            frames_tensor = torch.from_numpy(np.stack(episode_frames))  # (T, H, W, C)
+            video_path = video_dir / f"episode_{episode:03d}.mp4"
+            tio.write_video(str(video_path), frames_tensor, fps=30)
+            logger.info(f"  🎥 Video saved: {video_path}")
+
         if not episode_done:
             logger.info(f"  ⏱️  Episode {episode + 1} TIMEOUT ({episode_steps} steps)")
 
@@ -322,4 +372,11 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         logger.info("Interrupted by user.")
+    if args_cli.no_close:
+        logger.info("Evaluation finished. Window will close when you close the viewer, or press Ctrl+C.")
+        try:
+            while simulation_app.is_running():
+                simulation_app.update()
+        except KeyboardInterrupt:
+            pass
     simulation_app.close()
