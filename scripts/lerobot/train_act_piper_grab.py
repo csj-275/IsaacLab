@@ -47,6 +47,14 @@ def _apply_patches():
     ds_utils.load_nested_dataset = patched_load
     lds.load_nested_dataset = patched_load  # lerobot_dataset 作 module-level import，也需 patch
 
+    # Patch 3: 强制 video backend 为 pyav（torchcodec 需要 FFmpeg 系统库，容器内不可用）
+    from lerobot.datasets import video_utils as vu
+    def patched_get_backend():
+        return "pyav"
+    vu.get_safe_default_codec = patched_get_backend
+    vu.get_default_codec = patched_get_backend
+    lds.get_safe_default_codec = patched_get_backend  # lerobot_dataset 也做了 module-level import
+
 
 _apply_patches()
 
