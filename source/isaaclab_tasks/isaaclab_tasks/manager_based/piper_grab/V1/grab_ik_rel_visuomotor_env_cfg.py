@@ -37,6 +37,11 @@ from isaaclab_tasks.manager_based.piper_grab.V1.grab_ik_rel_env_cfg import (
 from .. import grab_joint_pos_env_cfg
 from ..grab_ik_rel_visuomotor_env_cfg import PIPER_D435_COLOR_INTRINSIC_1280X720
 
+
+def _image_cpu(env, sensor_cfg, data_type, convert_perspective_to_orthogonal=False, normalize=True):
+    """Wrapper around mdp.image that returns CPU tensors to avoid GPU memory bloat."""
+    return mdp.image(env, sensor_cfg, data_type, convert_perspective_to_orthogonal, normalize).cpu()
+
 ##
 # Pre-defined configs
 ##
@@ -202,13 +207,13 @@ class ObservationsCfg:
             params={"object_cfg": SceneEntityCfg("mug"), "return_key": "quat"},
         )
         table_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
+            func=_image_cpu, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
         )
         wrist_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
+            func=_image_cpu, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
         )
         table_cam_depth = ObsTerm(
-            func=mdp.image,
+            func=_image_cpu,
             params={
                 "sensor_cfg": SceneEntityCfg("table_cam"),
                 "data_type": "distance_to_image_plane",
@@ -216,7 +221,7 @@ class ObservationsCfg:
             },
         )
         wrist_cam_depth = ObsTerm(
-            func=mdp.image,
+            func=_image_cpu,
             params={
                 "sensor_cfg": SceneEntityCfg("wrist_cam"),
                 "data_type": "distance_to_image_plane",
@@ -471,7 +476,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.image_obs_list = ["table_cam", "wrist_cam"]
         self.sim.dt = 1 / 150
         self.decimation = 5
-        self.sim.render_interval = 5
+        self.sim.render_interval = 3
 
         self.teleop_devices = DevicesCfg(
             devices={
