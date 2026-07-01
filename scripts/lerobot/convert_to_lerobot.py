@@ -160,7 +160,7 @@ def main():
     lerobot_recorder_cfg = ActionStateRecorderManagerCfg()
     lerobot_recorder_cfg.dataset_file_handler_class_type = LeRobotDatasetFileHandler
     dataset_name = output_dir.name
-    lerobot_recorder_cfg.dataset_export_dir_path = str(output_dir)
+    lerobot_recorder_cfg.dataset_export_dir_path = str(output_dir.parent)
     lerobot_recorder_cfg.dataset_filename = dataset_name
 
     env_cfg.recorders = lerobot_recorder_cfg
