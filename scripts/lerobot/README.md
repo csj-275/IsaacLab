@@ -10,3 +10,13 @@ python scripts/lerobot/convert_to_lerobot.py \
 ```
 
 ## 训练
+
+
+## 专家数据转lerobot
+``` bash
+./isaaclab.sh -p scripts/lerobot/convert_to_lerobot.py \
+  --task Isaac-Piper-Grab-IK-Rel-Visuomotor-v1 \
+  --input ./datasets/hdf5/[0629]annotated_piper_dataset_K.hdf5 \
+  --output ./datasets/lerobot/E-SIM-PIPER-GRAB-0629-N20-K \
+  --headless --enable_cameras --device cuda:0
+```
