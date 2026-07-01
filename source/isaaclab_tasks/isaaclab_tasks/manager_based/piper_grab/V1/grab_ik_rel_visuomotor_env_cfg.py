@@ -180,54 +180,54 @@ class ObservationsCfg:
         actions = ObsTerm(func=mdp.last_action)
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        object = ObsTerm(func=mdp.object_obs)
         eef_pos = ObsTerm(func=mdp.ee_frame_pos)
         eef_quat = ObsTerm(func=mdp.ee_frame_quat)
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
-        object_1_positions = ObsTerm(
-            func=mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "pos"},
-        )
-        object_1_orientations = ObsTerm(
-            func=mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "quat"},
-        )
-        box_positions = ObsTerm(
-            func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"}
-        )
-        box_orientations = ObsTerm(
-            func=mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
-        )
-        mug_positions = ObsTerm(
-            func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("mug"), "return_key": "pos"}
-        )
-        mug_orientations = ObsTerm(
-            func=mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("mug"), "return_key": "quat"},
-        )
+        # object = ObsTerm(func=mdp.object_obs)
+        # object_1_positions = ObsTerm(
+        #     func=mdp.object_poses_in_base_frame,
+        #     params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "pos"},
+        # )
+        # object_1_orientations = ObsTerm(
+        #     func=mdp.object_poses_in_base_frame,
+        #     params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "quat"},
+        # )
+        # box_positions = ObsTerm(
+        #     func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"}
+        # )
+        # box_orientations = ObsTerm(
+        #     func=mdp.object_poses_in_base_frame,
+        #     params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
+        # )
+        # mug_positions = ObsTerm(
+        #     func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("mug"), "return_key": "pos"}
+        # )
+        # mug_orientations = ObsTerm(
+        #     func=mdp.object_poses_in_base_frame,
+        #     params={"object_cfg": SceneEntityCfg("mug"), "return_key": "quat"},
+        # )
         table_cam = ObsTerm(
             func=_image_cpu, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
         )
         wrist_cam = ObsTerm(
             func=_image_cpu, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
         )
-        table_cam_depth = ObsTerm(
-            func=_image_cpu,
-            params={
-                "sensor_cfg": SceneEntityCfg("table_cam"),
-                "data_type": "distance_to_image_plane",
-                "normalize": True,
-            },
-        )
-        wrist_cam_depth = ObsTerm(
-            func=_image_cpu,
-            params={
-                "sensor_cfg": SceneEntityCfg("wrist_cam"),
-                "data_type": "distance_to_image_plane",
-                "normalize": True,
-            },
-        )
+        # table_cam_depth = ObsTerm(
+        #     func=_image_cpu,
+        #     params={
+        #         "sensor_cfg": SceneEntityCfg("table_cam"),
+        #         "data_type": "distance_to_image_plane",
+        #         "normalize": True,
+        #     },
+        # )
+        # wrist_cam_depth = ObsTerm(
+        #     func=_image_cpu,
+        #     params={
+        #         "sensor_cfg": SceneEntityCfg("wrist_cam"),
+        #         "data_type": "distance_to_image_plane",
+        #         "normalize": True,
+        #     },
+        # )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -279,7 +279,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             update_period=1 / 30,
             width=1280,
             height=720,
-            data_types=["rgb", "distance_to_image_plane"],
+            data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
                 intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_1280X720,
                 width=1280,
@@ -305,7 +305,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             update_period=1 / 30,
             width=1280,
             height=720,
-            data_types=["rgb", "distance_to_image_plane"],
+            data_types=["rgb"],
             spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
                 intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_1280X720,
                 width=1280,
