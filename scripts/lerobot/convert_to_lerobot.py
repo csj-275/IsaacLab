@@ -1,349 +1,368 @@
 #!/usr/bin/env python3
-# Copyright (c) 2024-2026, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: Apache-2.0
-
 """
-Replay annotated HDF5 demonstrations in a visuomotor environment and save
-directly to LeRobot format (parquet + MP4 videos).
+将 isaaclab/datasets/simdata 中的 IsaacLab 数据转换为 LeRobot v3.0 格式。
 
-This replaces the old two-step workflow (replay → parquet → convert) with a
-single step.  The LeRobot file handler writes episodes on-the-fly during replay.
+用法:
+    conda activate lerobot
 
-Output layout (LeRobot v3.0):
-    data/chunk-000/file-{ep:03d}.parquet
-    videos/observation.images.{front,wrist}/chunk-000/file-{ep:03d}.mp4
-    meta/info.json, meta/stats.json, meta/tasks.parquet, meta/episodes/…
+    # 指定源数据集和输出目录
+    python scripts/lerobot/convert_to_lerobot.py \
+        --src-dir /home/chenshengjia/company/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1 \
+        --output-dir /home/chenshengjia/company/isaaclab/datasets/lerobot/piper_grab_v1
 
-Usage (inside Docker container)::
+    # 跳过视频
+    python scripts/lerobot/convert_to_lerobot.py --skip-videos \
+        --src-dir ... --output-dir ...
 
-    ./isaaclab.sh -p scripts/lerobot/convert_to_lerobot.py \\
-        --task Isaac-Piper-Grab-IK-Rel-Visuomotor-v1 \\
-        --input ./datasets/hdf5/[0629]annotated_piper_dataset_K.hdf5 \\
-        --output ./datasets/lerobot/piper_grab_replayed \\
-        --fps 30 \\
-        --headless --enable_cameras --device cuda:0
+    # Docker 容器内
+    python scripts/lerobot/convert_to_lerobot.py \
+        --src-dir /workspace/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1 \
+        --output-dir /workspace/isaaclab/datasets/lerobot/piper_grab_v1
 
-    # Only replay specific episodes:
-    ./isaaclab.sh -p scripts/lerobot/convert_to_lerobot.py \\
-        --task Isaac-Piper-Grab-IK-Rel-Visuomotor-v1 \\
-        --input ./datasets/hdf5/[0629]annotated_piper_dataset_K.hdf5 \\
-        --output ./datasets/lerobot/piper_grab_replayed \\
-        --select_episodes 0 5 10 \\
-        --headless --enable_cameras --device cuda:0
+数据格式:
+  - action: 8维 (IK空间下 delta pose + gripper)
+  - observation.state: 63维 (robot state + object states)
+  - observation.images.front: 1280x720 @ 30fps
+  - observation.images.wrist: 1280x720 @ 30fps
 """
-
-"""Launch Isaac Sim Simulator first."""
 
 import argparse
-
-from isaaclab.app import AppLauncher
-
-parser = argparse.ArgumentParser(
-    description="Replay HDF5 demos in a visuomotor env and save directly to LeRobot format."
-)
-parser.add_argument("--task", type=str, required=True, help="Isaac Lab task name (visuomotor env).")
-parser.add_argument(
-    "--input",
-    type=str,
-    required=True,
-    help="Path to the annotated HDF5 dataset file.",
-)
-parser.add_argument(
-    "--output",
-    type=str,
-    required=True,
-    help="Output directory for the LeRobot dataset (will be created if needed).",
-)
-parser.add_argument("--fps", type=int, default=30, help="FPS for video encoding and metadata (default: 30).")
-parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to replay episodes.")
-parser.add_argument(
-    "--select_episodes",
-    type=int,
-    nargs="+",
-    default=[],
-    help="Specific episode indices to replay. Omit to replay all.",
-)
-parser.add_argument(
-    "--skip_failed",
-    action="store_true",
-    default=False,
-    help="Only save successful episodes (check via env subtask_terms / terminations).",
-)
-parser.add_argument(
-    "--enable_pinocchio",
-    action="store_true",
-    default=False,
-    help="Enable Pinocchio.",
-)
-
-AppLauncher.add_app_launcher_args(parser)
-args_cli = parser.parse_args()
-
-if args_cli.enable_pinocchio:
-    import pinocchio  # noqa: F401
-
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
-import contextlib
+import json
 import logging
+import shutil
 from pathlib import Path
 
-import gymnasium as gym
-import torch
+import numpy as np
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+from datasets import Dataset, Features, Sequence, Value
+from tqdm import tqdm
 
-from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
-from isaaclab.utils.datasets import HDF5DatasetFileHandler, EpisodeData
-from isaaclab.utils.datasets.lerobot_dataset_file_handler import LeRobotDatasetFileHandler
-
-if args_cli.enable_pinocchio:
-    import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
-    import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
-
-import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from lerobot.datasets.compute_stats import aggregate_stats, compute_episode_stats
+from lerobot.datasets.utils import (
+    create_empty_dataset_info,
+    write_episodes,
+    write_info,
+    write_stats,
+    write_tasks,
+    DEFAULT_DATA_PATH,
+    DEFAULT_EPISODES_PATH,
+    DEFAULT_VIDEO_PATH,
+)
+from lerobot.datasets.lerobot_dataset import CODEBASE_VERSION
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
+def build_features(full_df: pd.DataFrame, video_keys: list[str] | None = None) -> dict:
+    """构建 LeRobot features 字典，自动从数据检测维度."""
+    sample = full_df.iloc[0]
+    action_dim = len(sample["action"])
+    state_dim = len(sample["observation.state"])
+
+    features = {
+        "action": {
+            "dtype": "float32",
+            "shape": (action_dim,),
+            "type": "ACTION",
+            "names": None,
+        },
+        "observation.state": {
+            "dtype": "float32",
+            "shape": (state_dim,),
+            "type": "STATE",
+            "names": None,
+        },
+    }
+
+    if video_keys is None:
+        video_keys = ["observation.images.front", "observation.images.wrist"]
+
+    for vk in video_keys:
+        features[vk] = {
+            "dtype": "video",
+            "shape": (720, 1280, 3),
+            "type": "VISUAL",
+            "names": ["height", "width", "channel"],
+        }
+
+    return features
+
+
+def read_isaaclab_data(data_dir: Path) -> pd.DataFrame:
+    """读取所有 IsaacLab parquet 文件并合并为一个 DataFrame."""
+    parquet_files = sorted(data_dir.glob("data/chunk-*/file-*.parquet"))
+    if not parquet_files:
+        raise FileNotFoundError(f"No parquet files found in {data_dir}")
+    logger.info(f"Found {len(parquet_files)} parquet files")
+
+    dfs = []
+    for pf in tqdm(parquet_files, desc="Reading parquet files"):
+        df = pd.read_parquet(pf)
+        dfs.append(df)
+
+    full_df = pd.concat(dfs, ignore_index=True)
+    full_df.sort_values(["episode_index", "frame_index"], inplace=True)
+    full_df.reset_index(drop=True, inplace=True)
+    logger.info(f"Total frames: {len(full_df)}")
+    logger.info(f"Episodes: {full_df['episode_index'].nunique()}")
+    return full_df
+
+
+def build_episodes_metadata(full_df: pd.DataFrame, output_dir: Path, features: dict) -> Dataset:
+    """构建 episodes metadata (Parquet 格式)."""
+    episodes_data = []
+    video_keys = [k for k, v in features.items() if v["dtype"] == "video"]
+
+    # 所有数据在一个 chunk-000 中，每个 episode 对应一个 file-XXX
+    for ep_idx, group in tqdm(full_df.groupby("episode_index"), desc="Building episodes"):
+        ep_idx = int(ep_idx)
+        group = group.sort_values("frame_index")
+        from_idx = int(group["index"].min())
+        to_idx = int(group["index"].max())
+
+        ep_entry = {
+            "episode_index": ep_idx,
+            "tasks": ["pick cube then grab bottle"],
+            "length": len(group),
+            "dataset_from_index": from_idx,
+            "dataset_to_index": to_idx,
+            "from_timestamp": float(group["timestamp"].min()),
+            "to_timestamp": float(group["timestamp"].max()),
+            "data/chunk_index": 0,
+            "data/file_index": ep_idx,
+        }
+
+        # 视频文件: 每个 episode 对应 file-{ep_idx}.mp4
+        ep_duration = float(group["timestamp"].max())
+        for vk in video_keys:
+            ep_entry[f"videos/{vk}/chunk_index"] = 0
+            ep_entry[f"videos/{vk}/file_index"] = ep_idx
+            ep_entry[f"videos/{vk}/from_timestamp"] = 0.0
+            ep_entry[f"videos/{vk}/to_timestamp"] = ep_duration
+
+        episodes_data.append(ep_entry)
+
+    episodes_df = pd.DataFrame(episodes_data)
+    return Dataset.from_pandas(episodes_df)
+
+
+def save_data_parquet_files(full_df: pd.DataFrame, output_dir: Path, features: dict) -> None:
+    """用纯 pyarrow 写 parquet（不带 HuggingFace 元数据），FixedSizeList Schema。
+
+    每 episode 一个 file-{ep_idx:03d}.parquet，放在 chunk-000 下。
+    """
+    data_pattern = DEFAULT_DATA_PATH
+
+    action_len = features["action"]["shape"][0]
+    state_len = features["observation.state"]["shape"][0]
+
+    # 构建完全匹配 HF datasets.Sequence 的 FixedSizeList Arrow 类型
+    action_type = pa.list_(pa.field("item", pa.float32(), nullable=False), list_size=action_len)
+    state_type = pa.list_(pa.field("item", pa.float32(), nullable=False), list_size=state_len)
+
+    for ep_idx, group in tqdm(full_df.groupby("episode_index"), desc="Saving data parquet"):
+        ep_idx = int(ep_idx)
+        group = group.sort_values("frame_index")
+
+        action_arrays = [pa.array(row, type=pa.float32()) for row in group["action"].values]
+        state_arrays = [pa.array(row, type=pa.float32()) for row in group["observation.state"].values]
+
+        table = pa.table({
+            "action": pa.array(action_arrays, type=action_type),
+            "observation.state": pa.array(state_arrays, type=state_type),
+            "timestamp": pa.array(group["timestamp"].values, type=pa.float32()),
+            "frame_index": pa.array(group["frame_index"].values, type=pa.int64()),
+            "episode_index": pa.array(group["episode_index"].values, type=pa.int64()),
+            "index": pa.array(group["index"].values, type=pa.int64()),
+            "task_index": pa.array(group["task_index"].values, type=pa.int64()),
+        })
+
+        fpath = output_dir / data_pattern.format(chunk_index=0, file_index=ep_idx)
+        Path(fpath).parent.mkdir(parents=True, exist_ok=True)
+        # 显式指定 store_schema=False 避免写入 HuggingFace 元数据
+        pq.write_table(table, fpath, store_schema=True)
+
+    logger.info(f"Saved {full_df['episode_index'].nunique()} data parquet files to {output_dir / 'data'}")
+
+
+def compute_and_save_stats(full_df: pd.DataFrame, output_dir: Path, features: dict) -> None:
+    """计算并保存数据集统计信息（用于归一化）。"""
+    logger.info("Computing dataset statistics...")
+
+    # 一次处理一个 episode 来统计
+    all_ep_stats = []
+    video_keys = [k for k, v in features.items() if v["dtype"] == "video"]
+
+    for ep_idx, group in tqdm(full_df.groupby("episode_index"), desc="Computing stats"):
+        # 构建 episode buffer 格式: { key: np.array([frame_values...]) }
+        episode_buffer = {
+            "action": np.stack(group["action"].values),
+            "observation.state": np.stack(group["observation.state"].values),
+        }
+        ep_stat = compute_episode_stats(episode_buffer, features)
+        all_ep_stats.append(ep_stat)
+
+    # 聚合所有 episode 的统计
+    stats = aggregate_stats(all_ep_stats)
+    write_stats(stats, output_dir)
+    logger.info("Stats saved to meta/stats.json")
+
+
+def link_video_files(src_dir: Path, output_dir: Path, full_df: pd.DataFrame,
+                     features: dict, symlink: bool = False) -> None:
+    """将视频文件链接/复制到 LeRobot 目录。
+
+    IsaacLab 视频命名: file-{ep:03d}.mp4
+    LeRobot 视频命名: file-{ep:03d}.mp4 (相同)
+    """
+    video_pattern = DEFAULT_VIDEO_PATH  # "videos/{video_key}/chunk-{chunk_index:03d}/file-{file_index:03d}.mp4"
+    video_keys = [k for k, v in features.items() if v["dtype"] == "video"]
+
+    # 源视频目录映射
+    src_video_dirs = {
+        "observation.images.front": src_dir / "videos" / "observation.images.front" / "chunk-000",
+        "observation.images.wrist": src_dir / "videos" / "observation.images.wrist" / "chunk-000",
+    }
+
+    for vk in video_keys:
+        out_video_dir = output_dir / "videos" / vk / "chunk-000"
+        out_video_dir.mkdir(parents=True, exist_ok=True)
+
+        src_video_dir = src_video_dirs.get(vk)
+        if src_video_dir is None or not src_video_dir.exists():
+            logger.warning(f"Source video directory not found: {src_video_dir}, skipping {vk}")
+            continue
+
+        copy_func = shutil.copy2 if not symlink else _symlink_or_copy
+
+        episodes = sorted(full_df["episode_index"].unique())
+        for ep_idx in tqdm(episodes, desc=f"Linking videos for {vk}"):
+            ep_idx = int(ep_idx)
+            # IsaacLab: file-{ep:03d}.mp4
+            src_file = src_video_dir / f"file-{ep_idx:03d}.mp4"
+            # LeRobot: file-{ep:03d}.mp4
+            dst_file = out_video_dir / f"file-{ep_idx:03d}.mp4"
+
+            if src_file.exists() and not dst_file.exists():
+                copy_func(src_file, dst_file)
+
+        logger.info(f"Linked {len(episodes)} videos for {vk}")
+
+
+def _symlink_or_copy(src: Path, dst: Path) -> None:
+    """尝试 symlink，失败则复制。"""
+    try:
+        dst.symlink_to(src)
+    except OSError:
+        shutil.copy2(src, dst)
+
+
 def main():
-    # ------------------------------------------------------------------
-    # Load HDF5 dataset
-    # ------------------------------------------------------------------
-    input_path = Path(args_cli.input)
-    if not input_path.exists():
-        raise FileNotFoundError(f"Dataset not found: {input_path}")
+    parser = argparse.ArgumentParser(description="Convert IsaacLab data to LeRobot v3.0 format")
+    parser.add_argument(
+        "--src-dir",
+        type=str,
+        default="/home/chenshengjia/company/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1",
+        help="Source IsaacLab data directory",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default="/home/chenshengjia/company/isaaclab/datasets/lerobot/piper_grab_v1",
+        help="Output LeRobot dataset directory",
+    )
+    parser.add_argument("--symlink", action="store_true", help="Use symlinks instead of copying video files")
+    parser.add_argument("--skip-videos", action="store_true", help="Skip video processing")
+    args = parser.parse_args()
 
-    dataset_file_handler = HDF5DatasetFileHandler()
-    dataset_file_handler.open(str(input_path))
-    episode_count = dataset_file_handler.get_num_episodes()
+    src_dir = Path(args.src_dir)
+    output_dir = Path(args.output_dir)
 
-    if episode_count == 0:
-        print("No episodes found in the dataset.")
-        exit()
+    if not src_dir.exists():
+        raise FileNotFoundError(f"Source directory not found: {src_dir}")
 
-    episode_indices_to_replay = args_cli.select_episodes
-    if len(episode_indices_to_replay) == 0:
-        episode_indices_to_replay = list(range(episode_count))
-
-    task_name = args_cli.task.split(":")[-1]
-    num_envs = args_cli.num_envs
-
-    # ------------------------------------------------------------------
-    # Configure environment with LeRobot recorder
-    # ------------------------------------------------------------------
-    output_dir = Path(args_cli.output)
+    # 创建输出目录
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Task: {task_name}")
-    logger.info(f"Input: {input_path} ({episode_count} episodes)")
-    logger.info(f"Output: {args_cli.output} (dataset: {output_dir.name})")
-    logger.info(f"Episodes to replay: {len(episode_indices_to_replay)}")
+    # 1. 读取 IsaacLab 数据
+    logger.info("=" * 60)
+    logger.info("Step 1: Reading IsaacLab data")
+    logger.info("=" * 60)
+    full_df = read_isaaclab_data(src_dir)
 
-    env_cfg = parse_env_cfg(task_name, device=args_cli.device, num_envs=num_envs)
+    # 2. 构建 features（自动检测 action/state 维度）
+    video_keys = ["observation.images.front", "observation.images.wrist"]
+    use_videos = not args.skip_videos
+    if args.skip_videos:
+        video_keys = []
+    features = build_features(full_df, video_keys=video_keys)
 
-    # --- Extract success check before disabling terminations ---
-    # 优先使用 subtask_terms（如 placed_1），fallback 到 terminations.success
-    success_check_fn = None
-    if hasattr(env_cfg, "terminations") and hasattr(env_cfg.terminations, "success"):
-        success_check_fn = env_cfg.terminations.success
+    # 3. 创建 info.json
+    logger.info("=" * 60)
+    logger.info("Step 2: Creating meta/info.json")
+    logger.info("=" * 60)
+    info = create_empty_dataset_info(
+        codebase_version=CODEBASE_VERSION,
+        fps=30,
+        features=features,
+        use_videos=use_videos,
+        robot_type="piper",
+        chunks_size=1000,
+        data_files_size_in_mb=100,
+        video_files_size_in_mb=200,
+    )
+    # 更新 total_episodes, total_frames, total_tasks
+    info["total_episodes"] = full_df["episode_index"].nunique()
+    info["total_frames"] = len(full_df)
+    info["total_tasks"] = 1
+    write_info(info, output_dir)
+    logger.info(f"info.json written to {output_dir / 'meta/info.json'}")
 
-    # Disable terminations — we want to replay the full episode without early termination
-    env_cfg.terminations = {}
+    # 4. 构建并写入 episodes metadata
+    logger.info("=" * 60)
+    logger.info("Step 3: Building episodes metadata")
+    logger.info("=" * 60)
+    episodes_ds = build_episodes_metadata(full_df, output_dir, features)
+    write_episodes(episodes_ds, output_dir)
+    logger.info(f"Episodes written to {output_dir / DEFAULT_EPISODES_PATH.format(chunk_index=0, file_index=0)}")
 
-    # Setup LeRobot recorder
-    lerobot_recorder_cfg = ActionStateRecorderManagerCfg()
-    lerobot_recorder_cfg.dataset_file_handler_class_type = LeRobotDatasetFileHandler
-    dataset_name = output_dir.name
-    lerobot_recorder_cfg.dataset_export_dir_path = str(output_dir.parent)
-    lerobot_recorder_cfg.dataset_filename = dataset_name
+    # 5. 写入 tasks
+    logger.info("=" * 60)
+    logger.info("Step 4: Writing tasks")
+    logger.info("=" * 60)
+    tasks_ds = Dataset.from_pandas(pd.DataFrame({
+        "task_index": [0],
+        "task": ["pick cube then grab bottle"],
+    }))
+    write_tasks(tasks_ds, output_dir)
+    logger.info(f"Tasks written to {output_dir / 'meta/tasks.parquet'}")
 
-    env_cfg.recorders = lerobot_recorder_cfg
+    # 6. 保存数据 parquet 文件
+    logger.info("=" * 60)
+    logger.info("Step 5: Saving data parquet files")
+    logger.info("=" * 60)
+    save_data_parquet_files(full_df, output_dir, features)
 
-    # Create environment
-    env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+    # 7. 计算并保存统计信息
+    logger.info("=" * 60)
+    logger.info("Step 6: Computing stats")
+    logger.info("=" * 60)
+    compute_and_save_stats(full_df, output_dir, features)
 
-    # Apply FPS setting to the LeRobot file handler
-    try:
-        handler = env.recorder_manager._dataset_file_handler
-        if isinstance(handler, LeRobotDatasetFileHandler):
-            handler.fps = args_cli.fps
-            logger.info(f"LeRobot handler FPS set to {args_cli.fps}")
-    except AttributeError:
-        pass
+    # 8. 视频文件
+    if not args.skip_videos:
+        logger.info("=" * 60)
+        logger.info("Step 7: Linking video files")
+        logger.info("=" * 60)
+        link_video_files(src_dir, output_dir, full_df, features, symlink=args.symlink)
 
-    logger.info(f"Environment created: {task_name}")
-    if success_check_fn is not None:
-        logger.info(f"Success check: {success_check_fn.func.__name__}")
-    logger.info(f"Skip failed episodes: {args_cli.skip_failed}")
-
-    # ------------------------------------------------------------------
-    # Replay episodes
-    # ------------------------------------------------------------------
-    idle_action = torch.zeros(env.action_space.shape)
-    episode_names = list(dataset_file_handler.get_episode_names())
-    replayed_episode_count = 0
-    success_episodes = []
-    failed_episodes = []
-    current_episode_indices = [None] * num_envs
-    episode_ended = [False] * num_envs
-
-    env.reset()
-
-    with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
-        while simulation_app.is_running() and not simulation_app.is_exiting():
-            env_episode_data_map = {i: EpisodeData() for i in range(num_envs)}
-            first_loop = True
-            has_next_action = True
-
-            while has_next_action:
-                actions = idle_action.clone()
-                has_next_action = False
-
-                for env_id in range(num_envs):
-                    env_next_action = env_episode_data_map[env_id].get_next_action()
-                    if env_next_action is None:
-                        # --- Episode finished on this env ---
-                        # Check success BEFORE loading next episode
-                        just_finished_idx = current_episode_indices[env_id]
-                        if just_finished_idx is not None and not episode_ended[env_id]:
-                            episode_ended[env_id] = True
-                            is_success = _check_episode_success(env, env_id, success_check_fn)
-                            if is_success:
-                                success_episodes.append(just_finished_idx)
-                            else:
-                                failed_episodes.append(just_finished_idx)
-                            status = "✅" if is_success else "❌"
-                            logger.info(
-                                f"  {status} Episode #{just_finished_idx} "
-                                f"({'SUCCESS' if is_success else 'FAILED'})"
-                            )
-
-                        # Load next episode
-                        next_episode_index = None
-                        while episode_indices_to_replay:
-                            next_episode_index = episode_indices_to_replay.pop(0)
-                            if next_episode_index < episode_count:
-                                episode_ended[env_id] = False
-                                break
-                            next_episode_index = None
-
-                        if next_episode_index is not None:
-                            replayed_episode_count += 1
-                            current_episode_indices[env_id] = next_episode_index
-                            logger.info(
-                                f"[{replayed_episode_count}/{episode_count}] "
-                                f"Replaying episode #{next_episode_index} on env_{env_id}"
-                            )
-                            episode_data = dataset_file_handler.load_episode(
-                                episode_names[next_episode_index], env.device
-                            )
-                            env_episode_data_map[env_id] = episode_data
-                            initial_state = episode_data.get_initial_state()
-                            env.reset_to(initial_state, torch.tensor([env_id], device=env.device), is_relative=True)
-                            env_next_action = env_episode_data_map[env_id].get_next_action()
-                            has_next_action = True
-                        else:
-                            continue
-                    else:
-                        has_next_action = True
-
-                    actions[env_id] = env_next_action
-
-                if first_loop:
-                    first_loop = False
-                else:
-                    env.step(actions)
-
-            break  # All episodes done
-
-    # ------------------------------------------------------------------
-    # Summary
-    # ------------------------------------------------------------------
-    total = len(success_episodes) + len(failed_episodes)
-    logger.info(f"{'='*50}")
-    logger.info(f"Replay complete: {total} episodes")
-    logger.info(f"  ✅ Success: {len(success_episodes)}")
-    logger.info(f"  ❌ Failed:  {len(failed_episodes)}")
-    if total > 0:
-        logger.info(f"  Success rate: {100 * len(success_episodes) / total:.1f}%")
-    logger.info(f"LeRobot dataset saved to: {output_dir.resolve()}")
-
-    if args_cli.skip_failed:
-        _delete_failed_episodes(output_dir, failed_episodes)
-        logger.info(f"Deleted {len(failed_episodes)} failed episodes (--skip_failed)")
-        logger.info(f"Remaining: {len(success_episodes)} successful episodes")
-
-    # Print output structure summary
-    data_dir = output_dir / "data" / "chunk-000"
-    video_dir = output_dir / "videos"
-    if data_dir.exists():
-        parquet_files = sorted(data_dir.glob("*.parquet"))
-        logger.info(f"  Parquet files: {len(parquet_files)}")
-    if video_dir.exists():
-        for cam_dir in sorted(video_dir.glob("observation.images.*")):
-            mp4_files = sorted((cam_dir / "chunk-000").glob("*.mp4"))
-            logger.info(f"  {cam_dir.name}: {len(mp4_files)} videos")
-
-    if failed_episodes and not args_cli.skip_failed:
-        logger.info(f"Failed episodes: {sorted(failed_episodes)}")
-
-    env.close()
-
-
-def _check_episode_success(env, env_id: int, success_term) -> bool:
-    """Check if the episode on env_id is successful.
-
-    Priority:
-    1. subtask_terms["placed_1"] in observation buffer
-    2. success_term function (if available)
-    """
-    # 方法 1: subtask_terms（visuomotor 环境自带）
-    obs_buf = getattr(env, "obs_buf", {})
-    subtask_terms = obs_buf.get("subtask_terms", {})
-    placed = subtask_terms.get("placed_1")
-    if placed is not None:
-        if isinstance(placed, torch.Tensor):
-            return bool(placed[env_id].item()) if placed.numel() > env_id else False
-        return bool(placed)
-
-    # 方法 2: success termination function
-    if success_term is not None:
-        return bool(success_term.func(env, **success_term.params)[env_id])
-
-    return False
-
-
-def _delete_failed_episodes(output_dir: Path, failed_indices: list[int]) -> None:
-    """Delete parquet and video files for failed episodes."""
-    import shutil
-
-    for ep_idx in failed_indices:
-        # Parquet
-        parquet_file = output_dir / "data" / "chunk-000" / f"file-{ep_idx:03d}.parquet"
-        if parquet_file.exists():
-            parquet_file.unlink()
-            logger.debug(f"Deleted {parquet_file}")
-
-        # Videos
-        video_base = output_dir / "videos"
-        if video_base.exists():
-            for cam_dir in video_base.glob("observation.images.*"):
-                mp4_file = cam_dir / "chunk-000" / f"file-{ep_idx:03d}.mp4"
-                if mp4_file.exists():
-                    mp4_file.unlink()
-                    logger.debug(f"Deleted {mp4_file}")
+    logger.info("=" * 60)
+    logger.info(f"✅ Conversion complete! Dataset saved to: {output_dir}")
+    logger.info("=" * 60)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        logger.info("Interrupted by user.")
-    finally:
-        simulation_app.close()
+    main()
