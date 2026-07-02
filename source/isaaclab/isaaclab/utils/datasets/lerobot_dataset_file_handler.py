@@ -305,6 +305,9 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         # Episode metadata
         self._episodes_meta: list[dict] = []
 
+        # Task description (overridable via setter)
+        self._task_description: str = "pick the cube and place it into the box, then pick the bottle and place it into the box"
+
         # Action stats for stats.json (accumulated across all episodes)
         self._all_actions: list[np.ndarray] = []
 
@@ -320,6 +323,15 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
     @fps.setter
     def fps(self, value: int) -> None:
         self._fps = value
+
+    @property
+    def task_description(self) -> str:
+        """Human-readable task description written to meta/tasks.parquet."""
+        return self._task_description
+
+    @task_description.setter
+    def task_description(self, value: str) -> None:
+        self._task_description = value
 
     def set_camera_intrinsics(self, intrinsics: dict) -> None:
         """Override default camera intrinsics."""
@@ -356,13 +368,17 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
     def close(self) -> None:
         """Close the dataset and write all metadata files."""
         if self._closed:
+            print("[LeRobotHandler] close() skipped: already closed")
             return
         if self._output_dir is None:
+            print("[LeRobotHandler] close() skipped: _output_dir is None")
             self._closed = True
             return
 
+        print(f"[LeRobotHandler] close() writing meta files... (episodes={self._episode_count}, total_frames={self._total_frames})")
         self._write_all_meta_files()
         self._closed = True
+        print("[LeRobotHandler] close() done")
 
     def flush(self) -> None:
         """No-op — episodes are written immediately."""
@@ -534,9 +550,11 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         arrays = []
         for col_name, col_data in columns.items():
             if col_data.ndim > 1:
+                inner_field = pa.field("item", pa.from_numpy_dtype(col_data.dtype), nullable=False)
+                list_type = pa.list_(inner_field, list_size=col_data.shape[-1])
                 pa_arr = pa.FixedSizeListArray.from_arrays(
                     pa.array(col_data.ravel(), type=pa.from_numpy_dtype(col_data.dtype)),
-                    list_size=col_data.shape[-1],
+                    type=list_type,
                 )
             else:
                 pa_arr = pa.array(col_data)
@@ -567,7 +585,9 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
     def _write_all_meta_files(self) -> None:
         """Write all meta files matching the reference format."""
         if self._output_dir is None or self._episode_count == 0:
+            print(f"[LeRobotHandler] _write_all_meta_files SKIPPED: _output_dir={self._output_dir}, _episode_count={self._episode_count}")
             return
+        print(f"[LeRobotHandler] _write_all_meta_files writing info.json + stats.json + tasks.parquet...")
 
         meta_dir = self._output_dir / "meta"
 
@@ -649,7 +669,7 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
 
         tasks_table = pa.table({
             "task_index": pa.array([0], type=pa.int64()),
-            "task": pa.array(["pick the cube and place it into the box, then pick the bottle and place it into the box"]),
+            "task": pa.array([self._task_description]),
         })
         pq.write_table(tasks_table, meta_dir / "tasks.parquet")
 

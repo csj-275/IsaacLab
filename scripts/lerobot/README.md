@@ -10,7 +10,7 @@ python scripts/lerobot/convert_to_lerobot.py \
 ```
 
 ## 训练
-
+python 
 
 ## 专家数据转lerobot
 ``` bash
