@@ -60,6 +60,7 @@ simulation_app = app_launcher.app
 
 import contextlib
 import os
+from collections.abc import Callable
 
 import gymnasium as gym
 import torch
@@ -342,6 +343,7 @@ def replay_episode(
     env: ManagerBasedRLMimicEnv,
     episode: EpisodeData,
     success_term: TerminationTermCfg | None = None,
+    step_callback: Callable | None = None,
 ) -> bool:
     """Replays an episode in the environment.
 
@@ -361,6 +363,7 @@ def replay_episode(
     # read initial state and actions from the loaded episode
     initial_state = episode.data["initial_state"]
     actions = episode.data["actions"]
+    total_actions = len(actions)
     env.sim.reset()
     env.recorder_manager.reset()
     env.reset_to(initial_state, None, is_relative=True)
@@ -377,6 +380,13 @@ def replay_episode(
                 continue
         action_tensor = torch.Tensor(action).reshape([1, action.shape[0]])
         env.step(torch.Tensor(action_tensor))
+        if step_callback is not None:
+            step_callback(action_index, env)
+        # Print progress every 100 steps or at the last step
+        if (action_index + 1) % 100 == 0 or action_index == total_actions - 1:
+            print(f"\r\tReplay progress: {action_index + 1}/{total_actions} steps", end="")
+    if total_actions > 0:
+        print()  # newline after progress
     if success_term is not None:
         if not bool(success_term.func(env, **success_term.params)[0]):
             return False
@@ -404,27 +414,61 @@ def annotate_episode_in_auto_mode(
     """
     global skip_episode
     skip_episode = False
-    is_episode_annotated_successfully = replay_episode(env, episode, success_term)
+
+    # Track which subtask signals have already been detected (to print on first transition)
+    detected_signals: dict[str, bool] = {}
+
+    def on_step(action_index: int, env: ManagerBasedRLMimicEnv):
+        """Called after each env.step() — check subtask signals and print on transition."""
+        dt = getattr(env.cfg.sim, "dt", 1 / 150)
+        decimation = getattr(env.cfg, "decimation", 5)
+        step_time = dt * decimation  # seconds per control step
+        timestamp = action_index * step_time
+
+        # Check subtask term signals
+        try:
+            term_signals = env.get_subtask_term_signals()
+        except Exception:
+            term_signals = {}
+        for signal_name, is_done in term_signals.items():
+            if is_done and signal_name not in detected_signals:
+                detected_signals[signal_name] = True
+                print(f"\t  ✅ [{signal_name}] detected at step={action_index:4d}  time={timestamp:.2f}s")
+
+        # Check subtask start signals (if enabled)
+        if args_cli.annotate_subtask_start_signals:
+            try:
+                start_signals = env.get_subtask_start_signals()
+            except Exception:
+                start_signals = {}
+            start_prefix = "start_"
+            for signal_name, is_started in start_signals.items():
+                key = start_prefix + signal_name
+                if is_started and key not in detected_signals:
+                    detected_signals[key] = True
+                    print(f"\t  🟢 [{signal_name}] started at step={action_index:4d}  time={timestamp:.2f}s")
+
+    is_episode_annotated_successfully = replay_episode(env, episode, success_term, step_callback=on_step)
     if skip_episode:
         print("\tSkipping the episode.")
         return False
     if not is_episode_annotated_successfully:
         print("\tThe final task was not completed.")
     else:
-        # check if all the subtask term signals are annotated
+        # Verify all expected subtask signals were detected (missing ones weren't printed above)
         annotated_episode = env.recorder_manager.get_episode(0)
         subtask_term_signal_dict = annotated_episode.data["obs"]["datagen_info"]["subtask_term_signals"]
         for signal_name, signal_flags in subtask_term_signal_dict.items():
             signal_flags = torch.tensor(signal_flags, device=env.device)
             if not torch.any(signal_flags):
                 is_episode_annotated_successfully = False
-                print(f'\tDid not detect completion for the subtask "{signal_name}".')
+                print(f'\t  ❌ [{signal_name}] was NOT detected (missing)')
         if args_cli.annotate_subtask_start_signals:
             subtask_start_signal_dict = annotated_episode.data["obs"]["datagen_info"]["subtask_start_signals"]
             for signal_name, signal_flags in subtask_start_signal_dict.items():
                 if not torch.any(signal_flags):
                     is_episode_annotated_successfully = False
-                    print(f'\tDid not detect start for the subtask "{signal_name}".')
+                    print(f'\t  ❌ [start_{signal_name}] was NOT detected (missing)')
     return is_episode_annotated_successfully
 
 

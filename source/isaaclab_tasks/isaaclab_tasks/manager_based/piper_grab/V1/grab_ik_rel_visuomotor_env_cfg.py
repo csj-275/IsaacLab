@@ -506,8 +506,8 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                     sim_device=self.sim.device,
                 ),
                 "keyboard": Se3KeyboardCfg(
-                    pos_sensitivity=0.05,
-                    rot_sensitivity=0.2,
+                    pos_sensitivity=0.03,
+                    rot_sensitivity=0.15,
                     sim_device=self.sim.device,
                 ),
             }

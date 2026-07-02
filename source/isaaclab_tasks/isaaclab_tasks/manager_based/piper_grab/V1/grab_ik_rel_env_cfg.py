@@ -50,7 +50,7 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "ee_frame_cfg": SceneEntityCfg("ee_frame"),
             "object_cfg": SceneEntityCfg("object_1"),
-            "diff_threshold": 0.18,
+            "diff_threshold": 0.16,
         },
     )
     placed_1 = ObsTerm(
@@ -59,9 +59,9 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "object_a_cfg": SceneEntityCfg("object_1"),
             "object_b_cfg": SceneEntityCfg("box"),
-            "xy_threshold": 0.07,
+            "xy_threshold": 0.05,
             "height_diff": 0.0,
-            "height_threshold": 0.13,
+            "height_threshold": 0.05,
             "gripper_threshold": 0.03,  # 独立阈值，比 grasp 宽松
         },
     )
@@ -71,7 +71,7 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "ee_frame_cfg": SceneEntityCfg("ee_frame"),
             "object_cfg": SceneEntityCfg("mug"),
-            "diff_threshold": 0.18,
+            "diff_threshold": 0.16,
         },
     )
 
