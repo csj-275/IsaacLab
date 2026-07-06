@@ -107,7 +107,7 @@ logger.info(f"Using device: {DEVICE}")
 
 # 训练参数
 BATCH_SIZE = 8             # 双路 1280x720 图片，ResNet 占用大量显存
-NUM_EPOCHS = 100           # 根据收敛情况调整
+NUM_EPOCHS = 50           # 根据收敛情况调整
 LOG_FREQ = 10
 SAVE_FREQ = 5000
 LR = 1e-5                  # ACT 默认学习率

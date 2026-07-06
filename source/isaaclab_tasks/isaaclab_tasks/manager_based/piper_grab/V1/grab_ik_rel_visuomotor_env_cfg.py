@@ -470,13 +470,14 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.sim.render.samples_per_pixel = 16
         self.sim.render.enable_dl_denoiser = True
         # self.num_rerenders_on_reset = 1
+        # 可设置为0 达到卓越性能
         self.sim.render.dlss_mode = 2
 
 
         self.image_obs_list = ["table_cam", "wrist_cam"]
         self.sim.dt = 1 / 150
         self.decimation = 5
-        self.sim.render_interval = 3
+        self.sim.render_interval = 2
 
         self.teleop_devices = DevicesCfg(
             devices={
