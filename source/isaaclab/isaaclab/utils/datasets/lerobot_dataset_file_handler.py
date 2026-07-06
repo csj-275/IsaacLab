@@ -308,6 +308,10 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
         # Task description (overridable via setter)
         self._task_description: str = "pick the cube and place it into the box, then pick the bottle and place it into the box"
 
+        # State key filter: if set, only these obs keys are included in observation.state.
+        # None or empty → include all non-image obs keys.
+        self._state_key_filter: list[str] | None = None
+
         # Action stats for stats.json (accumulated across all episodes)
         self._all_actions: list[np.ndarray] = []
 
@@ -332,6 +336,15 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
     @task_description.setter
     def task_description(self, value: str) -> None:
         self._task_description = value
+
+    @property
+    def state_key_filter(self) -> list[str] | None:
+        """If set, only these obs keys are included in observation.state. None = include all."""
+        return self._state_key_filter
+
+    @state_key_filter.setter
+    def state_key_filter(self, value: list[str] | None) -> None:
+        self._state_key_filter = value
 
     def set_camera_intrinsics(self, intrinsics: dict) -> None:
         """Override default camera intrinsics."""
@@ -456,6 +469,8 @@ class LeRobotDatasetFileHandler(DatasetFileHandlerBase):
             for key, value in obs_dict.items():
                 if _is_image_value(value):
                     image_obs[key] = value
+                elif self._state_key_filter and key not in self._state_key_filter:
+                    continue  # skip keys not in the filter
                 else:
                     state_parts.append(value)
                     state_keys.append(key)

@@ -98,12 +98,13 @@ STATE_KEY_ORDER = [
 # sum will be computed at runtime from the preprocessor stats
 
 # ---------------------------------------------------------------------------
-# Image transforms (matching training: resize + ImageNet norm)
+# Image transforms (training used --dataset.use_imagenet_stats=false,
+# so NO ImageNet normalization here. Only resize. The preprocessor's
+# NormalizerProcessorStep handles dataset-specific normalization.)
 # ---------------------------------------------------------------------------
 def build_image_transforms():
     return T.Compose([
         T.Resize(IMG_RESIZE, antialias=True),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
     ])
 
 # ---------------------------------------------------------------------------
@@ -142,7 +143,15 @@ def load_policy(checkpoint_dir: str, device: torch.device):
     logger.info(f"Policy loaded, device={device}")
 
     preprocessor, postprocessor = make_pre_post_processors(cfg, pretrained_path=str(ckpt_path))
-    return policy, preprocessor, postprocessor
+
+    # Extract expected dims directly from config (more reliable than reading safetensors)
+    state_ft = cfg.input_features.get(STATE_KEY)
+    expected_state_dim = state_ft.shape[0] if state_ft is not None else 63
+    action_ft = cfg.output_features.get("action")
+    expected_action_dim = action_ft.shape[0] if action_ft is not None else 8
+
+    logger.info(f"Policy loaded, device={device}")
+    return policy, preprocessor, postprocessor, expected_state_dim, expected_action_dim
 
 # ---------------------------------------------------------------------------
 # Environment creation
@@ -174,34 +183,65 @@ def create_env(task_name: str, expected_action_dim: int):
 # ---------------------------------------------------------------------------
 # Build state tensor from env observation
 # ---------------------------------------------------------------------------
+# Known image observation keys (not state)
+_IMAGE_OBS_KEYS = {"table_cam", "wrist_cam", "table_cam_depth", "wrist_cam_depth"}
+# Subtask / non-state keys
+_NON_STATE_KEYS = _IMAGE_OBS_KEYS | {"subtask_terms", "policy"}
+
+
 def build_state_tensor(obs_group: dict, expected_dim: int, device: torch.device) -> torch.Tensor:
-    """Concatenate state keys into a single vector, zero-filling missing keys to match expected_dim."""
+    """Concatenate all non-image tensor observation values into a flat state vector.
+
+    Keys are sorted alphabetically for deterministic ordering. The result is
+    truncated or zero-padded to *expected_dim*.
+    """
+    # Collect tensor keys that are not images/subtask metadata
+    tensor_keys = sorted(
+        k for k, v in obs_group.items()
+        if k not in _NON_STATE_KEYS and isinstance(v, torch.Tensor) and v.numel() > 0
+    )
     parts = []
-    for key in STATE_KEY_ORDER:
-        val = obs_group.get(key)
-        if val is not None and isinstance(val, torch.Tensor) and val.numel() > 0:
-            parts.append(val.float().reshape(-1).to(device))
-        else:
-            parts.append(torch.empty(0, device=device))  # placeholder, will pad later
-    # Concatenate what we have, then pad to expected_dim
+    for key in tensor_keys:
+        val = obs_group[key]
+        parts.append(val.float().reshape(-1).to(device))
+
     if parts:
         state = torch.cat(parts)
     else:
         state = torch.empty(0, device=device)
-    if len(state) < expected_dim:
-        padding = torch.zeros(expected_dim - len(state), device=device)
+
+    actual_dim = len(state)
+    if actual_dim < expected_dim:
+        padding = torch.zeros(expected_dim - actual_dim, device=device)
         state = torch.cat([state, padding])
+    elif actual_dim > expected_dim:
+        logger.warning(
+            f"State dim {actual_dim} > expected {expected_dim}, truncating. "
+            f"Check STATE_KEY_ORDER or env config."
+        )
+        state = state[:expected_dim]
+
+    logger.info(
+        f"build_state_tensor: all_obs_keys={sorted(obs_group.keys())}, "
+        f"tensor_keys={tensor_keys}, actual={actual_dim}, expected={expected_dim}"
+    )
     return state.unsqueeze(0)
 
 # ---------------------------------------------------------------------------
 # Build image batch
 # ---------------------------------------------------------------------------
 def build_image_batch(obs_group: dict, device: torch.device, transforms):
+    """Convert env images (uint8 0-255) to float32 0-1, then resize.
+
+    The preprocessor's NormalizerProcessorStep handles dataset-specific
+    normalization (MEAN_STD per channel) — we must NOT apply ImageNet
+    normalization here because training used --dataset.use_imagenet_stats=false.
+    """
     batch = {}
     for obs_key, feat_key in CAM_KEY_MAP.items():
         val = obs_group.get(obs_key)
         if val is not None and isinstance(val, torch.Tensor):
-            img = val.float()
+            img = val.float() / 255.0  # uint8 0-255 → float 0-1
             if img.ndim == 3:
                 img = img.unsqueeze(0)  # (1, H, W, 3)
             if img.ndim == 4 and img.shape[-1] == 3:
@@ -239,23 +279,10 @@ def main():
     device = torch.device(args_cli.device)
 
     # 1. Load policy
-    policy, preprocessor, postprocessor = load_policy(args_cli.checkpoint_dir, device)
-
-    # Detect expected state/action dims from preprocessor safetensors
-    import safetensors
-    preproc_path = Path(args_cli.checkpoint_dir)
-    expected_state_dim = 63
-    expected_action_dim = 8
-    for fname in sorted(preproc_path.glob("policy_preprocessor*.safetensors")):
-        try:
-            with safetensors.safe_open(str(fname), framework="pt") as sf:
-                if "observation.state.mean" in sf.keys():
-                    expected_state_dim = sf.get_tensor("observation.state.mean").shape[-1]
-                if "action.mean" in sf.keys():
-                    expected_action_dim = sf.get_tensor("action.mean").shape[-1]
-        except Exception:
-            pass
-    logger.info(f"Expected dims from checkpoint: state={expected_state_dim}, action={expected_action_dim}")
+    policy, preprocessor, postprocessor, expected_state_dim, expected_action_dim = load_policy(
+        args_cli.checkpoint_dir, device
+    )
+    logger.info(f"Expected dims from config: state={expected_state_dim}, action={expected_action_dim}")
 
     # Check: policy needs images → cameras must be enabled
     needs_images = bool(policy.config.image_features)
@@ -301,6 +328,16 @@ def main():
             # --- Build policy input ---
             batch = build_image_batch(obs_group, device, image_transforms)
             batch[STATE_KEY] = build_state_tensor(obs_group, expected_state_dim, device)
+
+            # Debug: print batch shapes on first step
+            if episode_steps == 0:
+                logger.info(f"  Batch keys: {list(batch.keys())}")
+                for bk, bv in batch.items():
+                    if isinstance(bv, torch.Tensor):
+                        logger.info(f"    {bk}: shape={list(bv.shape)}, dtype={bv.dtype}")
+                    elif isinstance(bv, list):
+                        logger.info(f"    {bk}: list of {len(bv)} tensors")
+                logger.info(f"  expected_state_dim={expected_state_dim}, expected_action_dim={expected_action_dim}")
 
             # Preprocess
             batch = preprocessor(batch)

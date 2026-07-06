@@ -39,6 +39,14 @@ Camera keys are auto-mapped:
 
 """Launch Isaac Sim Simulator first."""
 
+# ---------------------------------------------------------------------------
+# State key filter: only these obs keys are saved in observation.state.
+# Set to None to include ALL non-image keys (default behavior).
+# Example: ["actions"] → 7D state, ["actions", "joint_pos"] → 15D state.
+# ---------------------------------------------------------------------------
+STATE_KEY_FILTER = ["actions"]
+# ---------------------------------------------------------------------------
+
 import argparse
 
 from isaaclab.app import AppLauncher
@@ -257,6 +265,7 @@ def _apply_handler_settings(env, args_cli) -> None:
         return
 
     handler.fps = args_cli.fps
+    handler.state_key_filter = STATE_KEY_FILTER
 
 
 if __name__ == "__main__":

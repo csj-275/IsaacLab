@@ -19,11 +19,14 @@
         --src-dir /workspace/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1 \
         --output-dir /workspace/isaaclab/datasets/lerobot/piper_grab_v1
 
-数据格式:
-  - action: 8维 (IK空间下 delta pose + gripper)
-  - observation.state: 63维 (robot state + object states)
-  - observation.images.front: 1280x720 @ 30fps
-  - observation.images.wrist: 1280x720 @ 30fps
+数据格式（维度从源数据自动检测，以下仅为示例）:
+  - action: 7维 (IK delta pose x/y/z/rx/ry/rz + gripper) 或 8维 (+ 双关节 gripper)
+  - observation.state: N维 (取决于录制时的观测配置，常见 7 / 32 / 63)
+  - observation.images.front: 1280x720 @ 30fps (如果存在)
+  - observation.images.wrist: 1280x720 @ 30fps (如果存在)
+
+归一化: 此脚本不修改原始数据。统计量 (mean/std/min/max) 保存到 meta/stats.json，
+由训练时的 NormalizerProcessorStep / 推理时的 UnnormalizerProcessorStep 在线处理。
 """
 
 import argparse
