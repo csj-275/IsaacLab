@@ -206,3 +206,60 @@ gym.register(
     disable_env_checker=True,
 )
 
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v0",
+    entry_point=f"{__name__}.piper_grab_ik_rel_mimic_env:PiperGrabIKRelMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_rel_visuomotor_cosmos_mimic_env_cfg:PiperGrabIKRelVisuomotorCosmosMimicEnvCfg",
+    },
+    disable_env_checker=True,
+)
+
+##
+# V1 Two-Stage Pick-and-Place Mimic Tasks
+##
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Mimic-v1",
+    entry_point=f"{__name__}.piper_grab_ik_rel_V1_mimic_env:PiperGrabIKRelV1MimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_rel_V1_mimic_env_cfg:PiperGrabIKRelV1MimicEnvCfg",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v1",
+    entry_point=f"{__name__}.piper_grab_ik_rel_V1_mimic_env:PiperGrabIKRelV1MimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_rel_V1_visuomotor_mimic_env_cfg:PiperGrabIKRelV1VisuomotorMimicEnvCfg",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v1",
+    entry_point=f"{__name__}.piper_grab_ik_rel_V1_mimic_env:PiperGrabIKRelV1MimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_rel_V1_visuomotor_cosmos_mimic_env_cfg:PiperGrabIKRelV1VisuomotorCosmosMimicEnvCfg",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v2",
+    entry_point=f"{__name__}.piper_grab_ik_rel_V1_mimic_env:PiperGrabIKRelV1MimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_rel_V2_visuomotor_mimic_env_cfg:PiperGrabIKRelV2VisuomotorMimicEnvCfg",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Abs-Visuomotor-Mimic-v1",
+    entry_point=f"{__name__}.piper_grab_ik_abs_V1_mimic_env:PiperGrabIKAbsV1MimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_abs_V1_visuomotor_mimic_env_cfg:PiperGrabIKAbsV1VisuomotorMimicEnvCfg",
+    },
+    disable_env_checker=True,
+)

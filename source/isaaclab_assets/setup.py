@@ -25,6 +25,16 @@ setup(
     description=EXTENSION_TOML_DATA["package"]["description"],
     keywords=EXTENSION_TOML_DATA["package"]["keywords"],
     include_package_data=True,
+    package_data={
+        "isaaclab_assets": [
+            "data/piper/piper_description/package.xml",
+            "data/piper/piper_description/meshes/*.STL",
+            "data/piper/piper_description/meshes/dae/*.dae",
+            "data/piper/piper_description/urdf/*.urdf",
+            "data/piper/realsense2_description/package.xml",
+            "data/piper/realsense2_description/meshes/*.dae",
+        ]
+    },
     python_requires=">=3.10",
     packages=["isaaclab_assets"],
     classifiers=[

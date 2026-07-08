@@ -36,26 +36,37 @@
 - 具体机器人继承grab环境，配置robot和ee_frame以及待抓取物体，先关节空间，再任务空间；确定环境和随机环境无继承关系，通常任务空间环境继承自关节空间环境
 
 
-IK-Rel记录数据
-`./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Mimic-v0 --device cpu --teleop_device keyboard --dataset_file ./datasets/piper_dataset.hdf5 --num_demos 10`
-IK-Rel回放数据
-`./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Piper-Grab-IK-Rel-v0 --device cpu --dataset_file ./datasets/piper_dataset.hdf5`
-IK-Rel标注子任务
-`./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --device cpu --task Isaac-Piper-Grab-IK-Rel-Mimic-v0 --input_file ./datasets/piper_dataset.hdf5 --output_file ./datasets/annotated_dataset_piper.hdf5`
-数据生成
-`./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py --device cpu --generation_num_trials 10 --input_file ./datasets/annotated_piper_dataset.hdf5 --output_file ./datasets/generated_dataset_small_piper_grab.hdf5`
+## 常用命令
+
+**1. IK-Rel记录数据**
+- `./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Mimic-v0 --device cpu --teleop_device keyboard --dataset_file ./datasets/piper_dataset.hdf5 --num_demos 10`
+
+**2. IK-Rel回放数据**
+- `./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Piper-Grab-IK-Rel-v0 --device cpu --dataset_file ./datasets/piper_dataset.hdf5`
+
+**3. IK-Rel标注子任务**
+- `./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --device cpu --task Isaac-Piper-Grab-IK-Rel-Mimic-v0 --input_file ./datasets/piper_dataset.hdf5 --output_file ./datasets/annotated_piper_dataset.hdf5`
+
+**4. IK-Rel数据生成**
+- `./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py --device cpu --generation_num_trials 10 --input_file ./datasets/annotated_piper_dataset.hdf5 --output_file ./datasets/generated_dataset_small_piper_grab.hdf5`
 
 `grab_joint_pos_env_cfg`中物体随机化的范围缩小后，生成数据成功率上升
 
-录制的演示
-- 状态：piper_dataset
-- 视觉：piper_visuo_dataset
-标注后的演示
-- 状态：annotated_dataset_piper
-- 视觉：annotated_dataset_piper_visuo
-小规模数据生成
-- 状态：generated_dataset_small_piper
-- 视觉：generated_dataset_small_piper_visuo
-大规模数据生成
-- 状态：generated_dataset_piper
-- 视觉：generated_dataset_piper_visuo
+-----------------
+
+**1. Visuo记录数据**
+- `./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v0 --device cpu --teleop_device keyboard --dataset_file ./datasets/visuo_dataset.hdf5 --num_demos 10 --enable_cameras`
+
+**2. Visuo标注数据**
+`./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py  --device cpu --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v0 --auto --input_file ./datasets/visuo_dataset.hdf5 --output_file ./datasets/visuo_annotated_dataset.hdf5 --enable_cameras`
+
+----------------
+**1. Cosmos记录数据**
+- `./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v0 --device cpu --teleop_device keyboard --dataset_file ./datasets/cosmos_dataset.hdf5 --num_demos 10 --enable_cameras`
+**2. Cosmos标注数据**
+- `./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py --device cpu --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-Mimic-v0 --input_file ./datasets/cosmos_dataset.hdf5 --output_file ./datasets/cosmos_annotated_dataset.hdf5`
+
+## 版本说明
+- 仿真任务：机械臂抓取Cube并放置于Box
+- 设计目的：快速验证仿真搭建流程
+- 作为base被其他版本的环境继承

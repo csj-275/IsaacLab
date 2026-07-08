@@ -41,12 +41,12 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             body_name="link6",
             controller=DifferentialIKControllerCfg(command_type="pose", use_relative_mode=True, ik_method="dls"),
             scale=0.5,
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
+            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=(0.0, 0.0, 0.135)),
         ) # 0.135/0.107 未测试
 
 
         self.gripper_joint_names = ["joint7", "joint8"]
-        self.gripper_open_val = 0.05
+        self.gripper_open_vals = [0.05, -0.05]
         self.gripper_threshold = 0.01
 
         self.teleop_devices = DevicesCfg(

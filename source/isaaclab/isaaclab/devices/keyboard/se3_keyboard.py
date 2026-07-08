@@ -65,6 +65,12 @@ class Se3Keyboard(DeviceBase):
         self._sim_device = cfg.sim_device
         # acquire omniverse interfaces
         self._appwindow = omni.appwindow.get_default_app_window()
+        if self._appwindow is None:
+            raise RuntimeError(
+                "No AppWindow found. The Se3Keyboard requires a GUI window.\n"
+                "Run without --headless and with a display (e.g., ssh -X or VNC).\n"
+                "If you are in a container, make sure DISPLAY is set to a valid X11 display."
+            )
         self._input = carb.input.acquire_input_interface()
         self._keyboard = self._appwindow.get_keyboard()
         # note: Use weakref on callbacks to ensure that this object can be deleted when its destructor is called.

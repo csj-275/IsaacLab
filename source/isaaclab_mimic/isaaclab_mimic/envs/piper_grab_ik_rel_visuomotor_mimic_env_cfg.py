@@ -6,9 +6,6 @@
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.manipulation.stack.config.franka.stack_ik_rel_visuomotor_env_cfg import (
-    FrankaCubeStackVisuomotorEnvCfg,
-)
 
 from isaaclab_tasks.manager_based.piper_grab.grab_ik_rel_visuomotor_env_cfg import (
     PiperGrabVisuomotorEnvCfg,

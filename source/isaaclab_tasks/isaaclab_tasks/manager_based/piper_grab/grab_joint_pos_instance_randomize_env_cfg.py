@@ -94,13 +94,21 @@ class PiperGrabInstanceRandomizeEnvCfg(GrabInstanceRandomizeEnvCfg):
 
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
-            joint_names=["joint[7-8]"],        
-            open_command_expr={"joint7": 0.1,"joint8": -0.1,},
-            close_command_expr={"joint7": -0.1,"joint8": 0.1},
+            joint_names=["joint[7-8]"],
+            open_command_expr={"joint7": 0.1, "joint8": -0.1},
+            close_command_expr={"joint7": -0.1, "joint8": 0.1},
         )
+        # self.actions.gripper_action = mdp.MimicBinaryJointPositionActionCfg(
+        #     asset_name="robot",
+        #     joint_names=["joint7"],
+        #     open_command_expr={"joint7": 0.1},
+        #     close_command_expr={"joint7": -0.1},
+        #     mimic_joint_names=["joint8"],
+        #     mimic_multiplier=-1.0,
+        # )
         # utilities for gripper status check
         self.gripper_joint_names = ["joint[7-8]"]
-        self.gripper_open_val = 0.04 # need to check
+        self.gripper_open_vals = [0.1, -0.1]
         self.gripper_threshold = 0.005
 
         # Rigid body properties of each cube
@@ -163,26 +171,26 @@ class PiperGrabInstanceRandomizeEnvCfg(GrabInstanceRandomizeEnvCfg):
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/piper_camera/arm_base",
+            prim_path="{ENV_REGEX_NS}/Robot/arm_base",
             debug_vis=False,
             visualizer_cfg=marker_cfg,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/piper_camera/link6",
+                    prim_path="{ENV_REGEX_NS}/Robot/link6",
                     name="end_effector",
                     offset=OffsetCfg(
                         pos=(0.0, 0.0, 0.0),
                     ),
                 ),
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/piper_camera/link7",
+                    prim_path="{ENV_REGEX_NS}/Robot/link7",
                     name="tool_leftfinger",
                     offset=OffsetCfg(
                         pos=(0.0, 0.0, 0.135),
                     ),
                 ),
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/piper_camera/link8",
+                    prim_path="{ENV_REGEX_NS}/Robot/link8",
                     name="tool_rightfinger",
                     offset=OffsetCfg(
                         pos=(0.0, 0.0, 0.135),

@@ -24,6 +24,30 @@ from . import grab_joint_pos_env_cfg
 from isaaclab_assets.robots.piper import PIPER_HIGH_PD_CFG  # isort: skip
 
 
+PIPER_D435_COLOR_INTRINSIC_640X480 = [
+    605.519378662109,
+    0.0,
+    320.0,
+    0.0,
+    605.519378662109,
+    240.0,
+    0.0,
+    0.0,
+    1.0,
+]
+
+PIPER_D435_COLOR_INTRINSIC_1280X720 = [
+    1211.038757324218,
+    0.0,
+    640.0,
+    0.0,
+    908.279067993164,
+    360.0,
+    0.0,
+    0.0,
+    1.0,
+]
+
 @configclass
 class EventCfg(grab_joint_pos_env_cfg.EventCfg):
     """Configuration for events."""
@@ -138,6 +162,22 @@ class ObservationsCfg:
         wrist_cam = ObsTerm(
             func=mdp.image, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
         )
+        table_cam_depth = ObsTerm(
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("table_cam"),
+                "data_type": "distance_to_image_plane",
+                "normalize": True,
+            },
+        )
+        wrist_cam_depth = ObsTerm(
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("wrist_cam"),
+                "data_type": "distance_to_image_plane",
+                "normalize": True,
+            },
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -183,7 +223,8 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
         self.gripper_joint_names = ["joint7", "joint8"]
-        self.gripper_open_val = 0.05
+        # self.gripper_open_val = 0.05
+        self.gripper_open_vals = [0.05, -0.05]
         self.gripper_threshold = 0.01
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
@@ -198,16 +239,21 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         # Set cameras
         # Set wrist camera
         self.scene.wrist_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/piper_camera/camera_link/wrist_cam",
+            prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
             update_period=0.0,
-            height=200,
-            width=200,
+            height=480,
+            width=640,
             data_types=["rgb", "distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
+                width=640,
+                height=480,
+                clipping_range=(0.1, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0), convention="ros"
+                pos=(0.0, 0.0, 0.0),
+                rot=(0.0, 0.0, 0.0, 1.0),
+                convention="ros"
             ),
         )
 
@@ -215,14 +261,19 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
-            height=200,
-            width=200,
+            height=480,
+            width=640,
             data_types=["rgb", "distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=PIPER_D435_COLOR_INTRINSIC_640X480,
+                width=640,
+                height=480,
+                clipping_range=(0.1, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(1.0, 0.0, 0.4), rot=(0.35355, -0.61237, -0.61237, 0.35355), convention="ros"
+                pos=(1.0, 0.0, 0.4), 
+                rot=(0.35355, -0.61237, -0.61237, 0.35355), 
+                convention="ros"
             ),
         )
 

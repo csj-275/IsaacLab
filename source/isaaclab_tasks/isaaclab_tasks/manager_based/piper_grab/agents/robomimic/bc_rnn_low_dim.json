@@ -40,8 +40,8 @@
         "goal_mode": null,
         "cuda": true,
         "batch_size": 100,
-        "num_epochs": 2000,
-        "seed": 101
+        "num_epochs": 3000,
+        "seed": 100
     },
     "algo": {
         "optim_params": {

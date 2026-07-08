@@ -17,13 +17,16 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_tasks.manager_based.piper_grab import mdp
 from isaaclab_tasks.manager_based.piper_grab.mdp import piper_grab_events
 from isaaclab_tasks.manager_based.piper_grab.grab_env_cfg import GrabEnvCfg
-
+import os
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.piper import PIPER_CFG  # isort: skip
 
+_MUG_BOX_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "../../../../../usd/box/box.usd")
+)
 
 @configclass
 class EventCfg:
@@ -33,7 +36,8 @@ class EventCfg:
         func=piper_grab_events.set_default_joint_pose,
         mode="reset",
         params={
-            "default_pose": [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.0, 0.0],
+             "default_pose": [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.05, -0.05],
+            # "default_pose": [0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.05, -0.05],
         },
     )
 
@@ -42,7 +46,7 @@ class EventCfg:
         mode="reset",
         params={
             "mean": 0.0,
-            "std": 0.02,
+            "std": 0.0,
             "asset_cfg": SceneEntityCfg("robot"),
         },
     )
@@ -63,7 +67,7 @@ class EventCfg:
         func=piper_grab_events.randomize_object_pose,
         mode="reset",
         params={
-            "pose_range": {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.0203, 0.0203), "yaw": (-1.0, 1, 0)},
+            "pose_range": {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.2203, 0.2203), "yaw": (-1.0, 1, 0)},
             "min_separation": 0.1,
             "asset_cfgs": [SceneEntityCfg("box")],
         },
@@ -100,14 +104,23 @@ class PiperGrabEnvCfg(GrabEnvCfg):
 
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
-            joint_names=["joint[7-8]"],        
-            open_command_expr={"joint7": 0.1,"joint8": -0.1,},
-            close_command_expr={"joint7": -0.1,"joint8": 0.1},
+            joint_names=["joint[7-8]"],
+            open_command_expr={"joint7": 0.05, "joint8": -0.05},
+            close_command_expr={"joint7": -0.05, "joint8": 0.05},
         )
+        # self.actions.gripper_action = mdp.MimicBinaryJointPositionActionCfg(
+        #     asset_name="robot",
+        #     joint_names=["joint7"],
+        #     open_command_expr={"joint7": 0.05},
+        #     close_command_expr={"joint7": -0.05},
+        #     mimic_joint_names=["joint8"],
+        #     mimic_multiplier=-1.0,
+        #     max_speed_per_step=0.01,
+        # )
         # utilities for gripper status check
         self.gripper_joint_names = ["joint[7-8]"]
-        self.gripper_open_val = 0.04 # need to check
-        self.gripper_threshold = 0.005
+        self.gripper_open_vals = [0.05, -0.05]
+        self.gripper_threshold = 0.01
 
         # Rigid body properties of each cube
         cube_properties = RigidBodyPropertiesCfg(
@@ -122,7 +135,7 @@ class PiperGrabEnvCfg(GrabEnvCfg):
         # Set each stacking cube deterministically
         self.scene.object_1 = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/object_1",
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3, 0.0, 0.0203), rot=[1, 0, 0, 0]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3, 0.0, 0.0203), rot=(1, 0, 0, 0)),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
                 scale=(1.0, 1.0, 1.0),
@@ -132,11 +145,13 @@ class PiperGrabEnvCfg(GrabEnvCfg):
         )
 
         self.scene.box = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/BlueSortingBin",
+            prim_path="{ENV_REGEX_NS}/box",
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.1, 0.3, 0.0203), rot=(1.0, 0.0, 0.0, 0.0)),
             spawn=UsdFileCfg(
-                usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
-                scale=(0.4, 0.6, 1.5), # l, w, h
+                usd_path = _MUG_BOX_PATH,
+                # usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
+                # scale=(0.6, 0.7, 1.5), # l, w, h
+                scale=(1, 1, 1), # l, w, h
                 rigid_props=RigidBodyPropertiesCfg(),
                 semantic_tags=[("class", "box")],
             ),

@@ -113,9 +113,9 @@ class EpisodeData:
                 # Add value to the final dict layer
                 # Use lists to prevent slow tensor copy during concatenation
                 if sub_keys[sub_key_index] not in current_dataset_pointer:
-                    current_dataset_pointer[sub_keys[sub_key_index]] = [value.clone()]
+                    current_dataset_pointer[sub_keys[sub_key_index]] = [value.clone().cpu()]
                 else:
-                    current_dataset_pointer[sub_keys[sub_key_index]].append(value.clone())
+                    current_dataset_pointer[sub_keys[sub_key_index]].append(value.clone().cpu())
                 break
             # key index
             if sub_keys[sub_key_index] not in current_dataset_pointer:
@@ -213,7 +213,7 @@ class EpisodeData:
         def pre_export_helper(data):
             for key, value in data.items():
                 if isinstance(value, list):
-                    data[key] = torch.stack(value)
+                    data[key] = torch.stack([v.cpu() for v in value])
                 elif isinstance(value, dict):
                     pre_export_helper(value)
 

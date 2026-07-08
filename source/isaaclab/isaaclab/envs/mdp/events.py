@@ -14,6 +14,7 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import math
 import re
@@ -1657,7 +1658,9 @@ class randomize_visual_color(ManagerTermBase):
             prims_group = rep.functional.get.prims(path_pattern=mesh_prim_path, stage=stage)
 
             num_prims = len(prims_group)
-            self.color_rng = rep.rng.ReplicatorRNG()
+            # Use hash of event_name as seed so different assets get different random colors
+            rng_seed = int(hashlib.md5(cfg.params.get("event_name").encode()).hexdigest()[:8], 16) % (2**31)
+            self.color_rng = rep.rng.ReplicatorRNG(seed=rng_seed)
 
             # Create the material first and bind it to the prims
             for i, prim in enumerate(prims_group):

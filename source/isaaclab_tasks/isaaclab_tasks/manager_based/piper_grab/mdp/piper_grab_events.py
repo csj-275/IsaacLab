@@ -17,6 +17,7 @@ from isaacsim.core.utils.extensions import enable_extension
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, AssetBase
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -109,40 +110,53 @@ def randomize_scene_lighting_domelight(
     texture_file_attr = light_prim.GetAttribute("inputs:texture:file")
     texture_file_attr.Set(default_texture)
 
-    if not hasattr(env.cfg, "eval_mode") or not env.cfg.eval_mode:
-        return
+    # if not hasattr(env.cfg, "eval_mode") or not env.cfg.eval_mode:
+    #     return
 
-    if env.cfg.eval_type in ["light_intensity", "all"]:
+    is_eval = hasattr(env.cfg, "eval_mode") and env.cfg.eval_mode
+
+    if not is_eval or env.cfg.eval_type in ["light_intensity", "all"]:
         # Sample new light intensity
         new_intensity = random.uniform(intensity_range[0], intensity_range[1])
         # Set light intensity to light prim
         intensity_attr.Set(new_intensity)
 
-    if env.cfg.eval_type in ["light_color", "all"]:
+    # if env.cfg.eval_type in ["light_color", "all"]:
+    if not is_eval or env.cfg.eval_type in ["light_color", "all"]:
         # Sample new light color
         new_color = sample_random_color(base=default_color, variation=color_variation)
         # Set light color to light prim
         color_attr.Set(new_color)
 
-    if env.cfg.eval_type in ["light_texture", "all"]:
-        # Sample new light texture (background)
-        new_texture = random.sample(textures, 1)[0]
-        # Set light texture to light prim
-        texture_file_attr.Set(new_texture)
+    # if env.cfg.eval_type in ["light_texture", "all"]:
+    if not is_eval or env.cfg.eval_type in ["light_texture", "all"]:
+        if len(textures) > 0:
+            # Sample new light texture (background)
+            new_texture = random.sample(textures, 1)[0]
+            # Set light texture to light prim
+            texture_file_attr.Set(new_texture)
 
 
 def sample_object_poses(
     num_objects: int,
     min_separation: float = 0.0,
     pose_range: dict[str, tuple[float, float]] = {},
+    pose_ranges: list[dict[str, tuple[float, float]]] | None = None,
     max_sample_tries: int = 5000,
 ):
-    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+    if pose_ranges is not None:
+        range_lists = [
+            [pr.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]] for pr in pose_ranges
+        ]
+    else:
+        range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
+        range_lists = [range_list] * num_objects
+
     pose_list = []
 
     for i in range(num_objects):
         for j in range(max_sample_tries):
-            sample = [random.uniform(range[0], range[1]) for range in range_list]
+            sample = [random.uniform(range[0], range[1]) for range in range_lists[i]]
 
             # Accept pose if it is the first one, or if reached max num tries
             if len(pose_list) == 0 or j == max_sample_tries - 1:
@@ -164,6 +178,7 @@ def randomize_object_pose(
     asset_cfgs: list[SceneEntityCfg],
     min_separation: float = 0.0,
     pose_range: dict[str, tuple[float, float]] = {},
+    pose_ranges: list[dict[str, tuple[float, float]]] | None = None,
     max_sample_tries: int = 5000,
 ):
     if env_ids is None:
@@ -175,6 +190,7 @@ def randomize_object_pose(
             num_objects=len(asset_cfgs),
             min_separation=min_separation,
             pose_range=pose_range,
+            pose_ranges=pose_ranges,
             max_sample_tries=max_sample_tries,
         )
 
@@ -268,11 +284,15 @@ def randomize_visual_texture_material(
         :attr:`isaaclab.scene.InteractiveSceneCfg.replicate_physics` to False. This ensures that physics
         parser will parse the individual asset properties separately.
     """
-    if hasattr(env.cfg, "eval_mode") and (
-        not env.cfg.eval_mode or env.cfg.eval_type not in [f"{asset_cfg.name}_texture", "all"]
-    ):
+    # if hasattr(env.cfg, "eval_mode") and (
+    #     not env.cfg.eval_mode or env.cfg.eval_type not in [f"{asset_cfg.name}_texture", "all"]
+    # ):
+    #     return
+    #     # textures = [default_texture]
+
+    is_eval = hasattr(env.cfg, "eval_mode") and env.cfg.eval_mode
+    if is_eval and env.cfg.eval_type not in [f"{asset_cfg.name}_texture", "all"]:
         return
-        # textures = [default_texture]
 
     # enable replicator extension if not already enabled
     enable_extension("omni.replicator.core")
@@ -313,3 +333,32 @@ def randomize_visual_texture_material(
         rep.randomizer.texture(
             textures=textures, project_uvw=True, texture_rotate=rep.distribution.uniform(*texture_rotation)
         )
+
+
+def randomize_warehouse_light_intensity(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor,
+    intensity_range: tuple[float, float] = (500.0, 3000.0),
+    delta_range: tuple[float, float] = (-200.0, 200.0),
+):
+    """Randomize the intensity of all RectLight prims in the warehouse.
+
+    In reset mode, sets each RectLight to a random absolute intensity within intensity_range.
+    In interval mode, applies a small random delta to each RectLight for smooth drift.
+
+    Args:
+        env: The environment.
+        env_ids: Environment indices (unused, applies globally).
+        intensity_range: (min, max) absolute intensity for reset mode.
+        delta_range: (min, max) delta per step for interval mode (smooth drift).
+    """
+    from pxr import UsdLux
+
+    stage = get_current_stage()
+    for prim in stage.TraverseAll():
+        if prim.GetTypeName() == "RectLight":
+            rect_light = UsdLux.RectLight(prim)
+            current = rect_light.GetIntensityAttr().Get()
+            delta = random.uniform(*delta_range)
+            new_val = max(100.0, min(5000.0, current + delta))  # clamp to reasonable range
+            rect_light.GetIntensityAttr().Set(new_val)

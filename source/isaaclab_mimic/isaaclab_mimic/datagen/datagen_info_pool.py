@@ -221,5 +221,5 @@ class DataGenInfoPool:
         for episode_name in episode_names:
             if select_demo_keys is not None and episode_name not in select_demo_keys:
                 continue
-            episode = dataset_file_handler.load_episode(episode_name, self.device)
+            episode = dataset_file_handler.load_episode(episode_name, "cpu")
             self._add_episode(episode)

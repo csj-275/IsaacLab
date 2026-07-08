@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-### 还未修改
-
-
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -14,7 +11,9 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.piper_grab import mdp
+
 from . import grab_ik_rel_visuomotor_env_cfg
+
 
 @configclass
 class ObservationsCfg:
@@ -28,11 +27,24 @@ class ObservationsCfg:
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         object = ObsTerm(func=mdp.object_obs)
-        cube_positions = ObsTerm(func=mdp.cube_positions_in_world_frame)
-        cube_orientations = ObsTerm(func=mdp.cube_orientations_in_world_frame)
         eef_pos = ObsTerm(func=mdp.ee_frame_pos)
         eef_quat = ObsTerm(func=mdp.ee_frame_quat)
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
+        object_1_positions = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "pos"},
+        )
+        object_1_orientations = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "quat"},
+        )
+        box_positions = ObsTerm(
+            func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"}
+        )
+        box_orientations = ObsTerm(
+            func=mdp.object_poses_in_base_frame,
+            params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
+        )
         table_cam = ObsTerm(
             func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
         )
@@ -55,6 +67,14 @@ class ObservationsCfg:
                 "normalize": True,
             },
         )
+        wrist_cam_depth = ObsTerm(
+            func=mdp.image,
+            params={
+                "sensor_cfg": SceneEntityCfg("wrist_cam"),
+                "data_type": "distance_to_image_plane",
+                "normalize": True,
+            },
+        )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -69,23 +89,7 @@ class ObservationsCfg:
             params={
                 "robot_cfg": SceneEntityCfg("robot"),
                 "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("cube_2"),
-            },
-        )
-        stack_1 = ObsTerm(
-            func=mdp.object_stacked,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "upper_object_cfg": SceneEntityCfg("cube_2"),
-                "lower_object_cfg": SceneEntityCfg("cube_1"),
-            },
-        )
-        grasp_2 = ObsTerm(
-            func=mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("cube_3"),
+                "object_cfg": SceneEntityCfg("object_1"),
             },
         )
 
@@ -99,7 +103,7 @@ class ObservationsCfg:
 
 
 @configclass
-class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.FrankaCubeStackVisuomotorEnvCfg):
+class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVisuomotorEnvCfg):
     observations: ObservationsCfg = ObservationsCfg()
 
     def __post_init__(self):
@@ -110,9 +114,8 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         self.sim.render.dome_light_upper_lower_strategy = 4
 
         SEMANTIC_MAPPING = {
-            "class:cube_1": (120, 230, 255, 255),
-            "class:cube_2": (255, 36, 66, 255),
-            "class:cube_3": (55, 255, 139, 255),
+            "class:object_1": (120, 230, 255, 255),
+            "class:box": (55, 255, 139, 255),
             "class:table": (255, 237, 218, 255),
             "class:ground": (100, 100, 100, 255),
             "class:robot": (204, 110, 248, 255),
@@ -123,16 +126,23 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         # Set cameras
         # Set wrist camera
         self.scene.wrist_cam = CameraCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/panda_hand/wrist_cam",
+            prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam",
             update_period=0.0,
-            height=200,
-            width=200,
-            data_types=["rgb", "distance_to_image_plane"],
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
+            height=480,
+            width=640,
+            data_types=["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"],
+            colorize_semantic_segmentation=True,
+            semantic_segmentation_mapping=SEMANTIC_MAPPING,
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=grab_ik_rel_visuomotor_env_cfg.PIPER_D435_COLOR_INTRINSIC_640X480,
+                width=640,
+                height=480,
+                clipping_range=(0.1, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(0.13, 0.0, -0.15), rot=(-0.70614, 0.03701, 0.03701, -0.70614), convention="ros"
+                pos=(0.0, 0.0, 0.0),
+                rot=(0.0, 0.0, 0.0, 1.0),
+                convention="ros"
             ),
         )
 
@@ -140,16 +150,21 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         self.scene.table_cam = CameraCfg(
             prim_path="{ENV_REGEX_NS}/table_cam",
             update_period=0.0,
-            height=200,
-            width=200,
+            height=480,
+            width=640,
             data_types=["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"],
             colorize_semantic_segmentation=True,
             semantic_segmentation_mapping=SEMANTIC_MAPPING,
-            spawn=sim_utils.PinholeCameraCfg(
-                focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 2)
+            spawn=sim_utils.PinholeCameraCfg.from_intrinsic_matrix(
+                intrinsic_matrix=grab_ik_rel_visuomotor_env_cfg.PIPER_D435_COLOR_INTRINSIC_640X480,
+                width=640,
+                height=480,
+                clipping_range=(0.1, 2.0),
             ),
             offset=CameraCfg.OffsetCfg(
-                pos=(1.0, 0.0, 0.4), rot=(0.35355, -0.61237, -0.61237, 0.35355), convention="ros"
+                pos=(1.0, 0.0, 0.4), 
+                rot=(0.35355, -0.61237, -0.61237, 0.35355), 
+                convention="ros"
             ),
         )
 
@@ -159,3 +174,4 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
 
         # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]
+        self.sim.dt = 1 / 240

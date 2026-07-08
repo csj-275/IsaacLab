@@ -64,17 +64,105 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.grab_ik_rel_visuomotor_env_cfg:PiperGrabVisuomotorEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_200.json",
     },
 )
 
+# gym.register(
+#     id="Isaac-Piper-Grab-IK-Rel-Skillgen-v0",
+#     entry_point="isaaclab.envs:ManagerBasedRLEnv",
+#     kwargs={
+#         "env_cfg_entry_point": f"{__name__}.grab_ik_rel_env_cfg_skillgen:PiperGrabSkillgenEnvCfg",
+#         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+#     },
+#     disable_env_checker=True,
+# )
+
+
 gym.register(
-    id="Isaac-Piper-Grab-IK-Rel-Skillgen-v0",
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.grab_ik_rel_env_cfg_skillgen:PiperGrabSkillgenEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "env_cfg_entry_point": f"{__name__}.grab_ik_rel_visuomotor_cosmos_env_cfg:PiperGrabVisuomotorCosmosEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_cosmos.json",
     },
     disable_env_checker=True,
 )
 
+##
+# V1 Two-Stage Pick-and-Place Tasks
+##
 
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-v1",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.V1.grab_ik_rel_env_cfg:PiperGrabEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+    },
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-v1",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.V1.grab_ik_rel_visuomotor_env_cfg:PiperGrabVisuomotorEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_200.json",
+    },
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-v1-A",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.V1.grab_ik_rel_visuomotor_env_cfg_V1_A:PiperGrabVisuomotorEnvCfg_V1_A",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_200.json",
+    },
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v1",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.V1.grab_ik_rel_visuomotor_cosmos_env_cfg:PiperGrabVisuomotorCosmosEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_cosmos.json",
+    },
+)
+
+##
+# V2 Two-Stage Pick-and-Place Tasks (Dsiturbance)
+##
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-v2",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.V2.grab_ik_rel_env_cfg:PiperGrabEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+    },
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-v2",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.V2.grab_ik_rel_visuomotor_env_cfg:PiperGrabVisuomotorEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_200.json",
+    },
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v2",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.V2.grab_ik_rel_visuomotor_cosmos_env_cfg:PiperGrabVisuomotorCosmosEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_cosmos.json",
+    },
+)

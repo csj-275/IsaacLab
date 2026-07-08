@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import os
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
@@ -15,6 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
+from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
@@ -40,22 +42,34 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     # Table
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0, 0), rot=(0.707, 0, 0, 0.707)),
-        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd"),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.3, 0, 0), rot=(0.707, 0, 0, 0.707)),
+        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+                         scale=(1, 0.6, 1)),
     )
 
-    # plane
+    # Ground plane (invisible physics-only — warehouse provides visual floor)
     plane = AssetBaseCfg(
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0, 0, -1.05)),
-        spawn=GroundPlaneCfg(),
+        spawn=UsdFileCfg(
+            usd_path=os.path.join(os.path.dirname(__file__), "../../../../../usd/ground/ground.usda"),
+            rigid_props=RigidBodyPropertiesCfg(disable_gravity=True),
+        ),
+    )
+
+    # Warehouse environment background (static, no physics)
+    warehouse = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Warehouse",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0, 0, -1.05)),
+        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/warehouse.usd"),
     )
 
     # lights
-    light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
-    )
+    # light = AssetBaseCfg(
+    #     prim_path="/World/light",
+    #     spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=50.0),
+    # )
+    
 
 
 ##
@@ -141,9 +155,13 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
-    # -0.85 
+    # -0.85
     object_1_dropping = DoneTerm(
         func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("object_1")}
+    )
+
+    box_dropping = DoneTerm(
+        func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("box")}
     )
 
     success = DoneTerm(
@@ -181,13 +199,16 @@ class GrabEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 5
         self.episode_length_s = 30.0
         # simulation settings
-        self.sim.dt = 0.01  # 100Hz
-        self.sim.render_interval = 2
+        self.sim.dt = 1/100  # 100Hz
+        self.sim.render_interval = 3
 
         self.sim.physx.bounce_threshold_velocity = 0.2
-        self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4
-        self.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 1024
         self.sim.physx.friction_correlation_distance = 0.00625
+        # Reduced GPU memory allocations (warehouse scene consumes significant VRAM)
+        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024
+        self.sim.physx.gpu_total_aggregate_pairs_capacity = 8 * 1024
+        self.sim.physx.gpu_max_rigid_contact_count = 4 * 1024 * 1024
+        self.sim.physx.gpu_heap_capacity = 32 * 1024 * 1024
+        self.sim.physx.gpu_collision_stack_size = 32 * 1024 * 1024
 
         

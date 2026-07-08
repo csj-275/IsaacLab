@@ -23,6 +23,7 @@ from .humanoid_28 import *
 from .kinova import *
 from .kuka_allegro import *
 from .pick_and_place import *
+from .piper import *
 from .quadcopter import *
 from .ridgeback_franka import *
 from .sawyer import *
@@ -30,5 +31,3 @@ from .shadow_hand import *
 from .spot import *
 from .unitree import *
 from .universal_robots import *
-from .wheel_futura_pendulum import * # add
-from .piper import * # add
