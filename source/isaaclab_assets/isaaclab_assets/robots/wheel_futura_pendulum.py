@@ -40,11 +40,23 @@ WHEEL_FUTURA_PENDULUM_CFG = ArticulationCfg(
     ),
     # 关节驱动器
     actuators={
+        "joint1_actuator": ImplicitActuatorCfg(
+            joint_names_expr=["joint1"],
+            effort_limit_sim=400.0,
+            stiffness=0.0, # 位置控制的刚度，力控设为0
+            damping=0.0, # 阻尼
+        ),
+        "joint2_actuator": ImplicitActuatorCfg(
+            joint_names_expr=["joint2"],
+            effort_limit_sim=400.0,
+            stiffness=0.0, # 位置控制的刚度，力控设为0
+            damping=0.0, # 阻尼
+        ),
         "wheel_actuator": ImplicitActuatorCfg(
             joint_names_expr=["wheel_joint"],
             effort_limit_sim=400.0,
             stiffness=0.0, # 位置控制的刚度，力控设为0
-            damping=10.0, # 阻尼
+            damping=0.01, # 阻尼
         ),
     },
 )

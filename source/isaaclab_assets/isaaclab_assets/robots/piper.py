@@ -25,7 +25,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 
 PIPER_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"./usd/piper.usd",
+        usd_path=f"{__file__.rsplit('/', 1)[0]}/../../data/Robot/piper/piper.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
