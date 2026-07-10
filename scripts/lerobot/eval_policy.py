@@ -23,7 +23,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torchvision.transforms.v2 as T
 
 from isaaclab.app import AppLauncher
 
@@ -98,14 +97,12 @@ STATE_KEY_ORDER = [
 # sum will be computed at runtime from the preprocessor stats
 
 # ---------------------------------------------------------------------------
-# Image transforms (training used --dataset.use_imagenet_stats=false,
-# so NO ImageNet normalization here. Only resize. The preprocessor's
-# NormalizerProcessorStep handles dataset-specific normalization.)
+# Image transforms — training had image_transforms.enable=False (default),
+# so NO resize or normalization was applied. Images go to the model as-is.
+# The ResNet backbone uses AdaptiveAvgPool2d so it handles original sizes.
 # ---------------------------------------------------------------------------
 def build_image_transforms():
-    return T.Compose([
-        T.Resize(IMG_RESIZE, antialias=True),
-    ])
+    return None  # no transforms — matches training setup
 
 # ---------------------------------------------------------------------------
 # Policy loading
@@ -246,10 +243,12 @@ def build_image_batch(obs_group: dict, device: torch.device, transforms):
                 img = img.unsqueeze(0)  # (1, H, W, 3)
             if img.ndim == 4 and img.shape[-1] == 3:
                 img = img.permute(0, 3, 1, 2)  # (1, 3, H, W)
-            img = transforms(img.to(device))
+            img = img.to(device)
+            if transforms is not None:
+                img = transforms(img)
             batch[feat_key] = img
         else:
-            batch[feat_key] = torch.zeros(1, 3, *IMG_RESIZE, device=device)
+            batch[feat_key] = torch.zeros(1, 3, 720, 1280, device=device)
     return batch
 
 # ---------------------------------------------------------------------------

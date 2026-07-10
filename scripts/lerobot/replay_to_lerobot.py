@@ -35,6 +35,13 @@ Usage (inside Docker container)::
         --headless --enable_cameras --device cuda:0
 """
 
+# ---------------------------------------------------------------------------
+# State key filter: only these obs keys are saved in observation.state.
+# Set to None to include ALL non-image keys (default behavior).
+# ---------------------------------------------------------------------------
+STATE_KEY_FILTER = ["actions"]
+# ---------------------------------------------------------------------------
+
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -169,12 +176,13 @@ def main():
     # Create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 
-    # Apply FPS setting to the LeRobot file handler
+    # Apply FPS setting and state key filter to the LeRobot file handler
     try:
         handler = env.recorder_manager._dataset_file_handler
         if isinstance(handler, LeRobotDatasetFileHandler):
             handler.fps = args_cli.fps
-            logger.info(f"LeRobot handler FPS set to {args_cli.fps}")
+            handler.state_key_filter = STATE_KEY_FILTER
+            logger.info(f"LeRobot handler: FPS={args_cli.fps}, state_key_filter={STATE_KEY_FILTER}")
     except AttributeError:
         pass
 

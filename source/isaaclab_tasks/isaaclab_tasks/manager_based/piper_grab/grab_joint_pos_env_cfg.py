@@ -23,6 +23,7 @@ import os
 # Pre-defined configs
 ##
 from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_CFG  # isort: skip
+#from isaaclab_assets.robots.piper import PIPER_HIGH_PD_CFG  # isort: skip
 
 _MUG_BOX_PATH = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "../../../../../usd/box/box.usd")
@@ -111,8 +112,15 @@ class PiperGrabEnvCfg(GrabEnvCfg):
             mimic_multiplier=-1.0,
             max_speed_per_step=0.01,
         )
+        # self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
+        #     asset_name="robot",
+        #     joint_names=["joint7", "joint8"],
+        #     open_command_expr={"joint7": 0.05, "joint8": -0.05},
+        #     close_command_expr={"joint7": -0.05, "joint8": 0.05},
+        # )
+
         # utilities for gripper status check
-        self.gripper_joint_names = ["joint[7-8]"]
+        self.gripper_joint_names = ["joint7", "joint8"]
         self.gripper_open_vals = [0.05, -0.05]
         self.gripper_threshold = 0.01
 

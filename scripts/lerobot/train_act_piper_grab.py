@@ -120,10 +120,12 @@ IMG_RESIZE = (224, 224)   # 图像 resize 到 ResNet 标准输入
 
 
 def build_image_transforms():
-    """图像预处理: resize + imagenet 标准化."""
+    """图像预处理: uint8 → float / 255 (0-1 范围), 不 resize, 无 ImageNet 归一化.
+
+    与 D-SIM-PIPER-GRAB-0702 数据集的 lerobot-train --dataset.use_imagenet_stats=false 保持一致.
+    """
     return T.Compose([
-        T.Resize(IMG_RESIZE, antialias=True),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        T.ToDtype(torch.float32, scale=True),  # uint8 0-255 → float 0-1
     ])
 
 
@@ -264,7 +266,7 @@ def main():
     logger.info("=" * 60)
     dataloader = torch.utils.data.DataLoader(
         dataset,
-        num_workers=4,
+        num_workers=0,         # 0 = main process loads data, avoids Docker shm issues
         batch_size=BATCH_SIZE,
         shuffle=True,
         pin_memory=DEVICE.type != "cpu",

@@ -20,8 +20,8 @@
         --output-dir /workspace/isaaclab/datasets/lerobot/piper_grab_v1
 
 数据格式（维度从源数据自动检测，以下仅为示例）:
-  - action: 7维 (IK delta pose x/y/z/rx/ry/rz + gripper) 或 8维 (+ 双关节 gripper)
-  - observation.state: N维 (取决于录制时的观测配置，常见 7 / 32 / 63)
+  - action: 7维 (IK delta pose x/y/z/rx/ry/rz + gripper)
+  - observation.state: N维 (取决于录制时的观测配置，常见 7)
   - observation.images.front: 1280x720 @ 30fps (如果存在)
   - observation.images.wrist: 1280x720 @ 30fps (如果存在)
 
@@ -65,19 +65,37 @@ def build_features(full_df: pd.DataFrame, video_keys: list[str] | None = None) -
     action_dim = len(sample["action"])
     state_dim = len(sample["observation.state"])
 
+    # Action / state names: joint positions (joint1-6 + gripper)
+    _ACTION_NAMES = ["joint1.pos", "joint2.pos", "joint3.pos", "joint4.pos", "joint5.pos", "joint6.pos", "gripper.pos"]
+    if action_dim != len(_ACTION_NAMES):
+        _ACTION_NAMES = None  # fallback if dim mismatch
+
     features = {
         "action": {
             "dtype": "float32",
             "shape": (action_dim,),
             "type": "ACTION",
-            "names": None,
+            "names": _ACTION_NAMES,
         },
         "observation.state": {
             "dtype": "float32",
             "shape": (state_dim,),
             "type": "STATE",
-            "names": None,
+            "names": _ACTION_NAMES if (_ACTION_NAMES and state_dim == len(_ACTION_NAMES)) else None,
         },
+    }
+
+    # Camera intrinsics from grab_ik_rel_visuomotor_env_cfg (PIPER_D435_COLOR_INTRINSIC_1280X720)
+    _CAMERA_INTRINSICS = {
+        "width": 1280,
+        "height": 720,
+        "fx": 1211.038757324218,
+        "fy": 908.279067993164,
+        "ppx": 640.0,
+        "ppy": 360.0,
+        "model": "inverse_brown_conrady",
+        "coeffs": [0.0, 0.0, 0.0, 0.0, 0.0],
+        "stream": "color",
     }
 
     if video_keys is None:
@@ -89,6 +107,9 @@ def build_features(full_df: pd.DataFrame, video_keys: list[str] | None = None) -
             "shape": (720, 1280, 3),
             "type": "VISUAL",
             "names": ["height", "width", "channel"],
+            "info": {
+                "camera_intrinsics": dict(_CAMERA_INTRINSICS),
+            },
         }
 
     return features
