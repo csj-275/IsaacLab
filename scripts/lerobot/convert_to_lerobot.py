@@ -59,14 +59,18 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
+_STATE_NAMES = ["joint1.pos", "joint2.pos", "joint3.pos", "joint4.pos", "joint5.pos", "joint6.pos", "gripper.pos"]
+"""Names for 7D joint position features (state or action)."""
+
+
 def build_features(full_df: pd.DataFrame, video_keys: list[str] | None = None) -> dict:
     """构建 LeRobot features 字典，自动从数据检测维度."""
     sample = full_df.iloc[0]
     action_dim = len(sample["action"])
     state_dim = len(sample["observation.state"])
 
-    # Action / state names: joint positions (joint1-6 + gripper)
-    _ACTION_NAMES = ["joint1.pos", "joint2.pos", "joint3.pos", "joint4.pos", "joint5.pos", "joint6.pos", "gripper.pos"]
+    # Action names: 6-DOF IK delta pose + gripper (from Mimic env)
+    _ACTION_NAMES = ["dx", "dy", "dz", "droll", "dpitch", "dyaw", "gripper"]
     if action_dim != len(_ACTION_NAMES):
         _ACTION_NAMES = None  # fallback if dim mismatch
 
@@ -81,7 +85,7 @@ def build_features(full_df: pd.DataFrame, video_keys: list[str] | None = None) -
             "dtype": "float32",
             "shape": (state_dim,),
             "type": "STATE",
-            "names": _ACTION_NAMES if (_ACTION_NAMES and state_dim == len(_ACTION_NAMES)) else None,
+            "names": _STATE_NAMES if (state_dim == len(_STATE_NAMES)) else None,
         },
     }
 
@@ -173,12 +177,26 @@ def build_episodes_metadata(full_df: pd.DataFrame, output_dir: Path, features: d
     return Dataset.from_pandas(episodes_df)
 
 
-def save_data_parquet_files(full_df: pd.DataFrame, output_dir: Path, features: dict) -> None:
+def save_data_parquet_files(full_df: pd.DataFrame, output_dir: Path, features: dict,
+                           use_state_as_action: bool = False) -> None:
     """用纯 pyarrow 写 parquet（不带 HuggingFace 元数据），FixedSizeList Schema。
 
     每 episode 一个 file-{ep_idx:03d}.parquet，放在 chunk-000 下。
     """
     data_pattern = DEFAULT_DATA_PATH
+
+    if use_state_as_action:
+        # Split 14D observation.state = [actual_joints(7) | target_joints(7)] into:
+        #   action = target_joints (last 7D)
+        #   observation.state = actual_joints (first 7D)
+        full_df = full_df.copy()
+        full_df["action"] = full_df["observation.state"].apply(lambda x: x[7:])   # targets
+        full_df["observation.state"] = full_df["observation.state"].apply(lambda x: x[:7])  # actuals
+        # Update feature shapes
+        features["action"]["shape"] = (7,)
+        features["observation.state"]["shape"] = (7,)
+        features["action"]["names"] = _STATE_NAMES  # joint position names
+        logger.info("Split 14D state → action(7D targets) + state(7D actuals)")
 
     action_len = features["action"]["shape"][0]
     state_len = features["observation.state"]["shape"][0]
@@ -300,6 +318,8 @@ def main():
     )
     parser.add_argument("--symlink", action="store_true", help="Use symlinks instead of copying video files")
     parser.add_argument("--skip-videos", action="store_true", help="Skip video processing")
+    parser.add_argument("--use-state-as-action", action="store_true",
+                        help="Use observation.state as action (joint-position training)")
     args = parser.parse_args()
 
     src_dir = Path(args.src_dir)
@@ -323,6 +343,10 @@ def main():
     if args.skip_videos:
         video_keys = []
     features = build_features(full_df, video_keys=video_keys)
+    if args.use_state_as_action:
+        # Swap action names to joint position names
+        state_names = features["observation.state"]["names"]
+        features["action"]["names"] = state_names
 
     # 3. 创建 info.json
     logger.info("=" * 60)
@@ -368,7 +392,7 @@ def main():
     logger.info("=" * 60)
     logger.info("Step 5: Saving data parquet files")
     logger.info("=" * 60)
-    save_data_parquet_files(full_df, output_dir, features)
+    save_data_parquet_files(full_df, output_dir, features, use_state_as_action=args.use_state_as_action)
 
     # 7. 计算并保存统计信息
     logger.info("=" * 60)

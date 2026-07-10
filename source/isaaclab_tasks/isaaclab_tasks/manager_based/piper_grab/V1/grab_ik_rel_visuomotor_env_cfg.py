@@ -178,6 +178,8 @@ class ObservationsCfg:
         """Observations for policy group with state and image values."""
 
         actions = ObsTerm(func=mdp.last_action)
+        joint_pos_7d = ObsTerm(func=V1_mdp.joint_pos_with_gripper_7d)  # 7D: observed joint pos
+        joint_pos_target_7d = ObsTerm(func=V1_mdp.joint_pos_target_7d)  # 7D: commanded joint target
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         eef_pos = ObsTerm(func=mdp.ee_frame_pos)

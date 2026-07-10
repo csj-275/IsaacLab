@@ -39,7 +39,7 @@ Usage (inside Docker container)::
 # State key filter: only these obs keys are saved in observation.state.
 # Set to None to include ALL non-image keys (default behavior).
 # ---------------------------------------------------------------------------
-STATE_KEY_FILTER = ["actions"]
+STATE_KEY_FILTER = ["joint_pos_7d", "joint_pos_target_7d"]  # 14D: [actual(7) | target(7)]
 # ---------------------------------------------------------------------------
 
 """Launch Isaac Sim Simulator first."""

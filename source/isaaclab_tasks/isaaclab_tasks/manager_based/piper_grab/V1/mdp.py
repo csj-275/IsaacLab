@@ -15,6 +15,44 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
+def _gripper_1d(env: ManagerBasedRLEnv, robot: Articulation) -> torch.Tensor:
+    """Return 1D gripper scalar from joint7, joint8: ``(joint7 - joint8) / 2``."""
+    if hasattr(env.cfg, "gripper_joint_names"):
+        gripper_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+        grip_values = robot.data.joint_pos[:, gripper_ids]  # (N, 2): joint7, joint8
+        return (grip_values[:, 0] - grip_values[:, 1]) / 2.0  # (N,)
+    return torch.zeros(env.num_envs, device=env.device)
+
+
+def joint_pos_with_gripper_7d(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Return 7D joint positions: joint1-6 + 1D gripper (observed, post-step)."""
+    robot: Articulation = env.scene[robot_cfg.name]
+    joint_ids, _ = robot.find_joints("joint[1-6]")
+    arm_pos = robot.data.joint_pos[:, joint_ids]  # (N, 6)
+    gripper = _gripper_1d(env, robot)
+    return torch.cat([arm_pos, gripper.unsqueeze(1)], dim=1)  # (N, 7)
+
+
+def joint_pos_target_7d(
+    env: ManagerBasedRLEnv,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+) -> torch.Tensor:
+    """Return 7D joint position TARGETS: joint1-6 + 1D gripper target.
+
+    These are the ACTUAL commanded joint positions (action_K), computed by
+    the IK controller from the IK delta pose action. Use this as the recorded
+    ``action`` column for joint-position training.
+    """
+    robot: Articulation = env.scene[robot_cfg.name]
+    joint_ids, _ = robot.find_joints("joint[1-6]")
+    arm_target = robot.data.joint_pos_target[:, joint_ids]  # (N, 6)
+    gripper = _gripper_1d(env, robot)  # gripper targets ≈ actuals (direct command)
+    return torch.cat([arm_target, gripper.unsqueeze(1)], dim=1)  # (N, 7)
+
+
 def objects_a_and_b_are_into_c(
     env: ManagerBasedRLEnv,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),

@@ -44,7 +44,7 @@ Camera keys are auto-mapped:
 # Set to None to include ALL non-image keys (default behavior).
 # Example: ["actions"] → 7D state, ["actions", "joint_pos"] → 15D state.
 # ---------------------------------------------------------------------------
-STATE_KEY_FILTER = ["actions"]  # 7D: joint1-6 + gripper positions
+STATE_KEY_FILTER = ["joint_pos_7d", "joint_pos_target_7d"]  # 14D: [actual(7) | target(7)]
 # ---------------------------------------------------------------------------
 
 import argparse
