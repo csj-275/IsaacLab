@@ -1,0 +1,612 @@
+================================================================================
+  Piper Grab — 环境配置参考手册
+  路径: isaaclab_tasks/manager_based/piper_grab/
+  生成日期: 2026-07-10
+================================================================================
+
+  已注册环境总数: 15
+  配置脚本总数: 12 (root 7 + V1 5 + V2 3)
+
+================================================================================
+  第〇部分: 继承层次总览
+================================================================================
+
+  ManagerBasedRLEnvCfg
+  └── GrabEnvCfg                         [grab_env_cfg.py]          (Layer 0: 基础环境)
+      └── PiperGrabEnvCfg                [grab_joint_pos_env_cfg.py] (Layer 1: 所有环境的共同父类)
+          ├── PiperGrabEnvCfg            [grab_ik_rel_env_cfg.py]   (Layer 2a: IK-Rel 状态版)
+          │   └── PiperGrabSkillgenEnvCfg[grab_ik_rel_env_cfg_skillgen.py] (Layer 3: Subtask观测)
+          ├── PiperGrabVisuomotorEnvCfg  [grab_ik_rel_visuomotor_env_cfg.py] (Layer 2b: 视觉版)
+          │   ├── PiperGrabVisuomotorCosmosEnvCfg  [grab_ik_rel_visuomotor_cosmos_env_cfg.py]
+          │   └── PiperGrabVisuomotorDepthEnvCfg   [grab_ik_rel_visuomotor_depth_env_cfg.py]
+          ├── PiperGrabEnvCfg (V1)       [V1/grab_ik_rel_env_cfg.py]         (V1 两阶段)
+          │   ├── PiperGrabEnvCfg (IK Abs) [V1/grab_ik_abs_env_cfg.py]
+          │   ├── PiperGrabVisuomotorEnvCfg [V1/grab_ik_rel_visuomotor_env_cfg.py]
+          │   │   ├── PiperGrabVisuomotorEnvCfg_V1_A [V1/...V1_A.py]
+          │   │   ├── PiperGrabVisuomotorCosmosEnvCfg [V1/...cosmos_env_cfg.py]
+          │   │   └── PiperGrabVisuomotorEnvCfg (IK Abs) [V1/grab_ik_abs_visuomotor_env_cfg.py]
+          │   └── (以上 V1 子节点均继承自 V1 两阶段或 V1 Visuomotor)
+          └── PiperGrabEnvCfg (V2)       [V2/grab_ik_rel_env_cfg.py]         (V2 两阶段+干扰)
+              └── PiperGrabVisuomotorEnvCfg [V2/grab_ik_rel_visuomotor_env_cfg.py]
+                  └── PiperGrabVisuomotorCosmosEnvCfg [V2/...cosmos_env_cfg.py]
+
+
+================================================================================
+  第一部分: Layer 0 — 基础环境 (grab_env_cfg.py)
+================================================================================
+
+  Class: GrabEnvCfg(ManagerBasedRLEnvCfg)  —  未注册，仅作为基类
+
+  【场景】 ObjectTableSceneCfg
+    - table:     SeattleLabTable, pos=(0.3,0,0), rot=(0.707,0,0,0.707), scale=(1,0.6,1)
+    - plane:     /World/GroundPlane, pos=(0,0,-1.05), 自定义 ground.usda, disable_gravity
+    - warehouse: Simple_Warehouse, pos=(0,0,-1.05), 静态背景
+    - robot:     MISSING (由子类设置)
+    - ee_frame:  MISSING (由子类设置)
+
+  【动作】 ActionsCfg
+    - arm_action:      MISSING (由子类设置)
+    - gripper_action:  MISSING (由子类设置)
+
+  【观测】 ObservationsCfg
+    - PolicyCfg:   actions, joint_pos, joint_vel, eef_pos, eef_quat, gripper_pos,
+                   object, object_1(poses), box(poses)
+                   → concatenate_terms=False (字典格式输出)
+    - SubtaskCfg:  grasp_1 (object_grasped 检测)
+
+  【终止条件】
+    - time_out:           episode_length_s = 30s
+    - object_1_dropping:  高度 < -0.05m
+    - box_dropping:       高度 < -0.05m
+    - success:            object_a_is_into_b (object_1放入box, xy=0.08, height=0.08)
+
+  【仿真参数】
+    - decimation:           5 (50Hz 策略频率)
+    - sim.dt:               0.01 (100Hz 物理)
+    - render_interval:      3
+    - bounce_threshold:     0.2
+    - friction_correlation: 0.00625
+    - GPU buffers:          gpu_found_lost_capacity=1M, total_aggregate=8K,
+                            rigid_contact=4M, heap=32M, collision_stack=32M
+
+
+================================================================================
+  第二部分: Layer 1 — Piper 机器人 + 物体 (grab_joint_pos_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabEnvCfg(GrabEnvCfg)  →  注册为 Isaac-Piper-Grab-v0
+
+  【机器人】
+    - PIPER_STANDARD_WITH_GRIPPER_CFG, prim_path="{ENV_REGEX_NS}/Robot"
+    - 语义标签: ("class", "robot")
+    - 关节: joint[1-6] (臂) + joint7/joint8 (夹爪, mimic结构)
+
+  【动作】 Joint Position 控制
+    - arm_action:      JointPositionActionCfg(joint_names=["joint[1-6]"], scale=1.0)
+    - gripper_action:  MimicBinaryJointPositionActionCfg(
+                         joint_names=["joint7"], open=0.05, close=-0.05,
+                         mimic_joint_names=["joint8"], mimic_multiplier=-1.0,
+                         max_speed_per_step=0.01)
+
+  【场景物体】
+    - object_1:  blue_block.usd, pos=(0.3,0,0.0203), scale=(1,1,1)
+                 rigid_props: solver_iters=16/1, max_ang_vel=1000, max_lin_vel=1000
+                 semantic_tags: ("class", "cube_1")
+    - box:       自定义 box.usd (来自 ../../../../../usd/box/box.usd)
+                 pos=(0.1,0.3,0.0203), scale=(1,1,1)
+                 semantic_tags: ("class", "box")
+
+  【末端执行器帧】 FrameTransformer, prim_path="{ENV_REGEX_NS}/Robot/arm_base"
+    - end_effector:      link6, offset=(0,0,0)
+    - tool_leftfinger:   link7, offset=(0,0,0.135)
+    - tool_rightfinger:  link8, offset=(0,0,0.135)
+
+  【事件 (域随机化)】
+    - init_piper_arm_pose (mode="reset"):
+        default_pose = [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.05, -0.05]
+    - randomize_piper_joint_state (mode="reset"):
+        高斯噪声, mean=0.0, std=0.0 (当前关闭)
+    - randomize_cube_positions (mode="reset"):
+        x=(0.25,0.5), y=(-0.2,0.2), z=(0.0203,0.0203), yaw=(-1,1), min_sep=0.1
+    - randomize_box_positions (mode="reset"):
+        x=(0.05,0.3), y=(0.15,0.35), z=(0.2203,0.2203), yaw=(-1,1), min_sep=0.1
+
+  【夹爪工具参数】
+    - gripper_joint_names: ["joint7", "joint8"]
+    - gripper_open_vals:   [0.05, -0.05]
+    - gripper_threshold:   0.01
+
+
+================================================================================
+  第三部分: Layer 2a — IK 相对位姿控制 (grab_ik_rel_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabEnvCfg(PiperGrabEnvCfg of grab_joint_pos_env_cfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-v0
+
+  继承 Layer 1 的全部配置，仅覆写:
+
+  【机器人】切换为高刚度PD
+    - PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG (提升 IK 跟踪精度)
+
+  【动作】切换为 IK 控制
+    - arm_action: DifferentialInverseKinematicsActionCfg(
+        joint_names=["joint[1-6]"], body_name="link6",
+        controller=DifferentialIKControllerCfg(
+          command_type="pose", use_relative_mode=True, ik_method="dls"),
+        scale=0.5,
+        body_offset=OffsetCfg(pos=(0,0,0.135)))
+
+  【遥操作设备】 DevicesCfg
+    - handtracking: OpenXRDeviceCfg
+        Se3RelRetargeterCfg(HAND_RIGHT, zero_out_xy_rotation=True,
+                            delta_pos=10.0, delta_rot=10.0)
+        GripperRetargeterCfg(HAND_RIGHT)
+    - keyboard: Se3KeyboardCfg(pos_sensitivity=0.05, rot_sensitivity=0.05)
+
+
+================================================================================
+  第四部分: Layer 2b — 视觉运动控制 (grab_ik_rel_visuomotor_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabVisuomotorEnvCfg(PiperGrabEnvCfg of grab_joint_pos_env_cfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-Visuomotor-v0
+
+  继承 Layer 1 的全部配置，覆写/新增:
+
+  【机器人】HIGH_PD_CFG (同 IK-Rel)
+
+  【动作】IK 相对位姿 (同 IK-Rel), body_offset=(0,0,0.107)
+
+  【摄像头】
+    - wrist_cam:  PinholeCamera, 640×480, prim_path="{ENV_REGEX_NS}/Robot/camera_link/wrist_cam"
+                  intrinsic: PIPER_D435_COLOR_INTRINSIC_640X480, clip=(0.1,2.0)
+                  data_types: ["rgb", "distance_to_image_plane"]
+                  offset: pos=(0,0,0), rot=(0,0,0,1), convention="ros"
+    - table_cam:  PinholeCamera, 640×480, prim_path="{ENV_REGEX_NS}/table_cam"
+                  offset: pos=(1.0,0,0.4), rot=(0.354,-0.612,-0.612,0.354), convention="ros"
+
+  【新增观测】
+    - table_cam (rgb), wrist_cam (rgb)
+    - table_cam_depth (distance_to_image_plane, normalized)
+    - wrist_cam_depth (distance_to_image_plane, normalized)
+    - image_obs_list = ["table_cam", "wrist_cam"]
+
+  【事件 — 视觉域随机化】
+    - randomize_light (mode="reset"):
+        DomeLight 强度 (1500~10000), 颜色变化 0.4,
+        随机从 11 个 NVIDIA HDR 天空纹理中选择 (含室内/室外/工作室)
+    - randomize_table_visual_material (mode="reset"):
+        12 种纹理: 木材(白蜡/竹/桦/樱桃/桃花心木/橡木/胶合板/松木/胡桃木)
+                  石材(大理石), 金属(不锈钢)
+    - randomize_robot_arm_visual_texture (mode="reset"):
+        13 种金属纹理: 铸铝/抛光铝/黄铜/青铜/古铜/银纹/铜/金/铁/锈铁/银/碳钢/不锈钢
+
+  【渲染设置】
+    - num_rerenders_on_reset: 3
+    - antialiasing_mode: "DLAA"
+    - sim.render_interval: 3
+
+
+================================================================================
+  第五部分: Cosmos 变体 (grab_ik_rel_visuomotor_cosmos_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabVisuomotorCosmosEnvCfg(PiperGrabVisuomotorEnvCfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v0
+
+  继承 Layer 2b 的全部配置，覆写/新增:
+
+  【新增观测】
+    - table_cam_segmentation (semantic_segmentation)
+    - table_cam_normals (normals)
+
+  【摄像头】升级数据类��
+    - data_types: ["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"]
+    - colorize_semantic_segmentation: True
+    - semantic_segmentation_mapping:
+        object_1=(120,230,255), box=(55,255,139), table=(255,237,218),
+        ground=(100,100,100), robot=(204,110,248),
+        UNLABELLED=(150,150,150), BACKGROUND=(200,200,200)
+
+  【渲染设置】
+    - dome_light_upper_lower_strategy: 4 (去噪)
+    - antialiasing_mode: "OFF"
+    - num_rerenders_on_reset: 1
+    - sim.dt: 1/240 (240Hz 物理, 48Hz 策略频率)
+
+
+================================================================================
+  第六部分: Depth 变体 (grab_ik_rel_visuomotor_depth_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabVisuomotorDepthEnvCfg(PiperGrabVisuomotorEnvCfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-Visuomotor-Depth-v0
+
+  继承 Layer 2b 的全部配置，覆写:
+
+  【观测】仅覆写 ObservationsCfg — 保留 RGB + Depth 观测,
+         移除 semantic_segmentation 和 normals (不同于 Cosmos)
+
+  【__post_init__】仅调用 super().__post_init__(), 无额外逻辑
+
+
+================================================================================
+  第七部分: SkillGen 变体 (grab_ik_rel_env_cfg_skillgen.py)
+================================================================================
+
+  Class: PiperGrabSkillgenEnvCfg(PiperGrabEnvCfg of grab_joint_pos_env_cfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-Skillgen-v0
+
+  继承 Layer 1, 独立覆写 (不经过 IK-Rel v0):
+
+  【观测】新增 Subtask 检测
+    - PolicyCfg: 同 Layer1 + 额外
+    - SubtaskCfg:
+        grasp_1:  object_grasped (object_1, diff_threshold 默认)
+        placed_1: object_a_is_into_b (object_1→box, xy=0.08, height=0.08)
+
+  【机器人】PIPER_HIGH_PD_CFG
+
+  【动作】IK 相对位姿 (同 IK-Rel), body_offset=(0,0,0.107)
+
+  【事件】覆写 cube 位姿随机化范围
+    - randomize_cube_positions:
+        x=(0.45,0.6), y=(-0.23,0.23), z=(0.0203,0.0203), yaw=(-1,1)
+
+  【末端执行器】offset → (0,0,0) (从父类的 0.135 改为 0)
+
+  【遥操作】OpenXR + Keyboard
+
+
+================================================================================
+  第八部分: V1 两阶段抓取+放置 (V1/grab_ik_rel_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabEnvCfg(PiperGrabEnvCfg of grab_joint_pos_env_cfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-v1
+
+  继承 Layer 1, 大规模覆写:
+
+  【任务】两阶段: 阶段1-抓取cube放入box, 阶段2-抓取mug放入box
+
+  【场景】新增 mug 物体
+    - mug: bottle.usd (来自 ../../../../../../usd/bottle/bottle.usd)
+           pos=(0.4,-0.15,0.203), scale=(1,1,1)
+           rigid_props: solver_iters=16/1, max_ang_vel=1000, max_lin_vel=1000
+           semantic_tags: ("class", "mug")
+
+  【新增观测】
+    - mug_positions, mug_orientations (object_poses_in_base_frame)
+    - SubtaskCfg:
+        grasp_1:  object_grasped(object_1, diff_threshold=0.16)
+        placed_1: object_a_is_into_b(object_1→box, xy=0.05, height=0.05)
+        grasp_2:  object_grasped(mug, diff_threshold=0.16)
+
+  【终止条件】
+    - 新增: mug_dropping (高度 < -0.05)
+    - success: objects_a_and_b_are_into_c (cube+mug→box)
+
+  【事件】删除父类独立随机化，改为 3 物体联合随机化
+    - randomize_cube_and_mug_and_box_poses (mode="reset"):
+        pose_ranges: cube x=(0.2,0.35) y=(-0.05,0.15) z=(0.0203,0.0203)
+                     mug  x=(0.2,0.35) y=(-0.05,0.15) z=(0,0)
+                     box  x=(0.1,0.3)  y=(0.05,0.35)  z=(0,0)
+        min_separation=0.12
+        asset_cfgs=[object_1, mug, box]
+    - randomize_cube_color, randomize_box_color, randomize_mug_color:
+        RGB 各通道 (0.0~1.0) 均匀随机
+
+  【仿真】
+    - sim.dt: 1/150 (150Hz 物理, 30Hz 策略)
+    - render_interval: 3
+
+  【遥操作】
+    - OpenXR: delta_pos=15.0, delta_rot=15.0
+    - XRoboToolkit: control_mode="absolute", mapping_mode="world_frame_calibrated"
+    - Keyboard: pos=0.03, rot=0.15
+
+
+================================================================================
+  第九部分: V1 IK 绝对位姿 (V1/grab_ik_abs_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabEnvCfg(V1 PiperGrabEnvCfg)
+  →  注册为 Isaac-Piper-Grab-IK-Abs-v1
+
+  继承 V1 两阶段全部配置，仅覆写:
+
+  【动作】
+    - arm_action.controller: use_relative_mode=False (绝对位姿)
+    - arm_action.scale: 1.0
+    - body_offset: (0,0,0)
+
+
+================================================================================
+  第十部分: V1 Visuomotor (V1/grab_ik_rel_visuomotor_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabVisuomotorEnvCfg(PiperGrabEnvCfg of grab_joint_pos_env_cfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-Visuomotor-v1
+
+  继承 Layer 1, 独立覆写 (自成体系):
+
+  【场景】同 V1: cube + box + mug (bottle.usd, pos=(0.4,-0.15,0.0003))
+
+  【摄像头】1280×720, 30fps 更新
+    - wrist_cam: PIPER_D435_COLOR_INTRINSIC_1280X720, clip=(0.01,2.0)
+                 offset: pos=(0,0,0), rot=(0.474,-0.565,0.518,-0.434), convention="ros"
+    - table_cam: offset: pos=(0,0.30,0.5), rot=(-0.127,0.644,-0.715,0.241), convention="ros"
+
+  【观测】
+    - 状态: actions, joint_pos_7d (含夹爪), joint_pos_target_7d, joint_pos, joint_vel,
+            eef_pos, eef_quat, gripper_pos
+    - 视觉: table_cam (rgb, CPU返回), wrist_cam (rgb, CPU返回)
+    - SubtaskCfg: 同 V1 状态版 (grasp_1, placed_1, grasp_2)
+    - 注意: object 物体位姿观测被注释掉 (仅依赖图像)
+
+  【视觉域随机化】大量覆写
+    - randomize_table_visual_material (mode="reset"):
+        8 种精选纹理: 竹板/樱桃/桃花心木/橡木/松木/胡桃木 + 黄铜/青铜/铜/不锈钢
+    - randomize_warehouse_lights (mode="reset"):
+        仓库 RectLight 强度 (200~1200), 无动态漂移
+    - randomize_warehouse_lights_dynamic (mode="interval", 1.5~4.0s):
+        灯光动态漂移 delta=(-600,600)
+    - randomize_cube_and_mug_and_box_poses: 同 V1 的 3 物体联合随机化
+    - randomize_cube_color: cube 颜色随机
+    - randomize_box_texture: 12 种木材/金属纹理
+    - randomize_mug_texture: 11 种金属/石材/木材纹理
+
+  【渲染】高质量模式
+    - num_rerenders_on_reset: 3
+    - antialiasing_mode: "DLAA"
+    - rendering_mode: "quality"
+    - enable_translucency, reflections, GI, AO, direct_lighting: True
+    - samples_per_pixel: 16
+    - enable_dl_denoiser: True
+    - dlss_mode: 2
+    - sim.dt: 1/150
+    - render_interval: 2
+
+  【遥操作】同 V1: OpenXR + XRoboToolkit + Keyboard
+
+
+================================================================================
+  第十一部分: V1-A 最小观测变体 (V1/grab_ik_rel_visuomotor_env_cfg_V1_A.py)
+================================================================================
+
+  Class: PiperGrabVisuomotorEnvCfg_V1_A(V1 PiperGrabVisuomotorEnvCfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-Visuomotor-v1-A
+
+  继承 V1 Visuomotor 全部配置，仅覆写观测:
+
+  【观测 — 最小化】
+    - State: 仅 actions (7维)
+    - 移除: joint_pos_7d, joint_pos_target_7d, joint_pos, joint_vel,
+            eef_pos, eef_quat, gripper_pos (全部本体感知)
+    - 保留: table_cam (rgb, CPU), wrist_cam (rgb, CPU)
+    - SubtaskCfg: 保留
+    - 设计意图: 兼容 LeRobot 训练格式 (observation.state = [7])
+
+
+================================================================================
+  第十二部分: V1 Cosmos (V1/grab_ik_rel_visuomotor_cosmos_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabVisuomotorCosmosEnvCfg(V1 PiperGrabVisuomotorEnvCfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v1
+
+  继承 V1 Visuomotor 全部配置，覆写:
+
+  【观测】恢复完整状态观测 + Cosmos 视觉
+    - 状态: actions, joint_pos, joint_vel, eef_pos, eef_quat, gripper_pos,
+            object_1, box, mug (poses)
+    - 视觉: table_cam/wrist_cam (rgb), table_cam_depth, wrist_cam_depth
+
+  【摄像头】升级为 Cosmos 数据类��
+    - data_types: ["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"]
+    - colorize_semantic_segmentation: True
+    - semantic_segmentation_mapping:
+        object_1=(120,230,255), box=(55,255,139), table=(255,237,218),
+        ground=(100,100,100), robot=(204,110,248), mug=(255,200,100),
+        UNLABELLED=(150,150,150), BACKGROUND=(200,200,200)
+
+  【渲染】
+    - dome_light_upper_lower_strategy: 4
+    - samples_per_pixel: 4 (低于 Visuomotor 的 16)
+    - num_rerenders_on_reset: 1
+    - dlss_mode: 2, antialiasing: "DLAA"
+
+
+================================================================================
+  第十三部分: V1 IK Abs Visuomotor (V1/grab_ik_abs_visuomotor_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabVisuomotorEnvCfg(V1 PiperGrabVisuomotorEnvCfg)
+  →  注册为 Isaac-Piper-Grab-IK-Abs-Visuomotor-v1
+
+  继承 V1 Visuomotor 全部配置，仅覆写:
+
+  【动作】
+    - arm_action.controller: use_relative_mode=False (绝对位姿)
+    - arm_action.scale: 1.0
+
+
+================================================================================
+  第十四部分: V2 两阶段+干扰物 (V2/grab_ik_rel_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabEnvCfg(PiperGrabEnvCfg of grab_joint_pos_env_cfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-v2
+
+  继承 Layer 1, 同 V1 结构但增加干扰物:
+
+  【场景】V1 + 额外物体
+    - mug: bottle.usd, pos=(0.4,-0.15,0.0203), scale=(1,1,1)
+    - (V1 已有 cube + box + mug, V2 代码中重新定义 mug)
+
+  【观测】
+    - SubtaskCfg: 阈值更宽松
+        grasp_1:  diff_threshold=0.15
+        placed_1: xy_threshold=0.15, height_threshold=0.10
+
+  【终止条件】
+    - success: objects_a_and_b_are_into_c (V2_mdp 版本)
+    - 阈值比 V1 宽松
+
+  【事件】3 物体联合随机化 (范围略有不同)
+    - pose_ranges: cube x=(0.25,0.5) y=(-0.2,0.2) z=(0.0203,0.0203)
+                   mug  x=(0.25,0.5) y=(-0.2,0.2) z=(0.0353,0.0353)
+                   box  x=(0.05,0.3) y=(0.15,0.35) z=(0.005,0.0005)
+    - min_separation=0.15
+    - 颜色随机化: cube, box, mug (RGB 各通道均匀)
+
+  【遥操作】
+    - OpenXR: delta_pos=10.0, delta_rot=10.0
+    - Keyboard: pos=0.01, rot=0.01
+
+
+================================================================================
+  第十五部分: V2 Visuomotor (V2/grab_ik_rel_visuomotor_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabVisuomotorEnvCfg(V1 PiperGrabVisuomotorEnvCfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-Visuomotor-v2
+
+  继承 V1 Visuomotor 全部配置，新增干扰物:
+
+  【场景】V1 基础上新增 2 个干扰物体
+    - distractor: blue_block.usd, pos=(0.35,0.08,0.0203), scale=(1,1,1)
+                  semantic_tags: ("class", "distractor")
+    - mug_2:      mug.usd (Nucleus), pos=(0.35,-0.1,0.0003), scale=(0.8,0.8,0.8)
+                  semantic_tags: ("class", "mug_2")
+
+  【事件】删除 V1 的 3 物体随机化，改为 5 物体联合随机化
+    - randomize_all_five_objects (mode="reset"):
+        pose_ranges: cube       x=(0.20,0.38) y=(-0.12,0.15) z=(0.0203,0.0203)
+                     mug        x=(0.20,0.38) y=(-0.12,0.15) z=(0,0)
+                     box        x=(0.08,0.30) y=(0.05,0.35)  z=(0,0)
+                     distractor x=(0.20,0.40) y=(-0.20,0.10) z=(0.0203,0.0203)
+                     mug_2      x=(0.20,0.40) y=(-0.20,0.10) z=(0.0203,0.0203)
+        min_separation=0.10
+    - randomize_distractor_color: RGB (0.05~0.10) — 保持暗色调
+
+
+================================================================================
+  第十六部分: V2 Cosmos (V2/grab_ik_rel_visuomotor_cosmos_env_cfg.py)
+================================================================================
+
+  Class: PiperGrabVisuomotorCosmosEnvCfg(V2 PiperGrabVisuomotorEnvCfg)
+  →  注册为 Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v2
+
+  继承 V2 Visuomotor 全部配置，覆写:
+
+  【观测】恢复完整状态 + Cosmos 视觉
+    - 状态: actions, joint_pos, joint_vel, eef_pos, eef_quat, gripper_pos,
+            object_1, box, mug (poses)
+    - 视觉: table_cam/wrist_cam (rgb), table_cam_depth, wrist_cam_depth
+
+  【摄像头】Cosmos 数据类�� (1280×720)
+    - data_types: ["rgb", "semantic_segmentation", "normals", "distance_to_image_plane"]
+    - semantic_segmentation_mapping:
+        object_1=(120,230,255), box=(55,255,139), table=(255,237,218),
+        ground=(100,100,100), robot=(204,110,248), mug=(255,200,100),
+        UNLABELLED=(150,150,150), BACKGROUND=(200,200,200)
+    - (注意: V2 Cosmos 语义映射不含 distractor 和 mug_2)
+
+  【渲染】
+    - dome_light_upper_lower_strategy: 4
+    - rendering_mode: "quality"
+    - GI/AO/反射/半透明/直接光照: True
+    - samples_per_pixel: 4
+    - dlss_mode: 2, antialiasing: "DLAA"
+    - num_rerenders_on_reset: 1
+
+
+================================================================================
+  附录 A: 注册名 vs 配置文件速查表
+================================================================================
+
+  Isaac-Piper-Grab-v0                          grab_joint_pos_env_cfg:PiperGrabEnvCfg
+  Isaac-Piper-Grab-IK-Rel-v0                   grab_ik_rel_env_cfg:PiperGrabEnvCfg
+  Isaac-Piper-Grab-IK-Rel-Visuomotor-v0        grab_ik_rel_visuomotor_env_cfg:PiperGrabVisuomotorEnvCfg
+  Isaac-Piper-Grab-IK-Rel-Skillgen-v0          grab_ik_rel_env_cfg_skillgen:PiperGrabSkillgenEnvCfg
+  Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v0 grab_ik_rel_visuomotor_cosmos_env_cfg:PiperGrabVisuomotorCosmosEnvCfg
+  Isaac-Piper-Grab-IK-Rel-Visuomotor-Depth-v0  grab_ik_rel_visuomotor_depth_env_cfg:PiperGrabVisuomotorDepthEnvCfg
+  Isaac-Piper-Grab-IK-Rel-v1                   V1.grab_ik_rel_env_cfg:PiperGrabEnvCfg
+  Isaac-Piper-Grab-IK-Abs-v1                   V1.grab_ik_abs_env_cfg:PiperGrabEnvCfg
+  Isaac-Piper-Grab-IK-Rel-Visuomotor-v1        V1.grab_ik_rel_visuomotor_env_cfg:PiperGrabVisuomotorEnvCfg
+  Isaac-Piper-Grab-IK-Rel-Visuomotor-v1-A      V1.grab_ik_rel_visuomotor_env_cfg_V1_A:PiperGrabVisuomotorEnvCfg_V1_A
+  Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v1 V1.grab_ik_rel_visuomotor_cosmos_env_cfg:PiperGrabVisuomotorCosmosEnvCfg
+  Isaac-Piper-Grab-IK-Abs-Visuomotor-v1        V1.grab_ik_abs_visuomotor_env_cfg:PiperGrabVisuomotorEnvCfg
+  Isaac-Piper-Grab-IK-Rel-v2                   V2.grab_ik_rel_env_cfg:PiperGrabEnvCfg
+  Isaac-Piper-Grab-IK-Rel-Visuomotor-v2        V2.grab_ik_rel_visuomotor_env_cfg:PiperGrabVisuomotorEnvCfg
+  Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v2 V2.grab_ik_rel_visuomotor_cosmos_env_cfg:PiperGrabVisuomotorCosmosEnvCfg
+
+
+================================================================================
+  附录 B: 动作空间对比
+================================================================================
+
+  Joint Position 控制:
+    arm_action:      JointPositionActionCfg (直接关节角)
+    gripper_action:  MimicBinaryJointPositionActionCfg
+    使用环境: Isaac-Piper-Grab-v0
+
+  IK 相对位姿控制:
+    arm_action:      DifferentialInverseKinematicsActionCfg (use_relative_mode=True)
+    gripper_action:  MimicBinaryJointPositionActionCfg (继承自 Layer 1)
+    使用环境: 所有 IK-Rel 环境
+
+  IK 绝对位姿控制:
+    arm_action:      DifferentialInverseKinematicsActionCfg (use_relative_mode=False)
+    gripper_action:  同 IK-Rel
+    使用环境: IK-Abs-v1, IK-Abs-Visuomotor-v1
+
+
+================================================================================
+  附录 C: 场景物体汇总
+================================================================================
+
+  v0 (单阶段):     object_1 (cube) + box
+  V1 (两阶段):     object_1 (cube) + mug (bottle.usd) + box
+  V2 (两阶段+干扰): object_1 (cube) + mug + box + distractor (cube) + mug_2
+
+  物体来源:
+    cube:        {ISAAC_NUCLEUS}/Props/Blocks/blue_block.usd
+    box (v0):    自定义 usd/box/box.usd
+    mug (V1/V2): 自定义 usd/bottle/bottle.usd
+    mug_2 (V2):  {ISAACLAB_NUCLEUS}/Objects/Mug/mug.usd
+    distractor:  {ISAAC_NUCLEUS}/Props/Blocks/blue_block.usd
+
+
+================================================================================
+  附录 D: 域随机化维度总览
+================================================================================
+
+  物理随机化 (所有环境):
+    - 物体初始位姿:   x/y/z/yaw 均匀随机, min_separation 防重叠
+    - 关节初始状态:   高斯噪声 (当前大多关闭 std=0)
+
+  视觉随机化 (Visuomotor 环境):
+    v0:  灯光强度+天空HDRI纹理, 桌面材质纹理, 机械臂金属纹理
+    V1:  同上 + 仓库灯光动态漂移(interval事件), 箱子/瓶子纹理, 方块颜色
+    V2:  继承 V1, 新增 distractor 颜色
+
+  Cosmos 额外: 语义分割颜色映射, 法线图输出
+
+
+================================================================================
+  附录 E: 仿真频率汇总
+================================================================================
+
+  v0 Joint Pos:      100Hz 物理, 20Hz 策略 (decimation=5)
+  v0 Visuomotor:     100Hz 物理, 20Hz 策略
+  v0 Cosmos:         240Hz 物理, 48Hz 策略
+  V1 全系:           150Hz 物理, 30Hz 策略
+  V2 全系:           100Hz 物理, 20Hz 策略 (继承 Layer 1)
+
+
+================================================================================
+  END
+================================================================================
