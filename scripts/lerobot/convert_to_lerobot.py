@@ -177,26 +177,12 @@ def build_episodes_metadata(full_df: pd.DataFrame, output_dir: Path, features: d
     return Dataset.from_pandas(episodes_df)
 
 
-def save_data_parquet_files(full_df: pd.DataFrame, output_dir: Path, features: dict,
-                           use_state_as_action: bool = False) -> None:
+def save_data_parquet_files(full_df: pd.DataFrame, output_dir: Path, features: dict) -> None:
     """用纯 pyarrow 写 parquet（不带 HuggingFace 元数据），FixedSizeList Schema。
 
     每 episode 一个 file-{ep_idx:03d}.parquet，放在 chunk-000 下。
     """
     data_pattern = DEFAULT_DATA_PATH
-
-    if use_state_as_action:
-        # Split 14D observation.state = [actual_joints(7) | target_joints(7)] into:
-        #   action = target_joints (last 7D)
-        #   observation.state = actual_joints (first 7D)
-        full_df = full_df.copy()
-        full_df["action"] = full_df["observation.state"].apply(lambda x: x[7:])   # targets
-        full_df["observation.state"] = full_df["observation.state"].apply(lambda x: x[:7])  # actuals
-        # Update feature shapes
-        features["action"]["shape"] = (7,)
-        features["observation.state"]["shape"] = (7,)
-        features["action"]["names"] = _STATE_NAMES  # joint position names
-        logger.info("Split 14D state → action(7D targets) + state(7D actuals)")
 
     action_len = features["action"]["shape"][0]
     state_len = features["observation.state"]["shape"][0]
@@ -344,9 +330,15 @@ def main():
         video_keys = []
     features = build_features(full_df, video_keys=video_keys)
     if args.use_state_as_action:
-        # Swap action names to joint position names
-        state_names = features["observation.state"]["names"]
-        features["action"]["names"] = state_names
+        # Split 14D state = [actual(7) | target(7)] into action + state
+        full_df = full_df.copy()
+        full_df["action"] = full_df["observation.state"].apply(lambda x: x[:7])
+        full_df["observation.state"] = full_df["observation.state"].apply(lambda x: x[7:])
+        features["action"]["shape"] = (7,)
+        features["observation.state"]["shape"] = (7,)
+        features["action"]["names"] = _STATE_NAMES
+        features["observation.state"]["names"] = _STATE_NAMES
+        logger.info("Split 14D → action(7D actual) + state(7D target)")
 
     # 3. 创建 info.json
     logger.info("=" * 60)
@@ -392,7 +384,7 @@ def main():
     logger.info("=" * 60)
     logger.info("Step 5: Saving data parquet files")
     logger.info("=" * 60)
-    save_data_parquet_files(full_df, output_dir, features, use_state_as_action=args.use_state_as_action)
+    save_data_parquet_files(full_df, output_dir, features)
 
     # 7. 计算并保存统计信息
     logger.info("=" * 60)
