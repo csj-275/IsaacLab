@@ -6,7 +6,7 @@
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.piper_grab.grab_ik_rel_env_cfg_skillgen import PiperGrabSkillgenEnvCfg
+from isaaclab_tasks.manager_based.piper_grab.grab_ik_rel_skillgen_env_cfg import PiperGrabSkillgenEnvCfg
 
 
 

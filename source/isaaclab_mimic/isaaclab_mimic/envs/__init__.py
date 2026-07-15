@@ -263,3 +263,16 @@ gym.register(
     },
     disable_env_checker=True,
 )
+
+##
+# V1 SkillGen Tasks
+##
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Skillgen-v1",
+    entry_point=f"{__name__}.piper_grab_ik_rel_V1_mimic_env:PiperGrabIKRelV1MimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.piper_grab_ik_rel_V1_skillgen_env_cfg:PiperGrabIKRelV1SkillgenEnvCfg",
+    },
+    disable_env_checker=True,
+)

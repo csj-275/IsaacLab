@@ -49,16 +49,6 @@ gym.register(
     },
 )
 
-# gym.register(
-#     id="Isaac-Piper-Grab-IK-Rel-Skillgen-v0",
-#     entry_point="isaaclab.envs:ManagerBasedRLEnv",
-#     kwargs={
-#         "env_cfg_entry_point": f"{__name__}.grab_ik_rel_env_cfg_skillgen:PiperGrabSkillgenEnvCfg",
-#         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
-#     },
-#     disable_env_checker=True,
-# )
-
 
 gym.register(
     id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v0",
@@ -77,6 +67,30 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.grab_ik_rel_visuomotor_depth_env_cfg:PiperGrabVisuomotorDepthEnvCfg",
         "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_200.json",
+    },
+)
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Skillgen-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.grab_ik_rel_skillgen_env_cfg:PiperGrabSkillgenEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+    },
+)
+
+##
+# V1 Skillgen Tasks
+##
+
+gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Skillgen-v1",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.V1.grab_ik_rel_skillgen_env_cfg:PiperGrabSkillgenEnvCfg",
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
     },
 )
 
