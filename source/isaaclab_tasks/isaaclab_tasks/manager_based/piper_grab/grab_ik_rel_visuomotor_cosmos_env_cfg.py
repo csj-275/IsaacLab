@@ -174,4 +174,4 @@ class PiperGrabVisuomotorCosmosEnvCfg(grab_ik_rel_visuomotor_env_cfg.PiperGrabVi
 
         # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]
-        self.sim.dt = 1 / 240
+        self.sim.dt = 1 / 150

@@ -77,24 +77,18 @@ CAM_KEY_MAP = {
 }
 STATE_KEY = "observation.state"
 
-# Full state key order from training (must match the checkpoint's observation.state shape)
-# Auto-detected: actual dims might differ from comments below
+# State key(s) to extract from observation. `build_state_tensor` auto-detects
+# available keys and pads/truncates to match the checkpoint's expected dim.
+# V1-A env uses "state" (joint_pos_target_7d). Legacy envs have "actions" etc.
 STATE_KEY_ORDER = [
-    "actions",
+    "state",         # V1-A: joint_pos_target_7d (7D)
+    "actions",       # legacy: last_action
     "joint_pos",
     "joint_vel",
-    "object",
     "eef_pos",
     "eef_quat",
     "gripper_pos",
-    "object_1_positions",
-    "object_1_orientations",
-    "box_positions",
-    "box_orientations",
-    "mug_positions",
-    "mug_orientations",
 ]
-# sum will be computed at runtime from the preprocessor stats
 
 # ---------------------------------------------------------------------------
 # Image transforms — training had image_transforms.enable=False (default),
@@ -118,7 +112,14 @@ def load_policy(checkpoint_dir: str, device: torch.device):
 
     input_features_raw = raw_config.pop("input_features", {})
     output_features_raw = raw_config.pop("output_features", {})
-    raw_config.pop("type", None)
+
+    # Remove training metadata keys not accepted by ACTConfig
+    _TRAINING_KEYS = {
+        "type", "pretrained_path", "pretrained_revision", "push_to_hub",
+        "repo_id", "private", "tags", "license", "device", "use_amp", "use_peft",
+    }
+    for k in _TRAINING_KEYS:
+        raw_config.pop(k, None)
 
     cfg = ACTConfig(**raw_config)
     cfg.input_features = {
