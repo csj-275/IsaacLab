@@ -20,6 +20,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.sim.spawners.materials.visual_materials_cfg import PreviewSurfaceCfg
 from isaaclab.utils import configclass
 
 from isaaclab_tasks.manager_based.piper_grab import mdp
@@ -180,8 +181,6 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
         # Gripper config
         self.gripper_joint_names = ["joint7", "joint8"]
-        # self.gripper_open_val = 0.05
-        # self.gripper_threshold = 0.06
         
         self.gripper_open_vals = [0.05, -0.05]
         self.gripper_threshold = 0.015
@@ -204,6 +203,11 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                 scale=(1, 1, 1),
                 rigid_props=mug_properties,
                 semantic_tags=[("class", "mug")],
+                visual_material=PreviewSurfaceCfg(
+                    diffuse_color=(0.85, 0.45, 0.10),  # orange-ish
+                    roughness=0.4,
+                    metallic=0.0,
+                ),
             ),
         )
 
@@ -225,40 +229,12 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             },
         )
 
-        # Color randomization
-        self.events.randomize_cube_color = EventTerm(
-            func=mdp.randomize_visual_color,
-            mode="reset",
-            params={
-                "event_name": "randomize_cube_color",
-                "asset_cfg": SceneEntityCfg("object_1"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
-            },
+        # Override box spawn to set a fixed color
+        self.scene.box.spawn.visual_material = PreviewSurfaceCfg(
+            diffuse_color=(0.55, 0.35, 0.15),  # brown/cardboard
+            roughness=0.5,
+            metallic=0.0,
         )
-
-        self.events.randomize_box_color = EventTerm(
-            func=mdp.randomize_visual_color,
-            mode="reset",
-            params={
-                "event_name": "randomize_box_color",
-                "asset_cfg": SceneEntityCfg("box"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
-            },
-        )
-
-        self.events.randomize_mug_color = EventTerm(
-            func=mdp.randomize_visual_color,
-            mode="reset",
-            params={
-                "event_name": "randomize_mug_color",
-                "asset_cfg": SceneEntityCfg("mug"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
-            },
-        )
-
 
         self.sim.dt = 1 / 150
         self.decimation = 5

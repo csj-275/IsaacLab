@@ -47,9 +47,11 @@ def joint_pos_target_7d(
     ``action`` column for joint-position training.
     """
     robot: Articulation = env.scene[robot_cfg.name]
-    joint_ids, _ = robot.find_joints("joint[1-6]")
-    arm_target = robot.data.joint_pos_target[:, joint_ids]  # (N, 6)
-    gripper = _gripper_1d(env, robot)  # gripper targets ≈ actuals (direct command)
+    all_ids, _ = robot.find_joints("joint[1-8]")
+    all_targets = robot.data.joint_pos_target[:, all_ids]  # (N, 8): joint1-8 targets
+    arm_target = all_targets[:, :6]  # (N, 6): joint1-6
+    # Gripper target from joint7/joint8 targets: (joint7_target - joint8_target) / 2
+    gripper = (all_targets[:, 6] - all_targets[:, 7]) / 2.0  # (N,)
     return torch.cat([arm_target, gripper.unsqueeze(1)], dim=1)  # (N, 7)
 
 

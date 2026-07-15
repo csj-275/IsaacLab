@@ -239,7 +239,7 @@ def build_image_batch(obs_group: dict, device: torch.device, transforms):
     for obs_key, feat_key in CAM_KEY_MAP.items():
         val = obs_group.get(obs_key)
         if val is not None and isinstance(val, torch.Tensor):
-            img = val.float() / 255.0  # uint8 0-255 → float 0-1
+            img = val.float()  # uint8 0-255 → float32, match LeRobot training
             if img.ndim == 3:
                 img = img.unsqueeze(0)  # (1, H, W, 3)
             if img.ndim == 4 and img.shape[-1] == 3:
@@ -310,6 +310,7 @@ def main():
     for ep in range(args_cli.num_episodes):
         logger.info(f"{'='*50}")
         logger.info(f"Episode {ep + 1}/{args_cli.num_episodes}")
+        print(f"\n=== Episode {ep + 1}/{args_cli.num_episodes} ===", flush=True)
 
         obs, _ = env.reset()
         episode_steps = 0
@@ -364,6 +365,10 @@ def main():
 
             episode_steps += 1
             total_steps += 1
+
+            # Print progress via print() to bypass Isaac Sim log filtering
+            if episode_steps % 20 == 0:
+                print(f"[Step {episode_steps}] action={np.array2string(action, precision=3, suppress_small=True)}", flush=True)
 
             # Check termination
             done = bool(terminated.item()) if hasattr(terminated, "item") else bool(terminated)
