@@ -1,0 +1,6 @@
+services:
+  isaac-lab-base:
+    volumes:
+      - type: bind
+        source: ../src/nvidia-curobo
+        target: /workspace/isaaclab/src/nvidia-curobo

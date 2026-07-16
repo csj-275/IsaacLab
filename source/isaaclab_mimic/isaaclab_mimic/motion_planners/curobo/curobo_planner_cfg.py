@@ -374,6 +374,56 @@ class CuroboPlannerCfg:
     """
 
     @classmethod
+    def piper_grab_config(cls) -> "CuroboPlannerCfg":
+        """Create configuration for Piper robot with gripper (Grab task).
+
+        This method uses the local Piper URDF from isaaclab_assets.
+
+        Returns:
+            CuroboPlannerCfg: Configuration for Piper grab tasks
+        """
+        import os
+        from pathlib import Path
+
+        # Resolve the Piper asset root for package:// URDF resolution
+        # parents[4] from .../source/isaaclab_mimic/isaaclab_mimic/motion_planners/curobo/ → repo_root/source
+        _piper_asset_root = Path(__file__).resolve().parents[4] / "isaaclab_assets" / "isaaclab_assets" / "data" / "piper"
+        _urdf_path = str(_piper_asset_root / "piper_description" / "urdf" / "piper_description_v100_realsense_camera_v2.urdf")
+
+        # Set ROS_PACKAGE_PATH so cuRobo can resolve package://piper_description/... and package://realsense2_description/...
+        _current_ros = os.environ.get("ROS_PACKAGE_PATH", "")
+        if str(_piper_asset_root) not in _current_ros:
+            os.environ["ROS_PACKAGE_PATH"] = os.pathsep.join([str(_piper_asset_root)] + ([_current_ros] if _current_ros else []))
+
+        robot_cfg_file = cls._create_temp_robot_yaml("piper.yml", _urdf_path)
+
+        return cls(
+            robot_config_file=robot_cfg_file,
+            robot_name="piper",
+            ee_link_name="link6",
+            gripper_joint_names=["joint7", "joint8"],
+            gripper_open_positions={"joint7": 0.05, "joint8": -0.05},
+            gripper_closed_positions={"joint7": 0.0, "joint8": 0.0},
+            hand_link_names=["link7", "link8"],
+            collision_spheres_file=None,
+            grasp_gripper_open_val=0.05,
+            approach_distance=0.05,
+            retreat_distance=0.05,
+            max_planning_attempts=1,
+            time_dilation_factor=0.6,
+            enable_finetune_trajopt=True,
+            n_repeat=None,
+            motion_step_size=None,
+            visualize_spheres=False,
+            visualize_plan=False,
+            debug_planner=False,
+            sphere_update_freq=5,
+            motion_noise_scale=0.02,
+            surface_sphere_radius=0.01,
+            world_ignore_substrings=["/World/defaultGroundPlane", "/curobo"],
+        )
+
+    @classmethod
     def franka_config(cls) -> "CuroboPlannerCfg":
         """Create configuration for Franka Panda robot.
 
@@ -456,7 +506,9 @@ class CuroboPlannerCfg:
         """
         task_lower = task_name.lower()
 
-        if "stack-cube-bin" in task_lower:
+        if "piper-grab" in task_lower:
+            return cls.piper_grab_config()
+        elif "stack-cube-bin" in task_lower:
             return cls.franka_stack_cube_bin_config()
         elif "stack-cube" in task_lower:
             return cls.franka_stack_cube_config()

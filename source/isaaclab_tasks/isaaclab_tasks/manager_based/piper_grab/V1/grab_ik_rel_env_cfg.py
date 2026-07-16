@@ -220,9 +220,9 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             mode="reset",
             params={
                 "pose_ranges": [
-                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0)},  # cube
-                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # mug
-                    {"x": (0.1, 0.3), "y": (0.05, 0.35), "z": (0.0000, 0.0000), "yaw": (-1.0, 1.0)},  # box
+                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
+                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
+                    {"x": (0.1, 0.3), "y": (0.05, 0.35), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
                 ],
                 "min_separation": 0.12,
                 "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],

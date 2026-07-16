@@ -21,7 +21,7 @@ class PiperGrabIKRelV1MimicEnvCfg(PiperGrabEnvCfg, MimicEnvCfg):
         self.datagen_config.generation_keep_failed = True
         self.datagen_config.generation_num_trials = 10
         self.datagen_config.generation_select_src_per_subtask = True
-        self.datagen_config.generation_transform_first_robot_pose = False
+        self.datagen_config.generation_transform_first_robot_pose = True
         self.datagen_config.generation_interpolate_from_last_target_pose = True
         self.datagen_config.generation_relative = True
         self.datagen_config.max_num_failures = 25
@@ -36,9 +36,9 @@ class PiperGrabIKRelV1MimicEnvCfg(PiperGrabEnvCfg, MimicEnvCfg):
                 subtask_term_offset_range=(0, 0),
                 selection_strategy="nearest_neighbor_object",
                 selection_strategy_kwargs={"nn_k": 3},
-                action_noise=0.03,
-                num_interpolation_steps=0,
-                num_fixed_steps=0,
+                action_noise=0.00,
+                num_interpolation_steps=3,
+                num_fixed_steps=2,
                 apply_noise_during_interpolation=False,
                 description="Grasp the cube",
                 next_subtask_description="Place the cube into the box",
@@ -50,11 +50,11 @@ class PiperGrabIKRelV1MimicEnvCfg(PiperGrabEnvCfg, MimicEnvCfg):
                 object_ref="box",
                 subtask_term_signal="placed_1",
                 subtask_term_offset_range=(0, 0),
-                selection_strategy="nearest_neighbor_object",
+                selection_strategy="nearest_neighbor_robot_distance",
                 selection_strategy_kwargs={"nn_k": 3},
-                action_noise=0.03,
-                num_interpolation_steps=0,
-                num_fixed_steps=0,
+                action_noise=0.00,
+                num_interpolation_steps=5,
+                num_fixed_steps=3,
                 apply_noise_during_interpolation=False,
                 description="Place cube into box",
                 next_subtask_description="Grasp the mug",
@@ -66,11 +66,11 @@ class PiperGrabIKRelV1MimicEnvCfg(PiperGrabEnvCfg, MimicEnvCfg):
                 object_ref="mug",
                 subtask_term_signal="grasp_2",
                 subtask_term_offset_range=(0, 0),
-                selection_strategy="nearest_neighbor_object",
+                selection_strategy="nearest_neighbor_robot_distance",
                 selection_strategy_kwargs={"nn_k": 3},
-                action_noise=0.03,
-                num_interpolation_steps=0,
-                num_fixed_steps=0,
+                action_noise=0.00,
+                num_interpolation_steps=5,
+                num_fixed_steps=3,
                 apply_noise_during_interpolation=False,
                 description="Grasp the mug",
                 next_subtask_description="Place the mug into the box",
@@ -82,11 +82,11 @@ class PiperGrabIKRelV1MimicEnvCfg(PiperGrabEnvCfg, MimicEnvCfg):
                 object_ref="box",
                 subtask_term_signal=None,
                 subtask_term_offset_range=(0, 0),
-                selection_strategy="nearest_neighbor_object",
+                selection_strategy="nearest_neighbor_robot_distance",
                 selection_strategy_kwargs={"nn_k": 3},
-                action_noise=0.03,
-                num_interpolation_steps=0,
-                num_fixed_steps=0,
+                action_noise=0.00,
+                num_interpolation_steps=5,
+                num_fixed_steps=3,
                 apply_noise_during_interpolation=False,
             )
         )

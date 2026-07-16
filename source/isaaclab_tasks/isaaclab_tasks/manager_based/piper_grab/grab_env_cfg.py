@@ -70,8 +70,6 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     #     spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=50.0),
     # )
     
-
-
 ##
 # MDP settings
 ##
@@ -82,8 +80,6 @@ class ActionsCfg:
     # will be set by agent env cfg
     arm_action: mdp.JointPositionActionCfg = MISSING
     gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
-
-
 
 @configclass
 class ObservationsCfg:

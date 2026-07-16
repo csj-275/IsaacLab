@@ -33,12 +33,12 @@ _MUG_BOX_PATH = os.path.normpath(
 class EventCfg:
     """Configuration for events."""
 
+    # arm initial joint pose
     init_piper_arm_pose = EventTerm(
         func=piper_grab_events.set_default_joint_pose,
         mode="reset",
         params={
              "default_pose": [0.0, 1.0, -0.6, 0.0, 1.35, 0.0, 0.05, -0.05],
-            # "default_pose": [0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.05, -0.05],
         },
     )
 
@@ -151,9 +151,6 @@ class PiperGrabEnvCfg(GrabEnvCfg):
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.1, 0.3, 0.0203), rot=(1.0, 0.0, 0.0, 0.0)),
             spawn=UsdFileCfg(
                 usd_path = _MUG_BOX_PATH,
-                # usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/sorting_bin_blue.usd",
-                # scale=(0.6, 0.7, 1.5), # l, w, h
-                scale=(1, 1, 1), # l, w, h
                 rigid_props=RigidBodyPropertiesCfg(),
                 semantic_tags=[("class", "box")],
             ),
