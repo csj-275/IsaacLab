@@ -4,3 +4,25 @@ services:
       - type: bind
         source: ../src/nvidia-curobo
         target: /workspace/isaaclab/src/nvidia-curobo
+      - type: bind
+        source: ../external/xrobotoolkit/xrobotoolkit
+        target: /workspace/xrobotoolkit
+      - type: bind
+        source: ../external/xrobotoolkit/XRoboToolkit-PC-Service-Pybind
+        target: /workspace/XRoboToolkit-PC-Service-Pybind
+      - type: bind
+        source: ../external/xrobotoolkit/XRoboToolkit-PC-Service
+        target: /workspace/XRoboToolkit-PC-Service
+      - type: bind
+        source: ../datasets
+        target: /workspace/isaaclab/datasets
+      - type: bind
+        source: ../usd
+        target: /workspace/isaaclab/usd
+      - type: bind
+        source: ../logs
+        target: /workspace/isaaclab/logs
+      - type: bind
+        source: ../../lerobot
+        target: /workspace/lerobot
+

@@ -81,13 +81,10 @@ STATE_KEY = "observation.state"
 # available keys and pads/truncates to match the checkpoint's expected dim.
 # V1-A env uses "state" (joint_pos_target_7d). Legacy envs have "actions" etc.
 STATE_KEY_ORDER = [
-    "state",         # V1-A: joint_pos_target_7d (7D)
-    "actions",       # legacy: last_action
-    "joint_pos",
-    "joint_vel",
-    "eef_pos",
-    "eef_quat",
-    "gripper_pos",
+    "joint_pos_target_7d",  # V1-A: current target joint positions (7D) — what the policy was trained on
+    "state",                # alias for joint_pos_target_7d
+    "joint_pos_7d",         # current actual joint positions (7D)
+    "actions",              # legacy: last_action
 ]
 
 # ---------------------------------------------------------------------------
@@ -188,23 +185,23 @@ _NON_STATE_KEYS = _IMAGE_OBS_KEYS | {"subtask_terms", "policy"}
 
 
 def build_state_tensor(obs_group: dict, expected_dim: int, device: torch.device) -> torch.Tensor:
-    """Concatenate all non-image tensor observation values into a flat state vector.
+    """Extract the state tensor from observation by matching STATE_KEY_ORDER.
 
-    Keys are sorted alphabetically for deterministic ordering. The result is
-    truncated or zero-padded to *expected_dim*.
+    Unlike the old concatenation approach (which sorted all tensor keys
+    alphabetically and truncated to expected_dim), this uses STATE_KEY_ORDER
+    to pick the single correct state key (e.g. "joint_pos_target_7d") that
+    matches what the policy was trained with.
     """
-    # Collect tensor keys that are not images/subtask metadata
-    tensor_keys = sorted(
-        k for k, v in obs_group.items()
-        if k not in _NON_STATE_KEYS and isinstance(v, torch.Tensor) and v.numel() > 0
-    )
-    parts = []
-    for key in tensor_keys:
-        val = obs_group[key]
-        parts.append(val.float().reshape(-1).to(device))
+    # Find the first available key in STATE_KEY_ORDER
+    chosen_key = None
+    for candidate in STATE_KEY_ORDER:
+        val = obs_group.get(candidate)
+        if val is not None and isinstance(val, torch.Tensor) and val.numel() > 0:
+            chosen_key = candidate
+            break
 
-    if parts:
-        state = torch.cat(parts)
+    if chosen_key is not None:
+        state = obs_group[chosen_key].float().reshape(-1).to(device)
     else:
         state = torch.empty(0, device=device)
 
@@ -215,13 +212,13 @@ def build_state_tensor(obs_group: dict, expected_dim: int, device: torch.device)
     elif actual_dim > expected_dim:
         logger.warning(
             f"State dim {actual_dim} > expected {expected_dim}, truncating. "
-            f"Check STATE_KEY_ORDER or env config."
+            f"Chosen key: {chosen_key}"
         )
         state = state[:expected_dim]
 
     logger.info(
-        f"build_state_tensor: all_obs_keys={sorted(obs_group.keys())}, "
-        f"tensor_keys={tensor_keys}, actual={actual_dim}, expected={expected_dim}"
+        f"build_state_tensor: chosen_key={chosen_key}, "
+        f"actual={actual_dim}, expected={expected_dim}"
     )
     return state.unsqueeze(0)
 
