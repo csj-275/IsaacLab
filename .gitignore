@@ -16,6 +16,7 @@
 
 # Exception: allow USD files under usd/ (custom assets)
 !/usd/**
+/usd/piper_isaac_sim-master/
 
 # Python
 .DS_Store
