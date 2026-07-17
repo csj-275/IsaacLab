@@ -203,7 +203,6 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                 scale=(1, 1, 1),
                 rigid_props=mug_properties,
                 semantic_tags=[("class", "mug")],
-                # visual_material set in __post_init__ below
             ),
         )
 

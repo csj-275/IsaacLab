@@ -18,6 +18,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.sim.spawners.materials.visual_materials_cfg import PreviewSurfaceCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR
 
@@ -103,11 +104,6 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
         params={
             "asset_cfg": SceneEntityCfg("table"),
             "textures": [
-                # Wood
-                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Ash/Ash_BaseColor.png", # no
-                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Birch/Birch_BaseColor.png", # no
-                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Plywood/Plywood_BaseColor.png", # no
-
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Mahogany_Planks/Mahogany_Planks_BaseColor.png",
@@ -115,17 +111,11 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
-                # Stone
-                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Stone/Marble/Marble_BaseColor.png", # no
                 # Metals
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
-                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Carbon/Steel_Carbon_BaseColor.png", # no
-                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Cast/Aluminum_Cast_BaseColor.png", # no
-                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Polished/Aluminum_Polished_BaseColor.png", # no
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
                 f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
-                # f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Iron/Iron_BaseColor.png", # no
             ],
             "default_texture": "",
         },
@@ -185,51 +175,13 @@ class ObservationsCfg:
         eef_pos = ObsTerm(func=mdp.ee_frame_pos)
         eef_quat = ObsTerm(func=mdp.ee_frame_quat)
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
-        # object = ObsTerm(func=mdp.object_obs)
-        # object_1_positions = ObsTerm(
-        #     func=mdp.object_poses_in_base_frame,
-        #     params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "pos"},
-        # )
-        # object_1_orientations = ObsTerm(
-        #     func=mdp.object_poses_in_base_frame,
-        #     params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "quat"},
-        # )
-        # box_positions = ObsTerm(
-        #     func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"}
-        # )
-        # box_orientations = ObsTerm(
-        #     func=mdp.object_poses_in_base_frame,
-        #     params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
-        # )
-        # mug_positions = ObsTerm(
-        #     func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("mug"), "return_key": "pos"}
-        # )
-        # mug_orientations = ObsTerm(
-        #     func=mdp.object_poses_in_base_frame,
-        #     params={"object_cfg": SceneEntityCfg("mug"), "return_key": "quat"},
-        # )
+
         table_cam = ObsTerm(
             func=_image_cpu, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
         )
         wrist_cam = ObsTerm(
             func=_image_cpu, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
         )
-        # table_cam_depth = ObsTerm(
-        #     func=_image_cpu,
-        #     params={
-        #         "sensor_cfg": SceneEntityCfg("table_cam"),
-        #         "data_type": "distance_to_image_plane",
-        #         "normalize": True,
-        #     },
-        # )
-        # wrist_cam_depth = ObsTerm(
-        #     func=_image_cpu,
-        #     params={
-        #         "sensor_cfg": SceneEntityCfg("wrist_cam"),
-        #         "data_type": "distance_to_image_plane",
-        #         "normalize": True,
-        #     },
-        # )
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -253,7 +205,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         super().__post_init__()
 
         # Override events
-        self.events = EventCfg()
+        # self.events = EventCfg()
 
         # Override robot to high-PD variant for IK tracking
         self.scene.robot = PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -292,11 +244,9 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                 pos=(0.0, 0.0, 0.0),
                 # pos=(0.0043, -0.0175, 0),
                 # w x y z
-                # 可行
                 # rot=(0.4545, -0.5417, 0.5417, -0.4545),
                 # 微调
                 rot=(0.4739127, -0.5647872, 0.5175321, -0.434261),
-
                 convention="ros",
             ),
         )
@@ -316,10 +266,6 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             ),
             offset=CameraCfg.OffsetCfg(
                 pos=(0.0, 0.30, 0.5),
-                # rot=(0.9703, 0, 0.2419, 0), 
-                # rot=(-0.3536, 0.6124, -0.6124, 0.3536),
-                # rot=(-0.3044, 0.5272, -0.6870, 0.3967),
-                # rot=(-0.1162, 0.6119, -0.7424, 0.2467),
                 rot=(-0.1269, 0.6437, -0.7150, 0.2414),
                 convention="ros",
             ),
@@ -364,66 +310,77 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             },
         )
 
+        # 固定颜色
+        self.scene.mug.spawn.visual_material = PreviewSurfaceCfg(
+            diffuse_color=(0.85, 0.45, 0.10),  # orange
+            roughness=0.4,
+            metallic=0.0,
+        )
+        self.scene.box.spawn.visual_material = PreviewSurfaceCfg(
+            diffuse_color=(0.55, 0.35, 0.15),  # brown/cardboard
+            roughness=0.5,
+            metallic=0.0,
+        )
 
         # ---------------------------------------------------------------------
         # Object visual randomization (cube uses color, box/mug use texture)
         # ---------------------------------------------------------------------
         # Cube: color randomization (texture doesn't work on non-converted USD)
-        self.events.randomize_cube_color = EventTerm(
-            func=mdp.randomize_visual_color,
-            mode="reset",
-            params={
-                "event_name": "randomize_cube_color",
-                "asset_cfg": SceneEntityCfg("object_1"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
-            },
-        )
+        # self.events.randomize_cube_color = EventTerm(
+        #     func=mdp.randomize_visual_color,
+        #     mode="reset",
+        #     params={
+        #         "event_name": "randomize_cube_color",
+        #         "asset_cfg": SceneEntityCfg("object_1"),
+        #         "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+        #         "mesh_name": "",
+        #     },
+        # )
 
-        self.events.randomize_box_texture = EventTerm(
-            func=piper_grab_events.randomize_visual_texture_material,
-            mode="reset",
-            params={
-                "asset_cfg": SceneEntityCfg("box"),
-                "textures": [
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Mahogany_Planks/Mahogany_Planks_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Cast/Aluminum_Cast_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Carbon/Steel_Carbon_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Iron/Iron_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/RustedMetal/RustedMetal_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brushed_Antique_Copper/Brushed_Antique_Copper_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Cast_Metal_Silver_Vein/Cast_Metal_Silver_Vein_BaseColor.png",
-                ],
-                "default_texture": "",
-            },
-        )
+        # self.events.randomize_box_texture = EventTerm(
+        #     func=piper_grab_events.randomize_visual_texture_material,
+        #     mode="reset",
+        #     params={
+        #         "asset_cfg": SceneEntityCfg("box"),
+        #         "textures": [
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Mahogany_Planks/Mahogany_Planks_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Cast/Aluminum_Cast_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Carbon/Steel_Carbon_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Iron/Iron_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/RustedMetal/RustedMetal_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brushed_Antique_Copper/Brushed_Antique_Copper_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Cast_Metal_Silver_Vein/Cast_Metal_Silver_Vein_BaseColor.png",
+        #         ],
+        #         "default_texture": "",
+        #     },
+        # )
 
-        self.events.randomize_mug_texture = EventTerm(
-            func=piper_grab_events.randomize_visual_texture_material,
-            mode="reset",
-            params={
-                "asset_cfg": SceneEntityCfg("mug"),
-                "textures": [
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Polished/Aluminum_Polished_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Silver/Silver_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Gold/Gold_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Stone/Marble/Marble_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
-                    f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
-                ],
-                "default_texture": "",
-            },
-        )
+        # self.events.randomize_mug_texture = EventTerm(
+        #     func=piper_grab_events.randomize_visual_texture_material,
+        #     mode="reset",
+        #     params={
+        #         "asset_cfg": SceneEntityCfg("mug"),
+        #         "textures": [
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Polished/Aluminum_Polished_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Silver/Silver_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Gold/Gold_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Stone/Marble/Marble_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
+        #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
+        #         ],
+        #         "default_texture": "",
+        #     },
+        # )
 
         # --- Color randomization (comment out to use texture above) ---
         # self.events.randomize_cube_color = EventTerm(
@@ -483,31 +440,6 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
 
         self.teleop_devices = DevicesCfg(
             devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        Se3RelRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
-                            zero_out_xy_rotation=True,
-                            use_wrist_rotation=False,
-                            use_wrist_position=True,
-                            delta_pos_scale_factor=15.0,
-                            delta_rot_scale_factor=15.0,
-                            sim_device=self.sim.device,
-                        ),
-                        GripperRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-                "xrobotoolkit": XRoboToolkitDeviceCfg(
-                    control_mode="absolute",
-                    mapping_mode="world_frame_calibrated",
-                    pos_sensitivity=1.0,
-                    rot_sensitivity=1.0,
-                    sim_device=self.sim.device,
-                ),
                 "keyboard": Se3KeyboardCfg(
                     pos_sensitivity=0.03,
                     rot_sensitivity=0.15,
