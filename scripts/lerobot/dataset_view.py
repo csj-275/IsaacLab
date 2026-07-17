@@ -5,7 +5,7 @@
 
 """Visualize joint action/state curves of a LeRobot (v3.0) dataset.
 
-For each requested episode, plots joint1-6 in a single figure (2x3 subplots):
+For each requested episode, plots every action/state dimension (e.g. joint1-8) in a single figure:
 action as solid lines and observation.state as dashed lines.
 
 Usage:
@@ -27,8 +27,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-NUM_JOINTS = 6
 
 
 def parse_args() -> argparse.Namespace:
@@ -83,15 +81,18 @@ def load_episode_data(dataset_dir: str, info: dict, ep_meta: pd.Series) -> pd.Da
 
 
 def plot_episode(df: pd.DataFrame, episode_index: int, joint_names: list[str], output_path: str) -> None:
-    """Plot joint1-6 action (solid) vs state (dashed) for one episode and save the figure."""
+    """Plot all joint dims: action (solid) vs state (dashed) for one episode and save the figure."""
     action = np.stack(df["action"].to_numpy())
     state = np.stack(df["observation.state"].to_numpy())
     t = df["timestamp"].to_numpy()
 
-    fig, axes = plt.subplots(2, 3, figsize=(15, 8), sharex=True)
+    num_joints = len(joint_names)
+    ncols = 3
+    nrows = (num_joints + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows), sharex=True, squeeze=False)
     fig.suptitle(f"Episode {episode_index} — action (solid) vs state (dashed)", fontsize=14)
 
-    for j in range(NUM_JOINTS):
+    for j in range(num_joints):
         ax = axes.flat[j]
         ax.plot(t, action[:, j], linestyle="-", color="tab:blue", label="action")
         ax.plot(t, state[:, j], linestyle="--", color="tab:orange", label="state")
@@ -99,10 +100,13 @@ def plot_episode(df: pd.DataFrame, episode_index: int, joint_names: list[str], o
         ax.grid(True, alpha=0.3)
         if j == 0:
             ax.legend(loc="best", fontsize=8)
-        if j >= 3:
+        if j >= num_joints - ncols:
             ax.set_xlabel("time (s)")
-        if j % 3 == 0:
+        if j % ncols == 0:
             ax.set_ylabel("position")
+    # hide unused subplots
+    for j in range(num_joints, nrows * ncols):
+        axes.flat[j].set_visible(False)
 
     fig.tight_layout()
     fig.savefig(output_path, dpi=150)
@@ -121,7 +125,7 @@ def main() -> None:
 
     with open(os.path.join(dataset_dir, "meta", "info.json")) as f:
         info = json.load(f)
-    joint_names = info["features"]["action"]["names"][:NUM_JOINTS]
+    joint_names = info["features"]["action"]["names"]
 
     episodes_meta = load_episodes_meta(dataset_dir)
     available = set(episodes_meta["episode_index"].astype(int).tolist())
