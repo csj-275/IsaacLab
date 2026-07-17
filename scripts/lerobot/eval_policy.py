@@ -36,8 +36,8 @@ parser.add_argument(
 parser.add_argument(
     "--task",
     type=str,
-    default="Isaac-Piper-Grab-IK-Rel-Visuomotor-v1",
-    help="Isaac Lab task name.",
+    default="Isaac-Piper-Grab-IK-Rel-Visuomotor-v1-A",
+    help="Isaac Lab task name. V1-A uses joint position actions matching the trained policy.",
 )
 parser.add_argument("--num-episodes", type=int, default=10, help="Number of evaluation episodes.")
 parser.add_argument("--max-steps", type=int, default=800, help="Max steps per episode.")
@@ -81,9 +81,9 @@ STATE_KEY = "observation.state"
 # available keys and pads/truncates to match the checkpoint's expected dim.
 # V1-A env uses "state" (joint_pos_target_7d). Legacy envs have "actions" etc.
 STATE_KEY_ORDER = [
-    "joint_pos_target_7d",  # V1-A: current target joint positions (7D) — what the policy was trained on
-    "state",                # alias for joint_pos_target_7d
-    "joint_pos_7d",         # current actual joint positions (7D)
+    "state",                # V1-A: joint_pos_target_7d mapped to key "state"
+    "joint_pos_target_7d",  # V1: current target joint positions
+    "joint_pos_7d",         # current actual joint positions
     "actions",              # legacy: last_action
 ]
 
@@ -152,22 +152,45 @@ def load_policy(checkpoint_dir: str, device: torch.device):
 # Environment creation
 # ---------------------------------------------------------------------------
 def create_env(task_name: str, expected_action_dim: int):
+    """Create evaluation environment.
+
+    Uses V1-A task config which directly accepts joint position actions
+    (matching the ACT policy's output format), as opposed to the regular
+    V1 config which uses IK delta pose actions for data collection.
+
+    The V1-A gripper uses BinaryJointPositionActionCfg (sign-based threshold=0),
+    but the policy outputs continuous gripper positions (0.02-0.05).
+    We override with AbsBinaryJointPositionActionCfg which uses a configurable
+    threshold (0.035 = midpoint between open 0.05 and close 0.02 in training data).
+    """
     env_cfg = parse_env_cfg(task_name=task_name, device=args_cli.device, num_envs=1)
 
-    # If checkpoint expects 8D action (old format: 6 IK + 2 gripper joint pos),
-    # override gripper from 1D scalar to 2D joint position
+    # Override gripper: use absolute binary action with threshold matching training data
+    # Open=0.05, Close=0.02, midpoint=0.035
+    from isaaclab.envs.mdp.actions.actions_cfg import AbsBinaryJointPositionActionCfg
+    env_cfg.actions.gripper_action = AbsBinaryJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["joint7", "joint8"],
+        open_command_expr={"joint7": 0.05, "joint8": -0.05},
+        close_command_expr={"joint7": -0.05, "joint8": 0.05},
+        threshold=0.03,
+        positive_threshold=True,  # grip > 0.03 → open; grip ≤ 0.03 → close
+    )
+
+    # Handle 8D action (old format: 6 joint pos + 2 gripper joint pos)
     if expected_action_dim == 8:
         from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
+        env_cfg.actions.arm_action = JointPositionActionCfg(
+            asset_name="robot",
+            joint_names=["joint[1-6]"],
+            scale=1.0,
+        )
         env_cfg.actions.gripper_action = JointPositionActionCfg(
             asset_name="robot",
             joint_names=["joint7", "joint8"],
             scale=1.0,
         )
-    # else: keep default 7D (6 IK + 1 gripper scalar via MimicBinaryJointPositionAction)
 
-    env_cfg.gripper_joint_names = ["joint7", "joint8"]
-    env_cfg.gripper_open_vals = [0.05, -0.05]
-    env_cfg.gripper_threshold = 0.01
     env_cfg.recorders = None
     env_cfg.terminations = None
 
