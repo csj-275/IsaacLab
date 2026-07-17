@@ -1112,11 +1112,7 @@ class CuroboPlanner(MotionPlannerBase):
             robot_link_count = 0
 
             # Count robot link spheres
-            robot_links = [
-                link
-                for link in self.robot_cfg["kinematics"]["collision_link_names"]
-                if link != self.config.attached_object_link_name
-            ]
+            robot_links = self._get_robot_collision_links()
             for link_name in robot_links:
                 link_spheres = self.motion_gen.kinematics.kinematics_config.get_link_spheres(link_name)
                 if link_spheres is not None:
@@ -1632,11 +1628,7 @@ class CuroboPlanner(MotionPlannerBase):
             Total number of active collision spheres for robot links only
         """
         sphere_config = self.motion_gen.kinematics.kinematics_config
-        robot_links = [
-            link
-            for link in self.robot_cfg["kinematics"]["collision_link_names"]
-            if link != self.config.attached_object_link_name
-        ]
+        robot_links = self._get_robot_collision_links()
         return sum(
             int(torch.sum(sphere_config.get_link_spheres(link_name)[:, 3] > 0).item()) for link_name in robot_links
         )
@@ -1714,11 +1706,7 @@ class CuroboPlanner(MotionPlannerBase):
             True if sphere belongs to an attached object, False if it's a robot link sphere
         """
         # Get total number of robot link spheres (excluding attached_object)
-        robot_links = [
-            link
-            for link in self.robot_cfg["kinematics"]["collision_link_names"]
-            if link != self.config.attached_object_link_name
-        ]
+        robot_links = self._get_robot_collision_links()
 
         total_robot_spheres = 0
         for link_name in robot_links:
@@ -1893,6 +1881,15 @@ class CuroboPlanner(MotionPlannerBase):
 
         self.motion_gen.update_locked_joints(locked_joints, self.robot_cfg)
 
+    def _get_robot_collision_links(self) -> list[str]:
+        """Get robot collision link names, excluding the attached object link.
+
+        Returns an empty list when the robot configuration does not define
+        ``collision_link_names`` (e.g. set to ``null`` in the robot YAML, as for Piper).
+        """
+        collision_links = self.robot_cfg["kinematics"].get("collision_link_names") or []
+        return [link for link in collision_links if link != self.config.attached_object_link_name]
+
     def _count_active_spheres(self) -> dict[str, int]:
         """Count active collision spheres by category for debugging.
 
@@ -1918,11 +1915,7 @@ class CuroboPlanner(MotionPlannerBase):
         sphere_config = self.motion_gen.kinematics.kinematics_config
 
         # Count robot link spheres (excluding attached_object)
-        robot_links = [
-            link
-            for link in self.robot_cfg["kinematics"]["collision_link_names"]
-            if link != self.config.attached_object_link_name
-        ]
+        robot_links = self._get_robot_collision_links()
         robot_sphere_count = 0
         for link_name in robot_links:
             if hasattr(sphere_config, "get_link_spheres"):

@@ -1,0 +1,24 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+services:
+  isaac-lab-base:
+    volumes:
+      - type: bind
+        source: ../datasets
+        target: /workspace/isaaclab/datasets
+      - type: bind
+        source: ../usd
+        target: /workspace/isaaclab/usd
+      - type: bind
+        source: ../logs
+        target: /workspace/isaaclab/logs
+      - type: bind
+        source: ../src/nvidia-curobo
+        target: /workspace/isaaclab/src/nvidia-curobo
+      - type: bind
+        source: ../cuda_12.8.0_570.86.10_linux.run
+        target: /workspace/isaaclab/cuda_12.8.0_570.86.10_linux.run
+        read_only: true

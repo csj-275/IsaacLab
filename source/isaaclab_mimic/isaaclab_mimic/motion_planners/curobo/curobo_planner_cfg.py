@@ -424,7 +424,7 @@ class CuroboPlannerCfg:
             motion_step_size=None,
             visualize_spheres=False,
             visualize_plan=False,
-            debug_planner=False,
+            debug_planner=True,
             sphere_update_freq=5,
             motion_noise_scale=0.02,
             collision_spheres_file=None,

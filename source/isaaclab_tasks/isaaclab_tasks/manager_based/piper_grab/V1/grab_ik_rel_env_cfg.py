@@ -203,11 +203,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
                 scale=(1, 1, 1),
                 rigid_props=mug_properties,
                 semantic_tags=[("class", "mug")],
-                visual_material=PreviewSurfaceCfg(
-                    diffuse_color=(0.85, 0.45, 0.10),  # orange-ish
-                    roughness=0.4,
-                    metallic=0.0,
-                ),
+                # visual_material set in __post_init__ below
             ),
         )
 
@@ -229,7 +225,12 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             },
         )
 
-        # Override box spawn to set a fixed color
+        # Object visual materials
+        self.scene.mug.spawn.visual_material = PreviewSurfaceCfg(
+            diffuse_color=(0.85, 0.45, 0.10),  # orange
+            roughness=0.4,
+            metallic=0.0,
+        )
         self.scene.box.spawn.visual_material = PreviewSurfaceCfg(
             diffuse_color=(0.55, 0.35, 0.15),  # brown/cardboard
             roughness=0.5,
@@ -242,31 +243,6 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         # Teleop devices
         self.teleop_devices = DevicesCfg(
             devices={
-                "handtracking": OpenXRDeviceCfg(
-                    retargeters=[
-                        Se3RelRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT,
-                            zero_out_xy_rotation=True,
-                            use_wrist_rotation=False,
-                            use_wrist_position=True,
-                            delta_pos_scale_factor=15.0,
-                            delta_rot_scale_factor=15.0,
-                            sim_device=self.sim.device,
-                        ),
-                        GripperRetargeterCfg(
-                            bound_hand=DeviceBase.TrackingTarget.HAND_RIGHT, sim_device=self.sim.device
-                        ),
-                    ],
-                    sim_device=self.sim.device,
-                    xr_cfg=self.xr,
-                ),
-                "xrobotoolkit": XRoboToolkitDeviceCfg(
-                    control_mode="absolute",
-                    mapping_mode="world_frame_calibrated",
-                    pos_sensitivity=1.0,
-                    rot_sensitivity=1.0,
-                    sim_device=self.sim.device,
-                ),
                 "keyboard": Se3KeyboardCfg(
                     pos_sensitivity=0.03,
                     rot_sensitivity=0.15,
