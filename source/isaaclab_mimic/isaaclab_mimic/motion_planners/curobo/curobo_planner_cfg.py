@@ -242,6 +242,13 @@ class CuroboPlannerCfg:
         # Update URDF path
         data["robot_cfg"]["kinematics"]["urdf_path"] = urdf_path
 
+        # Auto-populate collision_link_names if null — required to pair with collision_spheres_file.
+        kin = data["robot_cfg"]["kinematics"]
+        if kin.get("collision_link_names") is None:
+            link_names = kin.get("link_names") or kin.get("mesh_link_names") or []
+            kin["collision_link_names"] = [n for n in link_names if n != "attached_object"]
+            print(f"[curobo] auto-populated collision_link_names: {kin['collision_link_names']}")
+
         # Write to temporary file
         tmp_dir = tempfile.mkdtemp(prefix="curobo_robot_cfg_")
         out_path = os.path.join(tmp_dir, base_yaml)
@@ -405,21 +412,21 @@ class CuroboPlannerCfg:
             gripper_open_positions={"joint7": 0.05, "joint8": -0.05},
             gripper_closed_positions={"joint7": 0.0, "joint8": 0.0},
             hand_link_names=["link7", "link8"],
-            collision_checker_type=CollisionCheckerType.PRIMITIVE,
-            num_trajopt_seeds=6,
-            num_graph_seeds=6,
+            collision_checker_type=CollisionCheckerType.MESH,
+            num_trajopt_seeds=24,
+            num_graph_seeds=24,
             collision_cache_size={"obb": 150, "mesh": 150},
-            trajopt_tsteps=16,
-            collision_activation_distance=0.0,
-            approach_distance=0.05,
-            retreat_distance=0.05,
+            trajopt_tsteps=32,
+            collision_activation_distance=0.25,
+            approach_distance=0.08,
+            retreat_distance=0.08,
             grasp_gripper_open_val=0.05,
             enable_graph=True,
-            enable_graph_attempt=3,
-            max_planning_attempts=1,
+            enable_graph_attempt=10,
+            max_planning_attempts=10,
             enable_finetune_trajopt=True,
-            time_dilation_factor=0.6,
-            surface_sphere_radius=0.01,
+            time_dilation_factor=1.0,
+            surface_sphere_radius=0.02,
             n_repeat=None,
             motion_step_size=None,
             visualize_spheres=False,
@@ -427,7 +434,7 @@ class CuroboPlannerCfg:
             debug_planner=True,
             sphere_update_freq=5,
             motion_noise_scale=0.02,
-            collision_spheres_file=None,
+            collision_spheres_file="spheres/piper.yml",
             extra_collision_spheres={"attached_object": 100},
             position_threshold=0.005,
             rotation_threshold=0.05,

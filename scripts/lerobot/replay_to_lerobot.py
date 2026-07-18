@@ -101,19 +101,29 @@ import contextlib
 import logging
 from pathlib import Path
 
+print("[DEBUG] 1/6 importing gymnasium...", flush=True)
 import gymnasium as gym
+
+print("[DEBUG] 2/6 importing torch...", flush=True)
 import torch
 
+print("[DEBUG] 3/6 importing isaaclab (recorder, datasets)...", flush=True)
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.utils.datasets import HDF5DatasetFileHandler, EpisodeData
 from isaaclab.utils.datasets.lerobot_dataset_file_handler import LeRobotDatasetFileHandler
+print("[DEBUG] 3/6 done", flush=True)
 
 if args_cli.enable_pinocchio:
     import isaaclab_tasks.manager_based.locomanipulation.pick_place  # noqa: F401
     import isaaclab_tasks.manager_based.manipulation.pick_place  # noqa: F401
 
+print("[DEBUG] 4/6 importing isaaclab_tasks...", flush=True)
 import isaaclab_tasks  # noqa: F401
+print("[DEBUG] 4/6 done", flush=True)
+
+print("[DEBUG] 5/6 importing parse_env_cfg...", flush=True)
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+print("[DEBUG] 5/6 done", flush=True)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -153,6 +163,7 @@ def main():
     logger.info(f"Output: {args_cli.output} (dataset: {output_dir.name})")
     logger.info(f"Episodes to replay: {len(episode_indices_to_replay)}")
 
+    print("[DEBUG] 6/6 creating env...", flush=True)
     env_cfg = parse_env_cfg(task_name, device=args_cli.device, num_envs=num_envs)
 
     # --- Extract success check before disabling terminations ---
@@ -337,22 +348,32 @@ def main():
 def _check_episode_success(env, env_id: int, success_term) -> bool:
     """Check if the episode on env_id is successful.
 
-    Priority:
-    1. subtask_terms["placed_1"] in observation buffer
-    2. success_term function (if available)
-    """
-    # 方法 1: subtask_terms（visuomotor 环境自带）
-    obs_buf = getattr(env, "obs_buf", {})
-    subtask_terms = obs_buf.get("subtask_terms", {})
-    placed = subtask_terms.get("placed_1")
-    if placed is not None:
-        if isinstance(placed, torch.Tensor):
-            return bool(placed[env_id].item()) if placed.numel() > env_id else False
-        return bool(placed)
+    Matches the generation pipeline (``DataGenerator.generate`` → ``waypoint.execute``):
+    uses the full success termination function (e.g. ``objects_a_and_b_are_into_c``)
+    as the primary check.
 
-    # 方法 2: success termination function
+    Priority:
+    1. success_term function (full task success, same as data generation)
+    2. subtask_terms (fallback: check ALL placed/grasp keys in observation buffer)
+    """
+    # 方法 1: success termination function (matches generation pipeline)
     if success_term is not None:
         return bool(success_term.func(env, **success_term.params)[env_id])
+
+    # 方法 2: subtask_terms fallback — check ALL placed_* and grasp_* keys
+    obs_buf = getattr(env, "obs_buf", {})
+    subtask_terms = obs_buf.get("subtask_terms", {})
+    if subtask_terms:
+        # Check all subtask keys: grasp_1, placed_1, grasp_2, etc.
+        # An empty dict means no subtask tracking; a non-empty dict means all
+        # registered subtasks are evaluated. All must be True for success.
+        for key, value in subtask_terms.items():
+            if isinstance(value, torch.Tensor):
+                if value.numel() > env_id and not bool(value[env_id].item()):
+                    return False
+            elif not bool(value):
+                return False
+        return True  # All subtask conditions met
 
     return False
 

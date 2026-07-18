@@ -40,6 +40,45 @@ export SETUPTOOLS_SCM_PRETEND_VERSION=0.7.7
 ./_isaac_sim/python.sh -c "import curobo; print(curobo.__version__)"
 ```
 
+
+-----------------------------------------
+# Curobo安装(4090)
+
+> 适用于 RTX 4090 (CUDA 12.8)，解决 `libcusparseLt.so.0: cannot open shared object file` 错误。
+
+## 1. 安装 CUDA 12.8 Toolkit
+``` bash
+sh /workspace/isaaclab/cuda_12.8.0_570.86.10_linux.run --silent --toolkit --override --toolkitpath=/usr/local/cuda-12.8
+```
+## 2. 修复 libcusparseLt.so.0 缺失
+``` bash
+# IsaacSim自带的torch缺少cuSPARSELt稀疏矩阵库，需要软链
+TORCH_LIB="/isaac-sim/kit/python/lib/python3.11/site-packages/torch/lib"
+CUSPARSELT_SO="/isaac-sim/kit/python/lib/python3.11/site-packages/nvidia/cusparselt/lib/libcusparseLt.so.0"
+ln -sf "$CUSPARSELT_SO" "$TORCH_LIB/libcusparseLt.so.0"
+```
+
+## 3. 安装 curobo
+``` bash
+export CUDA_HOME=/usr/local/cuda-12.8
+export PATH="$CUDA_HOME/bin:$PATH"
+export TORCH_CUDA_ARCH_LIST="8.0+PTX"
+export SETUPTOOLS_SCM_PRETEND_VERSION=0.7.7
+./_isaac_sim/python.sh -m pip install -e src/nvidia-curobo --no-build-isolation
+```
+
+## 4. 验证
+``` bash
+# 验证 curobo torch正常
+./_isaac_sim/python.sh -c "import curobo; import torch; 
+print(torch.__version__);
+print(curobo.__version__);"
+```
+
+> **注意**：`libcusparseLt.so.0` 软链在容器重启后会丢失，需要重新执行步骤 2。
+----------------------------------------------
+
+
 # Mimic
 ``` bash
 # 1. 采集数据 - 基础环境
@@ -63,4 +102,13 @@ scripts/imitation_learning/isaaclab_mimic/generate_dataset_lerobot.py \
 --generation_num_trials 10 \
 --headless --enable_cameras --device cuda:0 \
 --fps 30
+```
+-----------------------------------------
+
+**常见报错**：ModuleNotFoundError: No module named 'pip._vendor.packaging._structures'
+There was an error running python
+``` bash
+rm -rf /workspace/isaaclab/_isaac_sim/kit/python/lib/python3.11/site-packages/pip /workspace/isaaclab/_isaac_sim/kit/python/lib/python3.11/site-packages/pip-*.dist-info
+curl -sS https://bootstrap.pypa.io/get-pip.py | /workspace/isaaclab/_isaac_sim/python.sh
+/workspace/isaaclab/_isaac_sim/python.sh -m pip install numpy==1.26.4
 ```
