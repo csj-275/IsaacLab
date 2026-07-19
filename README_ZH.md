@@ -103,6 +103,34 @@ scripts/imitation_learning/isaaclab_mimic/generate_dataset_lerobot.py \
 --headless --enable_cameras --device cuda:0 \
 --fps 30
 ```
+
+-----------------------------------------------------
+
+# Skillgen
+``` bash
+./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+--device cpu \
+--num_envs 1 \
+--generation_num_trials 10 \
+--input_file ./datasets/hdf5/annotated_dataset_skillgen.hdf5 \
+--output_file ./datasets/hdf5/generated_dataset_skillgen.hdf5 \
+--task Isaac-Piper-Grab-IK-Rel-Skillgen-v1 \
+--use_skillgen
+
+```
+
+-----------------------------------------------------
+# ACT策略测试
+``` bash
+./isaaclab.sh -p scripts/lerobot/eval_policy.py \
+    --checkpoint-dir ./logs/policy/D-SIM-PIPER-GRAB-0702-N100-K-V1-ACT/checkpoints/last/pretrained_model/ \
+    --num-episodes 1 \
+    --max-steps 800 \
+    --enable_cameras \
+    --device cuda:0 --headless \
+    --video ./log/eval_videos
+```
+
 -----------------------------------------
 
 **常见报错**：ModuleNotFoundError: No module named 'pip._vendor.packaging._structures'

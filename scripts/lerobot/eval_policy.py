@@ -79,7 +79,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Constants (must match training setup)
 # ---------------------------------------------------------------------------
-IMG_RESIZE = (224, 224)
 CAM_KEY_MAP = {
     "table_cam": "observation.images.front",
     "wrist_cam": "observation.images.wrist",
@@ -90,11 +89,11 @@ STATE_KEY = "observation.state"
 # available keys and pads/truncates to match the checkpoint's expected dim.
 # V1-A env uses "state" (joint_pos_target_7d). Legacy envs have "actions" etc.
 STATE_KEY_ORDER = [
-    "joint_pos_7d",         # V1 base: joint_pos_with_gripper_7d (current joint positions)
-    "state",                # fallback (if present)
-    "joint_pos",            # alternative key for current joint positions
-    "joint_pos_target_7d",  # V1: target joint positions
-    "actions",              # legacy: last_action
+    "joint_pos_7d",         # V1 base: current joint positions
+    # "joint_pos_target_7d",  # target joint pos (closes loop: model output → target → next state)
+    # "state",                # fallback
+    # "joint_pos",            # alternative key
+    # "actions",              # legacy: last_action
 ]
 
 # ---------------------------------------------------------------------------
@@ -195,6 +194,7 @@ def create_env(task_name: str, expected_action_dim: int):
             asset_name="robot",
             joint_names=["joint[1-6]"],
             scale=1.0,
+            use_default_offset=False,
         )
         env_cfg.actions.gripper_action = JointPositionActionCfg(
             asset_name="robot",
@@ -273,7 +273,11 @@ def build_image_batch(obs_group: dict, device: torch.device, transforms):
 # ---------------------------------------------------------------------------
 # Success check
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Video writing (OpenCV — avoids torchvision deprecation + ffmpeg pipe deadlock)
+# ---------------------------------------------------------------------------
 def check_success(env, obs: dict) -> bool:
+    """Check if episode succeeded by inspecting subtask terms or termination buffer."""
     subtask_terms = obs.get("subtask_terms", {})
     for key in ["placed_1", "placed_2"]:
         val = subtask_terms.get(key)
@@ -289,6 +293,21 @@ def check_success(env, obs: dict) -> bool:
     except Exception:
         pass
     return False
+
+
+def _write_video_cv2(frames: list, video_dir, episode_index: int, fps: int = 30):
+    """Write a list of uint8 numpy frames (H, W, 3) to MP4 via OpenCV."""
+    import cv2
+    vpath = Path(video_dir) / f"ep_{episode_index:03d}.mp4"
+    h, w = frames[0].shape[:2]
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    writer = cv2.VideoWriter(str(vpath), fourcc, fps, (w, h))
+    if not writer.isOpened():
+        raise RuntimeError("cv2.VideoWriter failed to open")
+    for f in frames:
+        writer.write(cv2.cvtColor(f, cv2.COLOR_RGB2BGR))
+    writer.release()
+    logger.info(f"  🎥 {vpath} ({len(frames)} frames)")
 
 # ---------------------------------------------------------------------------
 # Main
@@ -368,6 +387,18 @@ def main():
             # --- Build policy input ---
             batch = build_image_batch(obs_group, device, image_transforms)
 
+            # Save first frame for visual inspection
+            if ep == 0 and episode_steps == 0:
+                import cv2
+                for cam_name in ["table_cam", "wrist_cam"]:
+                    cam_img = obs_group.get(cam_name)
+                    if cam_img is not None and isinstance(cam_img, torch.Tensor):
+                        f = cam_img.squeeze(0).cpu().numpy().astype(np.uint8)
+                        f_bgr = cv2.cvtColor(f, cv2.COLOR_RGB2BGR)
+                        save_path = video_dir / f"debug_{cam_name}_frame0.png" if video_dir else Path(f"debug_{cam_name}_frame0.png")
+                        cv2.imwrite(str(save_path), f_bgr)
+                        print(f"[DEBUG] Saved {save_path}", flush=True)
+
             # One-time check: are images actually captured?
             if ep == 0 and episode_steps == 0:
                 for k in ["observation.images.front", "observation.images.wrist"]:
@@ -385,6 +416,16 @@ def main():
                 batch = dict(batch)
                 batch["observation.images"] = [batch[k] for k in policy.config.image_features]
 
+            # One-time debug: show normalized values
+            if ep == 0 and episode_steps == 0:
+                ns = batch.get(STATE_KEY)
+                if ns is not None:
+                    print(f"[DEBUG] normalized state: shape={list(ns.shape)}, values={ns.squeeze().tolist()[:10]}", flush=True)
+                for ik, imgk in enumerate(policy.config.image_features):
+                    img = batch.get(imgk)
+                    if img is not None:
+                        print(f"[DEBUG] normalized {imgk}: shape={list(img.shape)}, min={img.min().item():.4f}, max={img.max().item():.4f}, mean={img.mean().item():.4f}", flush=True)
+
             # Infer
             with torch.inference_mode():
                 actions_hat, _ = policy.model(batch)
@@ -400,6 +441,15 @@ def main():
             # Step env
             env_action = torch.from_numpy(action).reshape(env.action_space.shape).to(env.device)
             obs, reward, terminated, truncated, info = env.step(env_action)
+
+            # One-time debug: verify action → joint target mapping
+            if ep == 0 and episode_steps == 0:
+                robot = env.scene["robot"]
+                jt = robot.data.joint_pos_target[0].cpu().numpy()
+                jp = robot.data.joint_pos[0].cpu().numpy()
+                print(f"[DEBUG] after step 0: joint_pos={np.array2string(jp, precision=3, suppress_small=True)}", flush=True)
+                print(f"[DEBUG] after step 0: joint_target={np.array2string(jt, precision=3, suppress_small=True)}", flush=True)
+                print(f"[DEBUG] after step 0: model_action={np.array2string(action, precision=3, suppress_small=True)}", flush=True)
 
             episode_steps += 1
             total_steps += 1
@@ -454,12 +504,11 @@ def main():
             logger.info(f"  📊 {plot_path}")
 
         # --- Save video ---
+        print(f"[DEBUG] episode_frames: {len(episode_frames) if episode_frames else 0}", flush=True)
         if episode_frames:
-            import torchvision.io as tio
-            frames_tensor = torch.from_numpy(np.stack(episode_frames))
-            vpath = video_dir / f"ep_{ep:03d}.mp4"
-            tio.write_video(str(vpath), frames_tensor, fps=30)
-            logger.info(f"  🎥 {vpath}")
+            print("[DEBUG] Writing video...", flush=True)
+            _write_video_cv2(episode_frames, video_dir, ep, fps=30)
+            print("[DEBUG] Video done.", flush=True)
 
     # 4. Summary
     logger.info(f"{'='*50}")
@@ -474,12 +523,11 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         logger.info("Interrupted by user.")
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] {e}", flush=True)
+        traceback.print_exc()
     finally:
-        logger.info("Evaluation complete. Closing simulation...")
-        # Let any pending rendering finish briefly, then shut down
-        import time
-        deadline = time.time() + 2.0
-        while simulation_app.is_running() and time.time() < deadline:
-            simulation_app.update()
-        simulation_app.close()
-        logger.info("Done.")
+        import os
+        print("[INFO] Done eval.", flush=True)
+        os._exit(0)

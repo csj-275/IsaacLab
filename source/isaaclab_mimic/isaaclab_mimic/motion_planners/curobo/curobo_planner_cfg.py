@@ -246,7 +246,7 @@ class CuroboPlannerCfg:
         kin = data["robot_cfg"]["kinematics"]
         if kin.get("collision_link_names") is None:
             link_names = kin.get("link_names") or kin.get("mesh_link_names") or []
-            kin["collision_link_names"] = [n for n in link_names if n != "attached_object"]
+            kin["collision_link_names"] = [n for n in link_names if n not in ("attached_object", "arm_base")]
             print(f"[curobo] auto-populated collision_link_names: {kin['collision_link_names']}")
 
         # Write to temporary file
@@ -439,7 +439,7 @@ class CuroboPlannerCfg:
             position_threshold=0.005,
             rotation_threshold=0.05,
             cuda_device=0,
-            world_ignore_substrings=["/World/defaultGroundPlane", "/curobo"],
+            world_ignore_substrings=["/World/defaultGroundPlane", "/curobo", "/Warehouse"],
         )
 
     @classmethod

@@ -10,34 +10,19 @@ table_cam, wrist_cam, and other terms — exactly what the ACT policy needs as i
 V1-A only overrides the action space to use direct joint position targets instead
 of IK delta poses.
 """
-
-from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg, BinaryJointPositionActionCfg
+from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
 
 from .grab_ik_rel_visuomotor_env_cfg import PiperGrabVisuomotorEnvCfg
 
-
 class PiperGrabVisuomotorEnvCfg_V1_A(PiperGrabVisuomotorEnvCfg):
     """V1-A: joint-position action, inherits V1 observations (joint_pos_7d + cameras)."""
-
     def __post_init__(self):
         super().__post_init__()
 
-        # Override arm action: IK delta pose → joint position targets (6D)
+        # 绝对关节位置
         self.actions.arm_action = JointPositionActionCfg(
             asset_name="robot",
             joint_names=["joint[1-6]"],
-            scale=0.5,
+            scale=1.0,
+            use_default_offset=False,
         )
-
-        # Override gripper: binary (1D scalar → open/close)
-        # self.actions.gripper_action = BinaryJointPositionActionCfg(
-        #     asset_name="robot",
-        #     joint_names=["joint7", "joint8"],
-        #     open_command_expr={"joint7": 0.05, "joint8": -0.05},
-        #     close_command_expr={"joint7": -0.05, "joint8": 0.05},
-        # )
-
-        # Gripper status
-        # self.gripper_joint_names = ["joint7", "joint8"]
-        # self.gripper_open_vals = [0.05, -0.05]
-        # self.gripper_threshold = 0.01
