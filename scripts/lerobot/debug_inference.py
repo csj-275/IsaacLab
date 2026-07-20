@@ -130,17 +130,19 @@ for i, ep_idx in enumerate(ep_indices):
             if cam_val is not None and isinstance(cam_val, np.ndarray) and cam_val.size > 0:
                 img = cam_val
             else:
-                # Fallback: load from video
-                import av
-                video_path = video_dir / img_key / f"episode_{ep_num:06d}.mp4"
+                # Fallback: load from video (LeRobot v3 format: file-{ep:03d}.mp4)
+                import cv2
+                video_path = video_dir / img_key / "chunk-000" / f"file-{ep_num:03d}.mp4"
                 if video_path.exists():
-                    container = av.open(str(video_path))
-                    stream = container.streams.video[0]
-                    container.seek(frame_idx)
-                    for frame in container.decode(stream):
-                        img = frame.to_ndarray(format="rgb24")
-                        break
-                    container.close()
+                    cap = cv2.VideoCapture(str(video_path))
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+                    ret, frame_bgr = cap.read()
+                    cap.release()
+                    if ret:
+                        img = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+                    else:
+                        print(f"  [WARN] Failed to read frame from {video_path}, using zeros")
+                        img = np.zeros((720, 1280, 3), dtype=np.uint8)
                 else:
                     print(f"  [WARN] No image for {img_key} ep={ep_num} frame={frame_idx}, using zeros")
                     img = np.zeros((720, 1280, 3), dtype=np.uint8)

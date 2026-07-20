@@ -246,6 +246,49 @@ def build_state_tensor(obs_group: dict, expected_dim: int, device: torch.device)
 # ---------------------------------------------------------------------------
 # Build image batch
 # ---------------------------------------------------------------------------
+def _simulate_mp4_roundtrip(img_uint8: np.ndarray) -> np.ndarray:
+    """Encode a single uint8 RGB frame as MP4 then decode back, simulating training data pipeline.
+
+    Tries ffmpeg first, falls back to OpenCV ``mp4v`` codec (same as LeRobot handler).
+    """
+    import subprocess, tempfile, os, cv2
+    h, w = img_uint8.shape[:2]
+    fd, tmppath = tempfile.mkstemp(suffix=".mp4")
+    os.close(fd)
+    try:
+        # Try ffmpeg first
+        try:
+            cmd = [
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-f", "rawvideo", "-vcodec", "rawvideo",
+                "-s", f"{w}x{h}", "-pix_fmt", "rgb24", "-r", "30",
+                "-i", "-",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+                "-pix_fmt", "yuv420p", "-frames:v", "1", tmppath,
+            ]
+            subprocess.run(cmd, input=img_uint8.tobytes(), capture_output=True, timeout=10, check=True)
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            # Fallback: OpenCV mp4v (same as LeRobot handler's _encode_video_cv2)
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            writer = cv2.VideoWriter(tmppath, fourcc, 30.0, (w, h))
+            writer.write(cv2.cvtColor(img_uint8, cv2.COLOR_RGB2BGR))
+            writer.release()
+        # Decode back
+        cap = cv2.VideoCapture(tmppath)
+        ret, frame_bgr = cap.read()
+        cap.release()
+        if ret:
+            return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        return img_uint8
+    except Exception:
+        return img_uint8
+    finally:
+        try:
+            os.unlink(tmppath)
+        except OSError:
+            pass
+
+
 def build_image_batch(obs_group: dict, device: torch.device, transforms):
     """Convert env images (uint8 0-255) to float32 0-1, then optionally resize.
 
@@ -257,9 +300,10 @@ def build_image_batch(obs_group: dict, device: torch.device, transforms):
     for obs_key, feat_key in CAM_KEY_MAP.items():
         val = obs_group.get(obs_key)
         if val is not None and isinstance(val, torch.Tensor):
-            img = val.float() / 255.0  # uint8 0-255 → float32 0-1, match LeRobot training (return_uint8=False)
-            if img.ndim == 3:
-                img = img.unsqueeze(0)  # (1, H, W, 3)
+            img_u8 = val.squeeze(0).cpu().numpy().astype(np.uint8)
+            img_u8 = _simulate_mp4_roundtrip(img_u8)  # match training MP4 compression
+            img = torch.from_numpy(img_u8).float() / 255.0
+            img = img.unsqueeze(0)  # (1, H, W, 3)
             if img.ndim == 4 and img.shape[-1] == 3:
                 img = img.permute(0, 3, 1, 2)  # (1, 3, H, W)
             img = img.to(device)

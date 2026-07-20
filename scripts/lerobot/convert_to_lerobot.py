@@ -293,13 +293,13 @@ def main():
     parser.add_argument(
         "--src-dir",
         type=str,
-        default="/home/chenshengjia/company/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1",
+        default="./datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1",
         help="Source IsaacLab data directory",
     )
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="/home/chenshengjia/company/isaaclab/datasets/lerobot/piper_grab_v1",
+        default="./datasets/lerobot/D-SIM-PIPER-GRAB-XXXX-NX-K-V1",
         help="Output LeRobot dataset directory",
     )
     parser.add_argument("--symlink", action="store_true", help="Use symlinks instead of copying video files")
@@ -330,15 +330,15 @@ def main():
         video_keys = []
     features = build_features(full_df, video_keys=video_keys)
     if args.use_state_as_action:
-        # Split 14D state = [actual(7) | target(7)] into action + state
+        # Split 14D state = [current(7) | target(7)] into obs + action
         full_df = full_df.copy()
-        full_df["action"] = full_df["observation.state"].apply(lambda x: x[:7])
-        full_df["observation.state"] = full_df["observation.state"].apply(lambda x: x[7:])
+        full_df["action"] = full_df["observation.state"].apply(lambda x: x[7:])
+        full_df["observation.state"] = full_df["observation.state"].apply(lambda x: x[:7])
         features["action"]["shape"] = (7,)
         features["observation.state"]["shape"] = (7,)
         features["action"]["names"] = _STATE_NAMES
         features["observation.state"]["names"] = _STATE_NAMES
-        logger.info("Split 14D → action(7D actual) + state(7D target)")
+        logger.info("Split 14D → action(7D target) + state(7D current)")
 
     # 3. 创建 info.json
     logger.info("=" * 60)

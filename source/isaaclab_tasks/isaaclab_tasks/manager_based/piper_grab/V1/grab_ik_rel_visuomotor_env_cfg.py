@@ -98,64 +98,40 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
     #     },
     # )
 
-    randomize_table_visual_material = EventTerm(
-        func=piper_grab_events.randomize_visual_texture_material,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("table"),
-            "textures": [
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Mahogany_Planks/Mahogany_Planks_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
-                # Metals
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
-            ],
-            "default_texture": "",
-        },
-    )
-
-    # Warehouse RectLight: dim initial + slow large drift during episode
-    randomize_warehouse_lights = EventTerm(
-        func=piper_grab_events.randomize_warehouse_light_intensity,
-        mode="reset",
-        params={"intensity_range": (200.0, 1200.0), "delta_range": (0.0, 0.0)},
-    )
-    randomize_warehouse_lights_dynamic = EventTerm(
-        func=piper_grab_events.randomize_warehouse_light_intensity,
-        mode="interval",
-        interval_range_s=(1.5, 4.0),
-        params={"delta_range": (-600.0, 600.0)},
-    )
-
-
-    # randomize_robot_arm_visual_texture = EventTerm(
+    # randomize_table_visual_material = EventTerm(
     #     func=piper_grab_events.randomize_visual_texture_material,
     #     mode="reset",
     #     params={
-    #         "asset_cfg": SceneEntityCfg("robot"),
+    #         "asset_cfg": SceneEntityCfg("table"),
     #         "textures": [
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Cast/Aluminum_Cast_BaseColor.png",
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Polished/Aluminum_Polished_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Mahogany_Planks/Mahogany_Planks_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
+    #             # Metals
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
     #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
     #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brushed_Antique_Copper/Brushed_Antique_Copper_BaseColor.png",
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Cast_Metal_Silver_Vein/Cast_Metal_Silver_Vein_BaseColor.png",
     #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Gold/Gold_BaseColor.png",
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Iron/Iron_BaseColor.png",
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/RustedMetal/RustedMetal_BaseColor.png",
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Silver/Silver_BaseColor.png",
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Carbon/Steel_Carbon_BaseColor.png",
-    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
     #         ],
+    #         "default_texture": "",
     #     },
+    # )
+
+    # Warehouse RectLight: dim initial + slow large drift during episode
+    # randomize_warehouse_lights = EventTerm(
+    #     func=piper_grab_events.randomize_warehouse_light_intensity,
+    #     mode="reset",
+    #     params={"intensity_range": (200.0, 1200.0), "delta_range": (0.0, 0.0)},
+    # )
+    # randomize_warehouse_lights_dynamic = EventTerm(
+    #     func=piper_grab_events.randomize_warehouse_light_intensity,
+    #     mode="interval",
+    #     interval_range_s=(1.5, 4.0),
+    #     params={"delta_range": (-600.0, 600.0)},
     # )
 
 
@@ -167,7 +143,6 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group with state and image values."""
 
-        actions = ObsTerm(func=mdp.last_action)
         joint_pos_7d = ObsTerm(func=V1_mdp.joint_pos_with_gripper_7d)  # 7D: observed joint pos
         joint_pos_target_7d = ObsTerm(func=V1_mdp.joint_pos_target_7d)  # 7D: commanded joint target
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
@@ -296,6 +271,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         del self.events.randomize_cube_positions
         del self.events.randomize_box_positions
 
+        # 随机位姿
         self.events.randomize_cube_and_mug_and_box_poses = EventTerm(
             func=piper_grab_events.randomize_object_pose,
             mode="reset",
