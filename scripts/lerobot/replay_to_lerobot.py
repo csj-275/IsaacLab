@@ -25,13 +25,12 @@ Usage (inside Docker container)::
         --output ./datasets/lerobot/E-SIM-PIPER-GRAB-0629-N17-K-V1 \\
         --headless --enable_cameras --device cuda:0
 
-    # Only replay specific episodes and skip failed ones:
+    # Only replay specific episodes:
     ./isaaclab.sh -p scripts/lerobot/replay_to_lerobot.py \\
         --task Isaac-Piper-Grab-IK-Rel-Visuomotor-v1 \\
         --input ./datasets/hdf5/[0629]annotated_piper_dataset_K2.hdf5 \\
         --output ./datasets/lerobot/piper_grab_replayed \\
         --select_episodes 0 5 10 \\
-        --skip_failed \\
         --headless --enable_cameras --device cuda:0
 """
 
@@ -74,12 +73,6 @@ parser.add_argument(
     help="Specific episode indices to replay. Omit to replay all.",
 )
 parser.add_argument(
-    "--skip_failed",
-    action="store_true",
-    default=False,
-    help="Only save successful episodes (check via env subtask_terms / terminations).",
-)
-parser.add_argument(
     "--enable_pinocchio",
     action="store_true",
     default=False,
@@ -108,6 +101,7 @@ print("[DEBUG] 2/6 importing torch...", flush=True)
 import torch
 
 print("[DEBUG] 3/6 importing isaaclab (recorder, datasets)...", flush=True)
+from isaaclab.managers import DatasetExportMode
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.utils.datasets import HDF5DatasetFileHandler, EpisodeData
 from isaaclab.utils.datasets.lerobot_dataset_file_handler import LeRobotDatasetFileHandler
@@ -178,6 +172,7 @@ def main():
     # Setup LeRobot recorder
     lerobot_recorder_cfg = ActionStateRecorderManagerCfg()
     lerobot_recorder_cfg.dataset_file_handler_class_type = LeRobotDatasetFileHandler
+    lerobot_recorder_cfg.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES
     dataset_name = output_dir.name
     lerobot_recorder_cfg.dataset_export_dir_path = str(output_dir.parent)
     lerobot_recorder_cfg.dataset_filename = dataset_name
@@ -200,7 +195,7 @@ def main():
     logger.info(f"Environment created: {task_name}")
     if success_check_fn is not None:
         logger.info(f"Success check: {success_check_fn.func.__name__}")
-    logger.info(f"Skip failed episodes: {args_cli.skip_failed}")
+    logger.info("Export mode: success → output dir, failed → output_failed dir")
 
     # ------------------------------------------------------------------
     # Replay episodes
@@ -237,6 +232,8 @@ def main():
                         if just_finished_idx is not None and not episode_ended[env_id]:
                             episode_ended[env_id] = True
                             is_success = _check_episode_success(env, env_id, success_check_fn)
+                            # Mark episode success/failure in recorder BEFORE reset_to() triggers export
+                            _set_recorder_episode_success(env, env_id, is_success)
                             if is_success:
                                 success_episodes.append(just_finished_idx)
                             else:
@@ -302,6 +299,8 @@ def main():
         if current_episode_indices[env_id] is not None and not episode_ended[env_id]:
             episode_ended[env_id] = True
             is_success = _check_episode_success(env, env_id, success_check_fn)
+            # Mark episode success/failure in recorder before final export
+            _set_recorder_episode_success(env, env_id, is_success)
             if is_success:
                 success_episodes.append(current_episode_indices[env_id])
             else:
@@ -321,14 +320,11 @@ def main():
     logger.info(f"  ❌ Failed:  {len(failed_episodes)}")
     if total > 0:
         logger.info(f"  Success rate: {100 * len(success_episodes) / total:.1f}%")
-    logger.info(f"LeRobot dataset saved to: {output_dir.resolve()}")
+    logger.info(f"LeRobot dataset saved to:")
+    logger.info(f"  ✅ Success:  {output_dir.resolve()}")
+    logger.info(f"  ❌ Failed:   {str(output_dir.resolve())}_failed")
 
-    if args_cli.skip_failed:
-        _delete_failed_episodes(output_dir, failed_episodes)
-        logger.info(f"Deleted {len(failed_episodes)} failed episodes (--skip_failed)")
-        logger.info(f"Remaining: {len(success_episodes)} successful episodes")
-
-    # Print output structure summary
+    # Print output structure summary for success dataset
     data_dir = output_dir / "data" / "chunk-000"
     video_dir = output_dir / "videos"
     if data_dir.exists():
@@ -339,7 +335,7 @@ def main():
             mp4_files = sorted((cam_dir / "chunk-000").glob("*.mp4"))
             logger.info(f"  {cam_dir.name}: {len(mp4_files)} videos")
 
-    if failed_episodes and not args_cli.skip_failed:
+    if failed_episodes:
         logger.info(f"Failed episodes: {sorted(failed_episodes)}")
 
     env.close()
@@ -378,25 +374,19 @@ def _check_episode_success(env, env_id: int, success_term) -> bool:
     return False
 
 
-def _delete_failed_episodes(output_dir: Path, failed_indices: list[int]) -> None:
-    """Delete parquet and video files for failed episodes."""
-    import shutil
+def _set_recorder_episode_success(env, env_id: int, is_success: bool) -> None:
+    """Mark the current episode as success/failure in the recorder manager.
 
-    for ep_idx in failed_indices:
-        # Parquet
-        parquet_file = output_dir / "data" / "chunk-000" / f"file-{ep_idx:03d}.parquet"
-        if parquet_file.exists():
-            parquet_file.unlink()
-            logger.debug(f"Deleted {parquet_file}")
-
-        # Videos
-        video_base = output_dir / "videos"
-        if video_base.exists():
-            for cam_dir in video_base.glob("observation.images.*"):
-                mp4_file = cam_dir / "chunk-000" / f"file-{ep_idx:03d}.mp4"
-                if mp4_file.exists():
-                    mp4_file.unlink()
-                    logger.debug(f"Deleted {mp4_file}")
+    This must be called BEFORE reset_to() or export_episodes() so the
+    recorder can route the episode to the correct output directory
+    (success vs _failed).
+    """
+    try:
+        rm = env.recorder_manager
+        if env_id in rm._episodes:
+            rm._episodes[env_id].success = is_success
+    except AttributeError:
+        pass
 
 
 if __name__ == "__main__":

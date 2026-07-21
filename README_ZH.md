@@ -22,10 +22,17 @@ docker restart isaac-lab-base`
 export CUDA_VISIBLE_DEVICES=3
 ```
 
-# 容器中安装Lerobo（如果需要）
+# 容器中安装Lerobo（5090）
 ``` bash
 pip install lerobot
 pip install numpy==1.26.4
+```
+# 容器中安装Lerobo（4090）
+``` bash
+pip install lerobot
+rm -rf /workspace/isaaclab/_isaac_sim/kit/python/lib/python3.11/site-packages/pip /workspace/isaaclab/_isaac_sim/kit/python/lib/python3.11/site-packages/pip-*.dist-info
+curl -sS https://bootstrap.pypa.io/get-pip.py | /workspace/isaaclab/_isaac_sim/python.sh
+/workspace/isaaclab/_isaac_sim/python.sh -m pip install numpy==1.26.4
 ```
 
 # 容器中安装curobo
@@ -129,14 +136,4 @@ scripts/imitation_learning/isaaclab_mimic/generate_dataset_lerobot.py \
     --enable_cameras \
     --device cuda:0 --headless \
     --video ./log/eval_videos
-```
-
------------------------------------------
-
-**常见报错**：ModuleNotFoundError: No module named 'pip._vendor.packaging._structures'
-There was an error running python
-``` bash
-rm -rf /workspace/isaaclab/_isaac_sim/kit/python/lib/python3.11/site-packages/pip /workspace/isaaclab/_isaac_sim/kit/python/lib/python3.11/site-packages/pip-*.dist-info
-curl -sS https://bootstrap.pypa.io/get-pip.py | /workspace/isaaclab/_isaac_sim/python.sh
-/workspace/isaaclab/_isaac_sim/python.sh -m pip install numpy==1.26.4
 ```

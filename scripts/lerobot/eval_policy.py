@@ -212,9 +212,9 @@ def create_env(task_name: str, expected_action_dim: int):
 # Build state tensor from env observation
 # ---------------------------------------------------------------------------
 # Known image observation keys (not state)
-_IMAGE_OBS_KEYS = {"table_cam", "wrist_cam", "table_cam_depth", "wrist_cam_depth"}
-# Subtask / non-state keys
-_NON_STATE_KEYS = _IMAGE_OBS_KEYS | {"subtask_terms", "policy"}
+# _IMAGE_OBS_KEYS = {"table_cam", "wrist_cam", "table_cam_depth", "wrist_cam_depth"}
+# # Subtask / non-state keys
+# _NON_STATE_KEYS = _IMAGE_OBS_KEYS | {"subtask_terms", "policy"}
 
 
 def build_state_tensor(obs_group: dict, expected_dim: int, device: torch.device) -> torch.Tensor:
@@ -418,6 +418,16 @@ def main():
                             print(f"[DEBUG]   {k}: shape={list(v.shape)}, min={v.min().item():.4f} max={v.max().item():.4f}", flush=True)
             print(f"[DEBUG] env.action_space.shape={env.action_space.shape}", flush=True)
 
+        # ACT chunk execution: how many frames from the predicted chunk to execute
+        # before re-inferring. None = execute the full chunk (100 frames).
+        # Set to a smaller number (e.g., 10) for more frequent re-inference.
+        CHUNK_EXEC_STEPS = 50  # None = full chunk; or int like 10, 25, 50
+
+        # ACT chunk state — persists across steps within one episode
+        action_chunk = None
+        chunk_pos = 0
+        chunk_len = 0
+
         while episode_steps < args_cli.max_steps:
             obs_group = obs.get("policy", obs)
 
@@ -470,12 +480,22 @@ def main():
                     if img is not None:
                         print(f"[DEBUG] normalized {imgk}: shape={list(img.shape)}, min={img.min().item():.4f}, max={img.max().item():.4f}, mean={img.mean().item():.4f}", flush=True)
 
-            # Infer
-            with torch.inference_mode():
-                actions_hat, _ = policy.model(batch)
+            # --- Re-infer when chunk exhausted or exec horizon reached ---
+            need_reinfer = action_chunk is None or chunk_pos >= chunk_len
+            if CHUNK_EXEC_STEPS is not None and chunk_pos >= CHUNK_EXEC_STEPS:
+                need_reinfer = True
+            if need_reinfer:
+                with torch.inference_mode():
+                    actions_hat, _ = policy.model(batch)
+                # Full chunk: (1, n_action_steps, 7)
+                action_chunk = actions_hat[:, :, :].cpu()  # (1, T, 7)
+                chunk_len = action_chunk.shape[1]
+                chunk_pos = 0
 
-            action = actions_hat[:, 0, :].cpu()
+            # Take next action from chunk
+            action = action_chunk[:, chunk_pos, :].clone()
             action = postprocessor(action).squeeze(0).numpy()
+            chunk_pos += 1
 
             # Record state & action
             state_np = raw_state.squeeze(0).cpu().numpy()
@@ -494,6 +514,7 @@ def main():
                 print(f"[DEBUG] after step 0: joint_pos={np.array2string(jp, precision=3, suppress_small=True)}", flush=True)
                 print(f"[DEBUG] after step 0: joint_target={np.array2string(jt, precision=3, suppress_small=True)}", flush=True)
                 print(f"[DEBUG] after step 0: model_action={np.array2string(action, precision=3, suppress_small=True)}", flush=True)
+                print(f"[DEBUG] chunk_len={chunk_len}, executing {min(10, chunk_len)} steps per inference", flush=True)
 
             episode_steps += 1
             total_steps += 1
@@ -548,11 +569,14 @@ def main():
             logger.info(f"  📊 {plot_path}")
 
         # --- Save video ---
-        print(f"[DEBUG] episode_frames: {len(episode_frames) if episode_frames else 0}", flush=True)
-        if episode_frames:
+        num_frames = len(episode_frames) if episode_frames else 0
+        print(f"[DEBUG] episode_frames: {num_frames}", flush=True)
+        if num_frames > 0:
             print("[DEBUG] Writing video...", flush=True)
             _write_video_cv2(episode_frames, video_dir, ep, fps=30)
             print("[DEBUG] Video done.", flush=True)
+        elif video_dir is not None:
+            logger.warning(f"  ⚠️  Episode {ep + 1}: 0 frames captured — check if 'table_cam' is in obs keys")
 
     # 4. Summary
     logger.info(f"{'='*50}")
