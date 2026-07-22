@@ -63,7 +63,7 @@ class SubtaskCfg(ObsGroup):
             "xy_threshold": 0.05,
             "height_diff": 0.0,
             "height_threshold": 0.05,
-            "gripper_threshold": 0.03,  # 独立阈值，比 grasp 宽松
+            "gripper_threshold": 0.03,
         },
     )
     grasp_2 = ObsTerm(
