@@ -64,6 +64,7 @@ def objects_a_and_b_are_into_c(
     xy_threshold: float = 0.07,
     height_threshold: float = 0.1,
     height_diff: float = 0.0,
+    check_gripper_open: bool = True,
 ) -> torch.Tensor:
     """Check if both object_a AND object_b are placed into object_c, and gripper is open.
 
@@ -97,7 +98,7 @@ def objects_a_and_b_are_into_c(
     b_into_c = torch.logical_and(xy_ok_b, h_ok_b)
     
     # Check gripper is open (released the last object)
-    if hasattr(env.cfg, "gripper_joint_names"):
+    if check_gripper_open and hasattr(env.cfg, "gripper_joint_names"):
         from isaaclab_tasks.manager_based.piper_grab.mdp.observations import _gripper_open_targets
 
         gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)

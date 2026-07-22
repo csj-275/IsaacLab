@@ -72,7 +72,7 @@ class SubtaskCfg(ObsGroup):
             "robot_cfg": SceneEntityCfg("robot"),
             "ee_frame_cfg": SceneEntityCfg("ee_frame"),
             "object_cfg": SceneEntityCfg("mug"),
-            "diff_threshold": 0.18,
+            "diff_threshold": 0.175,
         },
     )
 
@@ -183,7 +183,7 @@ class PiperGrabEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.gripper_joint_names = ["joint7", "joint8"]
         
         self.gripper_open_vals = [0.05, -0.05]
-        self.gripper_threshold = 0.015
+        self.gripper_threshold = 0.03  # 放宽阈值，replay 时夹爪速率限制导致实际位置无法精确到达 open_vals
         # Add mug to scene
         mug_properties = RigidBodyPropertiesCfg(
             solver_position_iteration_count=16,

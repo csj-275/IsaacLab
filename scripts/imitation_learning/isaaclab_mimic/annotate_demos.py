@@ -420,12 +420,13 @@ def annotate_episode_in_auto_mode(
 
     def on_step(action_index: int, env: ManagerBasedRLMimicEnv):
         """Called after each env.step() — check subtask signals and print on transition."""
+        global skip_episode
         dt = getattr(env.cfg.sim, "dt", 1 / 150)
         decimation = getattr(env.cfg, "decimation", 5)
         step_time = dt * decimation  # seconds per control step
         timestamp = action_index * step_time
 
-        # Check subtask term signals
+        # Check subtask term signals (print on first detection, no order enforcement here)
         try:
             term_signals = env.get_subtask_term_signals()
         except Exception:
@@ -457,6 +458,33 @@ def annotate_episode_in_auto_mode(
     else:
         # Verify all expected subtask signals were detected (missing ones weren't printed above)
         annotated_episode = env.recorder_manager.get_episode(0)
+        # Also validate subtask offsets are in correct order (grasp_1 < placed_1 < grasp_2)
+        if annotated_episode is not None and not annotated_episode.is_empty():
+            offsets = annotated_episode.data["obs"]["datagen_info"]["subtask_term_signals"]
+            # Find first frame index where each signal becomes True
+            signal_first_frame = {}
+            for signal_name, flags in offsets.items():
+                flags_t = torch.tensor(flags)
+                true_indices = torch.where(flags_t)[0]
+                if len(true_indices) > 0:
+                    signal_first_frame[signal_name] = int(true_indices[0])
+            # Check order: grasp_1 < placed_1 < grasp_2
+            expected_order = ["grasp_1", "placed_1", "grasp_2"]
+            prev_frame = -1
+            order_ok = True
+            for sig in expected_order:
+                f = signal_first_frame.get(sig)
+                if f is None:
+                    print(f"\t  ❌ [{sig}] was NOT detected — rejecting episode")
+                    order_ok = False
+                    break
+                if f <= prev_frame:
+                    print(f"\t  ⚠️  [{sig}] at frame {f} <= previous frame {prev_frame} — order violation, rejecting episode")
+                    order_ok = False
+                    break
+                prev_frame = f
+            if not order_ok:
+                is_episode_annotated_successfully = False
         subtask_term_signal_dict = annotated_episode.data["obs"]["datagen_info"]["subtask_term_signals"]
         for signal_name, signal_flags in subtask_term_signal_dict.items():
             signal_flags = torch.tensor(signal_flags, device=env.device)

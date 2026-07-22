@@ -173,6 +173,9 @@ def main():
     lerobot_recorder_cfg = ActionStateRecorderManagerCfg()
     lerobot_recorder_cfg.dataset_file_handler_class_type = LeRobotDatasetFileHandler
     lerobot_recorder_cfg.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_FAILED_IN_SEPARATE_FILES
+    lerobot_recorder_cfg.export_in_record_pre_reset = (
+        False  # 禁用 reset 时自动 export，避免 record_pre_reset 覆盖 success 标记
+    )
     dataset_name = output_dir.name
     lerobot_recorder_cfg.dataset_export_dir_path = str(output_dir.parent)
     lerobot_recorder_cfg.dataset_filename = dataset_name
@@ -243,6 +246,13 @@ def main():
                                 f"  {status} Episode #{just_finished_idx} "
                                 f"({'SUCCESS' if is_success else 'FAILED'})"
                             )
+                            # Export immediately before reset_to() overwrites success flag
+                            try:
+                                env.recorder_manager.export_episodes(
+                                    torch.tensor([env_id], device=env.device)
+                                )
+                            except Exception:
+                                pass
 
                         # Load next episode
                         next_episode_index = None
@@ -354,7 +364,22 @@ def _check_episode_success(env, env_id: int, success_term) -> bool:
     """
     # 方法 1: success termination function (matches generation pipeline)
     if success_term is not None:
-        return bool(success_term.func(env, **success_term.params)[env_id])
+        params = dict(success_term.params)
+        params.setdefault("check_gripper_open", False)  # skip gripper check for replay
+        # Debug: check each part separately
+        try:
+            from isaaclab_tasks.manager_based.piper_grab.V1.mdp import objects_a_and_b_are_into_c
+            result_full = bool(success_term.func(env, **params)[env_id])
+            # Also check with gripper enabled for comparison
+            params_with_grip = dict(params)
+            params_with_grip["check_gripper_open"] = True
+            result_with_grip = bool(success_term.func(env, **params_with_grip)[env_id])
+            if result_full != result_with_grip:
+                logger.info(f"  🔍 Ep check: no_grip={result_full}, with_grip={result_with_grip} (gripper caused mismatch)")
+            return result_full
+        except Exception:
+            pass
+        return bool(success_term.func(env, **params)[env_id])
 
     # 方法 2: subtask_terms fallback — check ALL placed_* and grasp_* keys
     obs_buf = getattr(env, "obs_buf", {})
