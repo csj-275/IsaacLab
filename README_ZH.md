@@ -97,15 +97,15 @@ print(curobo.__version__);"
 # 2. 标注子信号 - 基础环境
 ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
 --task Isaac-Piper-Grab-IK-Rel-Mimic-v1 \
---input_file ./datasets/simdata/V1/piper_dataset.hdf5 \
---output_file ./datasets/simdata/V1/annotated_piper_dataset.hdf5 \
+--input_file ./datasets/hdf5/piper_dataset.hdf5 \
+--output_file ./datasets/hdf5/annotated_piper_dataset.hdf5 \
 --device cuda:0 --auto --headless
 # 3. 生成Lerobot数据
 ./isaaclab.sh -p \
 scripts/imitation_learning/isaaclab_mimic/generate_dataset_lerobot.py \
 --task Isaac-Piper-Grab-IK-Rel-Visuomotor-Mimic-v1 \
 --input_file ./datasets/hdf5/annotated_piper_dataset.hdf5 \
---output_file ./datasets/simdata/V1/lerobot_generated \
+--output_file ./datasets/lerobot/lerobot_generated \
 --generation_num_trials 10 \
 --headless --enable_cameras --device cuda:0 \
 --fps 30
