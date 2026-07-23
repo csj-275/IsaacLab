@@ -62,7 +62,7 @@ def objects_a_and_b_are_into_c(
     object_b_cfg: SceneEntityCfg = SceneEntityCfg("object_b"),
     object_c_cfg: SceneEntityCfg = SceneEntityCfg("object_c"),
     xy_threshold: float = 0.07,
-    height_threshold: float = 0.1,
+    height_threshold: float = 0.05,
     height_diff: float = 0.0,
     check_gripper_open: bool = True,
 ) -> torch.Tensor:
@@ -109,6 +109,18 @@ def objects_a_and_b_are_into_c(
         # fallback: assume gripper is open if no gripper config
         gripper_open = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
 
-    # print(f"[a_into_c]: {a_into_c}, [b_into_c]: {b_into_c}, gripper_open: {gripper_open}")
+    # if torch.logical_and(torch.logical_and(a_into_c, b_into_c), ~gripper_open).any():
+    #     print(
+    #         f"[objects_a_and_b_are_into_c] BOTH objects in box but GRIPPER NOT OPEN! "
+    #         f"gripper_pos={gripper_pos[0].tolist()}, open_targets={open_targets.tolist()}, "
+    #         f"threshold={env.cfg.gripper_threshold}",
+    #         flush=True,
+    #     )
+    # print(
+    #     f"[objects_a_and_b_are_into_c] a_into_c={a_into_c[0].item()}, b_into_c={b_into_c[0].item()}, "
+    #     f"gripper_open={gripper_open[0].item()}, "
+    #     f"gripper_pos={gripper_pos[0].tolist()}, th={env.cfg.gripper_threshold}",
+    #     flush=True,
+    # )
 
     return torch.logical_and(torch.logical_and(a_into_c, b_into_c), gripper_open)

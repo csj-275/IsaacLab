@@ -14,6 +14,9 @@ from isaaclab.envs.mdp.actions.actions_cfg import JointPositionActionCfg
 
 from .grab_ik_rel_visuomotor_env_cfg import PiperGrabVisuomotorEnvCfg
 
+from isaaclab_tasks.manager_based.piper_grab import mdp
+
+
 class PiperGrabVisuomotorEnvCfg_V1_A(PiperGrabVisuomotorEnvCfg):
     """V1-A: joint-position action, inherits V1 observations (joint_pos_7d + cameras)."""
     def __post_init__(self):
@@ -25,4 +28,11 @@ class PiperGrabVisuomotorEnvCfg_V1_A(PiperGrabVisuomotorEnvCfg):
             joint_names=["joint[1-6]"],
             scale=1.0,
             use_default_offset=False,
+        )
+
+        self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
+                    asset_name="robot",
+                    joint_names=["joint7", "joint8"],
+                    open_command_expr={"joint7": 0.05, "joint8":-0.05},
+                    close_command_expr={"joint7": -0.05, "joint8":0.05},
         )

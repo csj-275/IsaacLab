@@ -193,7 +193,7 @@ class GrabEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 5
-        self.episode_length_s = 30.0
+        self.episode_length_s = 40.0
         # simulation settings
         self.sim.dt = 1 / 150
         self.sim.render_interval = 3

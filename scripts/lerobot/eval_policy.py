@@ -45,6 +45,12 @@ parser.add_argument(
 parser.add_argument("--num-episodes", type=int, default=10, help="Number of evaluation episodes.")
 parser.add_argument("--max-steps", type=int, default=800, help="Max steps per episode.")
 parser.add_argument(
+    "--post-success-delay",
+    type=int,
+    default=0,
+    help="Extra frames to continue after success before ending episode. 0 = end immediately.",
+)
+parser.add_argument(
     "--video",
     type=str,
     default=None,
@@ -63,6 +69,9 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything follows."""
+
+# Random seed for reproducibility (edit if needed)
+EVAL_SEED = 42
 
 import gymnasium as gym
 from lerobot.configs.types import FeatureType, PolicyFeature
@@ -317,23 +326,25 @@ def build_image_batch(obs_group: dict, device: torch.device, transforms):
 # ---------------------------------------------------------------------------
 # Success check
 # ---------------------------------------------------------------------------
+def _dummy_success_term(env, **kwargs) -> torch.Tensor:
+    """Dummy success term that always returns False — used to disable auto-reset."""
+    return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+
+
 # ---------------------------------------------------------------------------
 # Video writing (OpenCV — avoids torchvision deprecation + ffmpeg pipe deadlock)
 # ---------------------------------------------------------------------------
 def check_success(env, obs: dict) -> bool:
-    """Check if episode succeeded by inspecting subtask terms or termination buffer."""
-    subtask_terms = obs.get("subtask_terms", {})
-    for key in ["placed_1", "placed_2"]:
-        val = subtask_terms.get(key)
-        if val is not None and isinstance(val, torch.Tensor) and val.numel() > 0:
-            if bool(val[0].item()):
-                return True
+    """Check if episode succeeded.
+
+    Uses env's termination_manager.get_term("success") — the authoritative
+    multi-stage success condition (e.g., objects_a_and_b_are_into_c).
+    No subtask fallback to avoid false positives from partial completion.
+    """
     try:
         mgr = getattr(env, "termination_manager", None)
-        if mgr is not None:
-            buf = mgr._term_buf.get("success")
-            if buf is not None and buf.numel() > 0:
-                return bool(buf[0].item())
+        if mgr is not None and "success" in mgr.active_terms:
+            return bool(mgr.get_term("success")[0].item())
     except Exception:
         pass
     return False
@@ -376,6 +387,7 @@ def main():
 
     # 2. Create env (with action dim matching checkpoint)
     env = create_env(args_cli.task, expected_action_dim)
+    env.seed(EVAL_SEED)
     image_transforms = build_image_transforms()
 
     # 3. Video & plot setup
@@ -428,7 +440,11 @@ def main():
         chunk_pos = 0
         chunk_len = 0
 
-        while episode_steps < args_cli.max_steps:
+        # Post-success countdown (--post-success-delay): 0 = inactive
+        post_success_delay = 0
+        episode_success = False  # remember success even if term is later disabled
+
+        while episode_steps < args_cli.max_steps or post_success_delay > 0:
             obs_group = obs.get("policy", obs)
 
             # --- Capture frame ---
@@ -440,18 +456,6 @@ def main():
 
             # --- Build policy input ---
             batch = build_image_batch(obs_group, device, image_transforms)
-
-            # Save first frame for visual inspection
-            if ep == 0 and episode_steps == 0:
-                import cv2
-                for cam_name in ["table_cam", "wrist_cam"]:
-                    cam_img = obs_group.get(cam_name)
-                    if cam_img is not None and isinstance(cam_img, torch.Tensor):
-                        f = cam_img.squeeze(0).cpu().numpy().astype(np.uint8)
-                        f_bgr = cv2.cvtColor(f, cv2.COLOR_RGB2BGR)
-                        save_path = video_dir / f"debug_{cam_name}_frame0.png" if video_dir else Path(f"debug_{cam_name}_frame0.png")
-                        cv2.imwrite(str(save_path), f_bgr)
-                        print(f"[DEBUG] Saved {save_path}", flush=True)
 
             # One-time check: are images actually captured?
             if ep == 0 and episode_steps == 0:
@@ -520,25 +524,48 @@ def main():
             total_steps += 1
 
             # Per-step progress
-            s_str = np.array2string(state_np, precision=2, suppress_small=True, max_line_width=60)
-            a_str = np.array2string(action, precision=2, suppress_small=True, max_line_width=80)
-            print(f"[Ep {ep + 1}/{args_cli.num_episodes}] Step {episode_steps}/{args_cli.max_steps} | s={s_str} | a={a_str}", flush=True)
+            # s_str = np.array2string(state_np, precision=2, suppress_small=True, max_line_width=60)
+            # a_str = np.array2string(action, precision=2, suppress_small=True, max_line_width=80)
+            # print(f"[Ep {ep + 1}/{args_cli.num_episodes}] Step {episode_steps}/{args_cli.max_steps} | s={s_str} | a={a_str}", flush=True)
 
             # Check termination
-            done = bool(terminated.item()) if hasattr(terminated, "item") else bool(terminated)
-            done = done or (bool(truncated.item()) if hasattr(truncated, "item") else bool(truncated))
-            if done:
-                break
+            if args_cli.post_success_delay > 0:
+                if post_success_delay == 0 and check_success(env, obs):
+                    # Disable success term to prevent env auto-reset during delay
+                    episode_success = True
+                    post_success_delay = args_cli.post_success_delay
+                    mgr = env.termination_manager
+                    term_idx = mgr._term_name_to_term_idx["success"]
+                    mgr._term_cfgs[term_idx].func = _dummy_success_term
+                    print(
+                        f"[INFO] Success! Disabled success term, continuing {post_success_delay} frames...",
+                        flush=True,
+                    )
+
+                if post_success_delay > 0:
+                    post_success_delay -= 1
+                    if post_success_delay == 0:
+                        break
+                else:
+                    done = bool(terminated.item()) if hasattr(terminated, "item") else bool(terminated)
+                    done = done or (bool(truncated.item()) if hasattr(truncated, "item") else bool(truncated))
+                    if done:
+                        break
+            else:
+                done = bool(terminated.item()) if hasattr(terminated, "item") else bool(terminated)
+                done = done or (bool(truncated.item()) if hasattr(truncated, "item") else bool(truncated))
+                if done:
+                    episode_success = check_success(env, obs)
+                    break
 
         # --- Result ---
-        ok = check_success(env, obs)
-        if ok:
+        if episode_success:
             success_count += 1
-            logger.info(f"  ✅ Episode {ep + 1} SUCCESS ({episode_steps} steps)")
+            print(f"  ✅ Episode {ep + 1} SUCCESS ({episode_steps} steps)", flush=True)
         elif episode_steps >= args_cli.max_steps:
-            logger.info(f"  ⏱️  Episode {ep + 1} TIMEOUT ({episode_steps} steps)")
+            print(f"  ⏱️  Episode {ep + 1} TIMEOUT ({episode_steps} steps)", flush=True)
         else:
-            logger.info(f"  ❌ Episode {ep + 1} FAILED ({episode_steps} steps)")
+            print(f"  ❌ Episode {ep + 1} FAILED ({episode_steps} steps)", flush=True)
 
         # --- Plot state/action ---
         if ep_states and ep_actions:
@@ -559,7 +586,7 @@ def main():
             # Hide extra subplot
             axes[7].set_visible(False)
 
-            status = "SUCCESS" if ok else ("TIMEOUT" if episode_steps >= args_cli.max_steps else "FAILED")
+            status = "SUCCESS" if episode_success else ("TIMEOUT" if episode_steps >= args_cli.max_steps else "FAILED")
             fig.suptitle(f"Episode {ep + 1}  —  {status}  ({episode_steps} steps)", fontsize=14)
             fig.tight_layout()
 
