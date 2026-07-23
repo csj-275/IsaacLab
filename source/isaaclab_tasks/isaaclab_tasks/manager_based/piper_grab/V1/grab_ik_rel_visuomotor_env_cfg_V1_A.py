@@ -30,9 +30,9 @@ class PiperGrabVisuomotorEnvCfg_V1_A(PiperGrabVisuomotorEnvCfg):
             use_default_offset=False,
         )
 
-        self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
-                    asset_name="robot",
-                    joint_names=["joint7", "joint8"],
-                    open_command_expr={"joint7": 0.05, "joint8":-0.05},
-                    close_command_expr={"joint7": -0.05, "joint8":0.05},
-        )
+        # self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
+        #             asset_name="robot",
+        #             joint_names=["joint7", "joint8"],
+        #             open_command_expr={"joint7": 0.05, "joint8":-0.05},
+        #             close_command_expr={"joint7": -0.05, "joint8":0.05},
+        # )

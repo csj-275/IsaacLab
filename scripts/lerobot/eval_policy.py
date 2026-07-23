@@ -53,7 +53,7 @@ parser.add_argument(
 parser.add_argument(
     "--video",
     type=str,
-    default=None,
+    default="logs/eval_videos",
     help="Output directory for per-episode MP4 videos. If not set, no video is recorded.",
 )
 parser.add_argument(
@@ -187,14 +187,14 @@ def create_env(task_name: str, expected_action_dim: int):
     # Override gripper: use absolute binary action with threshold matching training data
     # Open=0.05, Close=0.02, midpoint=0.035
     from isaaclab.envs.mdp.actions.actions_cfg import AbsBinaryJointPositionActionCfg
-    env_cfg.actions.gripper_action = AbsBinaryJointPositionActionCfg(
-        asset_name="robot",
-        joint_names=["joint7", "joint8"],
-        open_command_expr={"joint7": 0.05, "joint8": -0.05},
-        close_command_expr={"joint7": -0.05, "joint8": 0.05},
-        threshold=0.03,
-        positive_threshold=True,  # grip > 0.03 → open; grip ≤ 0.03 → close
-    )
+    # env_cfg.actions.gripper_action = AbsBinaryJointPositionActionCfg(
+    #     asset_name="robot",
+    #     joint_names=["joint7", "joint8"],
+    #     open_command_expr={"joint7": 0.05, "joint8": -0.05},
+    #     close_command_expr={"joint7": -0.05, "joint8": 0.05},
+    #     threshold=0.03,
+    #     positive_threshold=True,  # grip > 0.03 → open; grip ≤ 0.03 → close
+    # )
 
     # Handle 8D action (old format: 6 joint pos + 2 gripper joint pos)
     if expected_action_dim == 8:
@@ -338,23 +338,25 @@ def _disable_all_terms(env) -> None:
         mgr._term_cfgs[i].func = _dummy_success_term
 
 
-def _custom_success(env, obs: dict) -> bool:
-    """Check success without relying on env's termination terms (which may be disabled)."""
-    # object_1 in box?
-    subtask = obs.get("subtask_terms", {})
-    placed_1 = subtask.get("placed_1")
-    obj1_ok = placed_1 is not None and placed_1.numel() > 0 and bool(placed_1[0].item())
-    if not obj1_ok:
-        return False
-    # mug in box?
-    mug = env.scene["mug"]
+def _direct_success_check(env) -> bool:
+    """Check success by directly evaluating geometry, without relying on
+    termination_manager or subtask_terms (which may be disabled or absent).
+
+    This is used when --post-success-delay > 0 and all termination terms have
+    been pre-emptively disabled to prevent env-internal auto-reset.
+
+    Success condition: object_1 is in the box AND gripper is open.
+    """
+    # --- object_1 in box? ---
+    object_1 = env.scene["object_1"]
     box = env.scene["box"]
-    pos_diff = mug.data.root_pos_w - box.data.root_pos_w
-    xy_ok = torch.linalg.vector_norm(pos_diff[:, :2], dim=1) < 0.05
-    h_ok = pos_diff[:, 2] < 0.05
-    if not bool(xy_ok[0] & h_ok[0].item()):
+    pos_diff = object_1.data.root_pos_w - box.data.root_pos_w
+    xy_ok = torch.linalg.vector_norm(pos_diff[:, :2], dim=1) < 0.08
+    h_ok = torch.abs(pos_diff[:, 2]) < 0.08
+    if not bool((xy_ok & h_ok)[0].item()):
         return False
-    # gripper open?
+
+    # --- gripper open? ---
     robot = env.scene["robot"]
     grip_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
     grip_pos = robot.data.joint_pos[:, grip_ids]
@@ -474,23 +476,18 @@ def main():
         # Post-success countdown (--post-success-delay): 0 = inactive
         post_success_delay = 0
         episode_success = False
-        terms_disabled = False  # True once we pre-emptively disabled termination terms
+
+        # When post-success-delay is active, disable ALL termination terms from
+        # the very beginning.  This prevents env.step() from internally
+        # auto-resetting the scene (which would destroy object positions) before
+        # we get a chance to continue the episode naturally after success.
+        # We handle success detection ourselves via _direct_success_check().
+        if args_cli.post_success_delay > 0:
+            _disable_all_terms(env)
+            print("[INFO] Disabled all termination terms at episode start (post-success-delay mode)", flush=True)
 
         while episode_steps < args_cli.max_steps or post_success_delay > 0:
             obs_group = obs.get("policy", obs)
-
-            # --- Pre-emptively disable terms when success is close ---
-            # Once object_1 is placed, the mug placement + gripper-open could
-            # trigger success at any step.  We must disable terms BEFORE that
-            # env.step() to prevent the internal auto-reset from destroying the
-            # success-state camera frame.
-            if args_cli.post_success_delay > 0 and not terms_disabled:
-                subtask = obs_group.get("subtask_terms", {})
-                placed_1 = subtask.get("placed_1")
-                if placed_1 is not None and placed_1.numel() > 0 and bool(placed_1[0].item()):
-                    _disable_all_terms(env)
-                    terms_disabled = True
-                    print("[INFO] Pre-emptively disabled all termination terms (placed_1 = True)", flush=True)
 
             # --- Capture frame ---
             if episode_frames is not None:
@@ -575,15 +572,10 @@ def main():
 
             # Check termination
             if args_cli.post_success_delay > 0:
-                # Use custom success check if terms were pre-emptively disabled
-                _success_fn = _custom_success if terms_disabled else check_success
-
-                if post_success_delay == 0 and _success_fn(env, obs):
+                # Terms are pre-disabled at episode start — use direct geometry check
+                if post_success_delay == 0 and _direct_success_check(env):
                     episode_success = True
                     post_success_delay = args_cli.post_success_delay
-                    if not terms_disabled:
-                        _disable_all_terms(env)
-                        terms_disabled = True
                     print(
                         f"[INFO] Success! Continuing {post_success_delay} frames naturally...",
                         flush=True,
@@ -592,11 +584,6 @@ def main():
                 if post_success_delay > 0:
                     post_success_delay -= 1
                     if post_success_delay == 0:
-                        break
-                else:
-                    done = bool(terminated.item()) if hasattr(terminated, "item") else bool(terminated)
-                    done = done or (bool(truncated.item()) if hasattr(truncated, "item") else bool(truncated))
-                    if done:
                         break
             else:
                 done = bool(terminated.item()) if hasattr(terminated, "item") else bool(terminated)

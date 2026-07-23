@@ -133,5 +133,5 @@ cp -r datasets/lerobot/XXXX /home/dgrlab04/csj_ws/lerobot/datasets/
 -----------------------------------------------------
 # ACT策略测试
 ``` bash
-./isaaclab.sh -p scripts/lerobot/eval_policy.py --checkpoint-dir ./logs/policy/F-SIM-PIPER-GRAB-0721-N30-K-V1-ACT/checkpoints/last/pretrained_model/ --num-episodes 10  --max-steps 1200 --enable_cameras --device cuda:0 --headless --video ./logs/eval_videos --post-success-delay 90
+./isaaclab.sh -p scripts/lerobot/eval_policy.py --checkpoint-dir ./logs/policy/F-SIM-PIPER-GRAB-0721-N30-K-V1-ACT/checkpoints/last/pretrained_model/ --num-episodes 10  --max-steps 1200 --enable_cameras --device cuda:0 --headless --post-success-delay 90
 ```
