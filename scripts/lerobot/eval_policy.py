@@ -331,6 +331,37 @@ def _dummy_success_term(env, **kwargs) -> torch.Tensor:
     return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
 
+def _disable_all_terms(env) -> None:
+    """Replace all termination term functions with dummies to prevent auto-reset."""
+    mgr = env.termination_manager
+    for i in range(len(mgr._term_cfgs)):
+        mgr._term_cfgs[i].func = _dummy_success_term
+
+
+def _custom_success(env, obs: dict) -> bool:
+    """Check success without relying on env's termination terms (which may be disabled)."""
+    # object_1 in box?
+    subtask = obs.get("subtask_terms", {})
+    placed_1 = subtask.get("placed_1")
+    obj1_ok = placed_1 is not None and placed_1.numel() > 0 and bool(placed_1[0].item())
+    if not obj1_ok:
+        return False
+    # mug in box?
+    mug = env.scene["mug"]
+    box = env.scene["box"]
+    pos_diff = mug.data.root_pos_w - box.data.root_pos_w
+    xy_ok = torch.linalg.vector_norm(pos_diff[:, :2], dim=1) < 0.05
+    h_ok = pos_diff[:, 2] < 0.05
+    if not bool(xy_ok[0] & h_ok[0].item()):
+        return False
+    # gripper open?
+    robot = env.scene["robot"]
+    grip_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+    grip_pos = robot.data.joint_pos[:, grip_ids]
+    open_targets = torch.tensor(env.cfg.gripper_open_vals, device=env.device, dtype=grip_pos.dtype)
+    return bool(torch.all(torch.abs(grip_pos - open_targets) < env.cfg.gripper_threshold).item())
+
+
 # ---------------------------------------------------------------------------
 # Video writing (OpenCV — avoids torchvision deprecation + ffmpeg pipe deadlock)
 # ---------------------------------------------------------------------------
@@ -442,10 +473,24 @@ def main():
 
         # Post-success countdown (--post-success-delay): 0 = inactive
         post_success_delay = 0
-        episode_success = False  # remember success even if term is later disabled
+        episode_success = False
+        terms_disabled = False  # True once we pre-emptively disabled termination terms
 
         while episode_steps < args_cli.max_steps or post_success_delay > 0:
             obs_group = obs.get("policy", obs)
+
+            # --- Pre-emptively disable terms when success is close ---
+            # Once object_1 is placed, the mug placement + gripper-open could
+            # trigger success at any step.  We must disable terms BEFORE that
+            # env.step() to prevent the internal auto-reset from destroying the
+            # success-state camera frame.
+            if args_cli.post_success_delay > 0 and not terms_disabled:
+                subtask = obs_group.get("subtask_terms", {})
+                placed_1 = subtask.get("placed_1")
+                if placed_1 is not None and placed_1.numel() > 0 and bool(placed_1[0].item()):
+                    _disable_all_terms(env)
+                    terms_disabled = True
+                    print("[INFO] Pre-emptively disabled all termination terms (placed_1 = True)", flush=True)
 
             # --- Capture frame ---
             if episode_frames is not None:
@@ -530,15 +575,17 @@ def main():
 
             # Check termination
             if args_cli.post_success_delay > 0:
-                if post_success_delay == 0 and check_success(env, obs):
-                    # Disable success term to prevent env auto-reset during delay
+                # Use custom success check if terms were pre-emptively disabled
+                _success_fn = _custom_success if terms_disabled else check_success
+
+                if post_success_delay == 0 and _success_fn(env, obs):
                     episode_success = True
                     post_success_delay = args_cli.post_success_delay
-                    mgr = env.termination_manager
-                    term_idx = mgr._term_name_to_term_idx["success"]
-                    mgr._term_cfgs[term_idx].func = _dummy_success_term
+                    if not terms_disabled:
+                        _disable_all_terms(env)
+                        terms_disabled = True
                     print(
-                        f"[INFO] Success! Disabled success term, continuing {post_success_delay} frames...",
+                        f"[INFO] Success! Continuing {post_success_delay} frames naturally...",
                         flush=True,
                     )
 
