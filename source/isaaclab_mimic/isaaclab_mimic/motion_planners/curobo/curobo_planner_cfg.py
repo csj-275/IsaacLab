@@ -249,6 +249,30 @@ class CuroboPlannerCfg:
             kin["collision_link_names"] = [n for n in link_names if n not in ("attached_object", "arm_base")]
             print(f"[curobo] auto-populated collision_link_names: {kin['collision_link_names']}")
 
+        # Fix retract_config: strip locked joints so shape matches cuRobo's n_dof kinematics.
+        # piper.yml cspace lists 8 joints (arm + gripper) but cuRobo builds a 6-DOF model
+        # (arm only) because gripper joints are locked. Without this, IK solver crashes with
+        # "size of tensor a (6) must match the size of tensor b (8)".
+        lock_joints = kin.get("lock_joints", {})
+        cspace = data["robot_cfg"]["kinematics"].get("cspace", {})
+        if lock_joints and cspace and "retract_config" in cspace:
+            cspace_joint_names = cspace.get("joint_names", [])
+            # Build filtered retract_config retaining only non-locked joints.
+            retract_full = cspace["retract_config"]
+            retract_filtered = [
+                v for v, name in zip(retract_full, cspace_joint_names)
+                if name not in lock_joints
+            ]
+            cspace["retract_config"] = retract_filtered
+            # Also filter joint_names, null_space_weight, cspace_distance_weight.
+            for key in ("joint_names", "null_space_weight", "cspace_distance_weight"):
+                if key in cspace:
+                    cspace[key] = [
+                        v for v, name in zip(cspace[key], cspace_joint_names)
+                        if name not in lock_joints
+                    ]
+            print(f"[curobo] stripped locked joints from retract_config: {retract_full} -> {retract_filtered}")
+
         # Write to temporary file
         tmp_dir = tempfile.mkdtemp(prefix="curobo_robot_cfg_")
         out_path = os.path.join(tmp_dir, base_yaml)
@@ -417,9 +441,9 @@ class CuroboPlannerCfg:
             num_graph_seeds=24,
             collision_cache_size={"obb": 150, "mesh": 150},
             trajopt_tsteps=32,
-            collision_activation_distance=0.25,
-            approach_distance=0.08,
-            retreat_distance=0.08,
+            collision_activation_distance=0.02,
+            approach_distance=0.05,
+            retreat_distance=0.05,
             grasp_gripper_open_val=0.05,
             enable_graph=True,
             enable_graph_attempt=10,

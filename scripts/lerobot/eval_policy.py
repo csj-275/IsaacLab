@@ -215,6 +215,13 @@ def create_env(task_name: str, expected_action_dim: int):
 
     env = gym.make(task_name, cfg=env_cfg).unwrapped
     logger.info(f"Env={task_name}, action_space={env.action_space} (expected={expected_action_dim}D)")
+
+    # Wrap success term to delay reset by --post-success-delay frames.
+    # This lets the episode continue naturally after success instead of
+    # having env.step() immediately auto-reset the scene.
+    if args_cli.post_success_delay > 0 and "success" in env.termination_manager.active_terms:
+        _install_delayed_success(env, args_cli.post_success_delay)
+
     return env
 
 # ---------------------------------------------------------------------------
@@ -324,44 +331,37 @@ def build_image_batch(obs_group: dict, device: torch.device, transforms):
     return batch
 
 # ---------------------------------------------------------------------------
-# Success check
+# Success check / delayed reset
 # ---------------------------------------------------------------------------
-def _dummy_success_term(env, **kwargs) -> torch.Tensor:
-    """Dummy success term that always returns False — used to disable auto-reset."""
-    return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
+def _install_delayed_success(env, delay_frames: int) -> None:
+    """Wrap env's success term so it delays returning True by `delay_frames`.
 
-
-def _disable_all_terms(env) -> None:
-    """Replace all termination term functions with dummies to prevent auto-reset."""
-    mgr = env.termination_manager
-    for i in range(len(mgr._term_cfgs)):
-        mgr._term_cfgs[i].func = _dummy_success_term
-
-
-def _direct_success_check(env) -> bool:
-    """Check success by directly evaluating geometry, without relying on
-    termination_manager or subtask_terms (which may be disabled or absent).
-
-    This is used when --post-success-delay > 0 and all termination terms have
-    been pre-emptively disabled to prevent env-internal auto-reset.
-
-    Success condition: object_1 is in the box AND gripper is open.
+    The env internally auto-resets as soon as the success term returns True.
+    By delaying the True signal, env.step() does NOT reset for `delay_frames`
+    steps after success is actually achieved — the episode continues naturally.
     """
-    # --- object_1 in box? ---
-    object_1 = env.scene["object_1"]
-    box = env.scene["box"]
-    pos_diff = object_1.data.root_pos_w - box.data.root_pos_w
-    xy_ok = torch.linalg.vector_norm(pos_diff[:, :2], dim=1) < 0.08
-    h_ok = torch.abs(pos_diff[:, 2]) < 0.08
-    if not bool((xy_ok & h_ok)[0].item()):
-        return False
+    mgr = env.termination_manager
+    term_idx = mgr._term_name_to_term_idx["success"]
+    original_fn = mgr._term_cfgs[term_idx].func
 
-    # --- gripper open? ---
-    robot = env.scene["robot"]
-    grip_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
-    grip_pos = robot.data.joint_pos[:, grip_ids]
-    open_targets = torch.tensor(env.cfg.gripper_open_vals, device=env.device, dtype=grip_pos.dtype)
-    return bool(torch.all(torch.abs(grip_pos - open_targets) < env.cfg.gripper_threshold).item())
+    # Mutable state attached to env (survives across env.step() calls)
+    env._success_detected = False
+    env._success_delay_left = 0
+
+    def _delayed(env, **kwargs):
+        raw = original_fn(env, **kwargs)
+        if raw.any() and not env._success_detected:
+            # First detection: record it but keep returning False
+            env._success_detected = True
+            env._success_delay_left = delay_frames
+            return torch.zeros_like(raw)
+        if env._success_detected and env._success_delay_left > 0:
+            env._success_delay_left -= 1
+            return torch.zeros_like(raw)
+        # After delay: return the original result (should still be True)
+        return raw
+
+    mgr._term_cfgs[term_idx].func = _delayed
 
 
 # ---------------------------------------------------------------------------
@@ -476,15 +476,9 @@ def main():
         # Post-success countdown (--post-success-delay): 0 = inactive
         post_success_delay = 0
         episode_success = False
-
-        # When post-success-delay is active, disable ALL termination terms from
-        # the very beginning.  This prevents env.step() from internally
-        # auto-resetting the scene (which would destroy object positions) before
-        # we get a chance to continue the episode naturally after success.
-        # We handle success detection ourselves via _direct_success_check().
-        if args_cli.post_success_delay > 0:
-            _disable_all_terms(env)
-            print("[INFO] Disabled all termination terms at episode start (post-success-delay mode)", flush=True)
+        # Reset delayed-success state for new episode
+        env._success_detected = False
+        env._success_delay_left = 0
 
         while episode_steps < args_cli.max_steps or post_success_delay > 0:
             obs_group = obs.get("policy", obs)
@@ -568,12 +562,14 @@ def main():
             # Per-step progress
             # s_str = np.array2string(state_np, precision=2, suppress_small=True, max_line_width=60)
             # a_str = np.array2string(action, precision=2, suppress_small=True, max_line_width=80)
-            # print(f"[Ep {ep + 1}/{args_cli.num_episodes}] Step {episode_steps}/{args_cli.max_steps} | s={s_str} | a={a_str}", flush=True)
+            print(f"[Ep {ep + 1}/{args_cli.num_episodes}] Step {episode_steps}/{args_cli.max_steps}", flush=True)
 
             # Check termination
             if args_cli.post_success_delay > 0:
-                # Terms are pre-disabled at episode start — use direct geometry check
-                if post_success_delay == 0 and _direct_success_check(env):
+                # The delayed success wrapper sets env._success_detected as soon as
+                # the original condition is met, but keeps returning False so
+                # env.step() does NOT auto-reset.  We start our own countdown.
+                if post_success_delay == 0 and env._success_detected:
                     episode_success = True
                     post_success_delay = args_cli.post_success_delay
                     print(
@@ -584,6 +580,11 @@ def main():
                 if post_success_delay > 0:
                     post_success_delay -= 1
                     if post_success_delay == 0:
+                        break
+                else:
+                    done = bool(terminated.item()) if hasattr(terminated, "item") else bool(terminated)
+                    done = done or (bool(truncated.item()) if hasattr(truncated, "item") else bool(truncated))
+                    if done:
                         break
             else:
                 done = bool(terminated.item()) if hasattr(terminated, "item") else bool(terminated)
@@ -596,8 +597,6 @@ def main():
         if episode_success:
             success_count += 1
             print(f"  ✅ Episode {ep + 1} SUCCESS ({episode_steps} steps)", flush=True)
-        elif episode_steps >= args_cli.max_steps:
-            print(f"  ⏱️  Episode {ep + 1} TIMEOUT ({episode_steps} steps)", flush=True)
         else:
             print(f"  ❌ Episode {ep + 1} FAILED ({episode_steps} steps)", flush=True)
 
@@ -620,7 +619,7 @@ def main():
             # Hide extra subplot
             axes[7].set_visible(False)
 
-            status = "SUCCESS" if episode_success else ("TIMEOUT" if episode_steps >= args_cli.max_steps else "FAILED")
+            status = "SUCCESS" if episode_success else "FAILED"
             fig.suptitle(f"Episode {ep + 1}  —  {status}  ({episode_steps} steps)", fontsize=14)
             fig.tight_layout()
 
@@ -640,10 +639,12 @@ def main():
             logger.warning(f"  ⚠️  Episode {ep + 1}: 0 frames captured — check if 'table_cam' is in obs keys")
 
     # 4. Summary
-    logger.info(f"{'='*50}")
-    logger.info(f"Done: {success_count}/{args_cli.num_episodes}  ({100 * success_count / max(1, args_cli.num_episodes):.1f}%)")
-    logger.info(f"Total steps: {total_steps}")
-    logger.info(f"Plots saved to: {plot_dir}")
+    failed_count = args_cli.num_episodes - success_count
+    print(f"\n{'='*50}", flush=True)
+    print(f"Done: {success_count}/{args_cli.num_episodes} SUCCESS ({100 * success_count / max(1, args_cli.num_episodes):.1f}%)", flush=True)
+    print(f"      {failed_count}/{args_cli.num_episodes} FAILED (timeout or early termination)", flush=True)
+    print(f"Total steps: {total_steps}", flush=True)
+    print(f"Plots saved to: {plot_dir}", flush=True)
     env.close()
 
 

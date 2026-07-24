@@ -62,7 +62,7 @@ def objects_a_and_b_are_into_c(
     object_b_cfg: SceneEntityCfg = SceneEntityCfg("object_b"),
     object_c_cfg: SceneEntityCfg = SceneEntityCfg("object_c"),
     xy_threshold: float = 0.07,
-    height_threshold: float = 0.05,
+    height_threshold: float = 0.1,
     height_diff: float = 0.0,
     check_gripper_open: bool = True,
 ) -> torch.Tensor:

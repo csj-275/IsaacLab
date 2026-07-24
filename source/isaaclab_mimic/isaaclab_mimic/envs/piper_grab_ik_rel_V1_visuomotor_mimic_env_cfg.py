@@ -37,7 +37,7 @@ class PiperGrabIKRelV1VisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvC
                 selection_strategy_kwargs={"nn_k": 3},
                 action_noise=0.00,
                 num_interpolation_steps=10,
-                num_fixed_steps=5,
+                num_fixed_steps=3,
                 apply_noise_during_interpolation=False,
                 description="Grasp the cube",
                 next_subtask_description="Place the cube into the box",
@@ -67,7 +67,7 @@ class PiperGrabIKRelV1VisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvC
                 selection_strategy_kwargs={"nn_k": 3},
                 action_noise=0.00,
                 num_interpolation_steps=10,
-                num_fixed_steps=5,
+                num_fixed_steps=3,
                 apply_noise_during_interpolation=False,
                 description="Grasp the mug",
                 next_subtask_description="Place the mug into the box",
@@ -82,7 +82,7 @@ class PiperGrabIKRelV1VisuomotorMimicEnvCfg(PiperGrabVisuomotorEnvCfg, MimicEnvC
                 selection_strategy_kwargs={"nn_k": 3},
                 action_noise=0.00,
                 num_interpolation_steps=10,
-                num_fixed_steps=300,
+                num_fixed_steps=5,
                 apply_noise_during_interpolation=False,
             )
         )

@@ -120,14 +120,12 @@ cp -r datasets/lerobot/XXXX /home/dgrlab04/csj_ws/lerobot/datasets/
 # Skillgen
 ``` bash
 ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
---device cpu \
---num_envs 1 \
 --generation_num_trials 10 \
 --input_file ./datasets/hdf5/annotated_dataset_skillgen.hdf5 \
 --output_file ./datasets/hdf5/generated_dataset_skillgen.hdf5 \
 --task Isaac-Piper-Grab-IK-Rel-Skillgen-v1 \
---use_skillgen
-
+--use_skillgen \
+--headless
 ```
 
 -----------------------------------------------------
