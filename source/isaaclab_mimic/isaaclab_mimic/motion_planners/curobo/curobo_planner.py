@@ -945,7 +945,20 @@ class CuroboPlanner(MotionPlannerBase):
             joint_names=self.robot.data.joint_names,
             tensor_args=self.tensor_args,
         )
-        return cu_js.get_ordered_joint_state(self.motion_gen.kinematics.joint_names)
+
+        # Diagnostic: print joint names and positions to debug IK failures
+        self.logger.info(
+            f"Isaac Lab joint names: {self.robot.data.joint_names}, "
+            f"positions: {joint_pos_raw[0].tolist()}"
+        )
+        self.logger.info(f"cuRobo kinematics joint names: {self.motion_gen.kinematics.joint_names}")
+
+        ordered_js = cu_js.get_ordered_joint_state(self.motion_gen.kinematics.joint_names)
+        self.logger.info(
+            f"Ordered joint state names: {ordered_js.joint_names}, "
+            f"positions: {ordered_js.position[0].tolist()}"
+        )
+        return ordered_js
 
     def get_ee_pose(self, joint_state: JointState) -> Pose:
         """Compute end-effector pose from joint configuration.
@@ -1250,10 +1263,18 @@ class CuroboPlanner(MotionPlannerBase):
                 planning_success = True
                 self.logger.debug(f"Contact planning succeeded with {len(self._current_plan.position)} waypoints")
             else:
-                self.logger.debug(f"Contact planning failed: {result.status}")
+                pos_err = (
+                    result.position_error.item() if hasattr(result, "position_error") and result.position_error is not None else "N/A"
+                )
+                rot_err = (
+                    result.rotation_error.item() if hasattr(result, "rotation_error") and result.rotation_error is not None else "N/A"
+                )
+                self.logger.info(
+                    f"Contact planning failed: {result.status}, pos_err={pos_err}, rot_err={rot_err}"
+                )
 
         except Exception as e:
-            self.logger.debug(f"Error during planning: {e}")
+            self.logger.error(f"Error during planning: {e}")
 
         # Always restore sphere state after planning, regardless of success
         if contact:
@@ -1296,10 +1317,17 @@ class CuroboPlanner(MotionPlannerBase):
 
         if retreat_distance is not None and retreat_distance > 0:
             ee_pose: Pose = self.get_ee_pose(start_state)
+            self.logger.info(
+                f"FK EE position: {ee_pose.position[0].tolist() if hasattr(ee_pose.position, 'tolist') else ee_pose.position}, "
+                f"quaternion: {ee_pose.quaternion[0].tolist() if hasattr(ee_pose.quaternion, 'tolist') else ee_pose.quaternion}"
+            )
             retreat_pose: Pose = ee_pose.multiply(
                 self._make_pose(
                     position=[0.0, 0.0, -retreat_distance],
                 )
+            )
+            self.logger.info(
+                f"Retreat pose position: {retreat_pose.position[0].tolist() if hasattr(retreat_pose.position, 'tolist') else retreat_pose.position}"
             )
             target_poses.append(retreat_pose)
             contacts.append(True)
@@ -1331,7 +1359,7 @@ class CuroboPlanner(MotionPlannerBase):
             )
 
             if not success:
-                self.logger.debug(f"Phase {i + 1} planning failed")
+                self.logger.info(f"Phase {i + 1} planning failed")
                 return False
 
             if full_plan is None:

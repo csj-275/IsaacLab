@@ -72,6 +72,7 @@ export PATH="$CUDA_HOME/bin:$PATH"
 export TORCH_CUDA_ARCH_LIST="8.0+PTX"
 export SETUPTOOLS_SCM_PRETEND_VERSION=0.7.7
 ./_isaac_sim/python.sh -m pip install -e src/nvidia-curobo --no-build-isolation
+./_isaac_sim/python.sh -m pip install rerun-sdk==0.23
 ```
 
 ## 4. 验证
@@ -119,6 +120,8 @@ cp -r datasets/lerobot/XXXX /home/dgrlab04/csj_ws/lerobot/datasets/
 
 # Skillgen
 ``` bash
+
+# 3. 数据生成
 ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
 --generation_num_trials 10 \
 --input_file ./datasets/hdf5/annotated_dataset_skillgen.hdf5 \
