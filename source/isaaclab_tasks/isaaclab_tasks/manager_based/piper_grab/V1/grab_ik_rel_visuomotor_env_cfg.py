@@ -99,41 +99,41 @@ class EventCfg(grab_joint_pos_env_cfg.EventCfg):
     # )
 
     # 视觉随机化
-    randomize_table_visual_material = EventTerm(
-        func=piper_grab_events.randomize_visual_texture_material,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("table"),
-            "textures": [
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Mahogany_Planks/Mahogany_Planks_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
-                # Metals
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
-                f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
-            ],
-            "default_texture": "",
-        },
-    )
+    # randomize_table_visual_material = EventTerm(
+    #     func=piper_grab_events.randomize_visual_texture_material,
+    #     mode="reset",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("table"),
+    #         "textures": [
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Bamboo_Planks/Bamboo_Planks_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Cherry/Cherry_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Mahogany_Planks/Mahogany_Planks_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Oak/Oak_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber/Timber_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Timber_Cladding/Timber_Cladding_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Wood/Walnut_Planks/Walnut_Planks_BaseColor.png",
+    #             # Metals
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Steel_Stainless/Steel_Stainless_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Brass/Brass_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Bronze/Bronze_BaseColor.png",
+    #             f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Copper/Copper_BaseColor.png",
+    #         ],
+    #         "default_texture": "",
+    #     },
+    # )
 
-    # Warehouse RectLight: dim initial + slow large drift during episode
-    randomize_warehouse_lights = EventTerm(
-        func=piper_grab_events.randomize_warehouse_light_intensity,
-        mode="reset",
-        params={"intensity_range": (200.0, 1200.0), "delta_range": (0.0, 0.0)},
-    )
-    randomize_warehouse_lights_dynamic = EventTerm(
-        func=piper_grab_events.randomize_warehouse_light_intensity,
-        mode="interval",
-        interval_range_s=(1.5, 4.0),
-        params={"delta_range": (-600.0, 600.0)},
-    )
+    # # Warehouse RectLight: dim initial + slow large drift during episode
+    # randomize_warehouse_lights = EventTerm(
+    #     func=piper_grab_events.randomize_warehouse_light_intensity,
+    #     mode="reset",
+    #     params={"intensity_range": (200.0, 1200.0), "delta_range": (0.0, 0.0)},
+    # )
+    # randomize_warehouse_lights_dynamic = EventTerm(
+    #     func=piper_grab_events.randomize_warehouse_light_intensity,
+    #     mode="interval",
+    #     interval_range_s=(1.5, 4.0),
+    #     params={"delta_range": (-600.0, 600.0)},
+    # )
 
 
 @configclass
@@ -279,13 +279,13 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             params={
                 "pose_ranges": [
                 # L1
-                    {"x": (0.3, 0.35), "y": (0.1, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
-                    {"x": (0.2, 0.25), "y": (0.1, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
-                    {"x": (0.15, 0.2), "y": (0.25, 0.3), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
+                    # {"x": (0.3, 0.35), "y": (0.1, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
+                    # {"x": (0.2, 0.25), "y": (0.1, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
+                    # {"x": (0.15, 0.2), "y": (0.25, 0.3), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
                 # L2
-                    # {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
-                    # {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
-                    # {"x": (0.1, 0.3), "y": (0.05, 0.35), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
+                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
+                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
+                    {"x": (0.1, 0.3), "y": (0.05, 0.35), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
                 ],
                 "min_separation": 0.12,
                 "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],
@@ -293,18 +293,20 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         )
 
         # 固定颜色
-        self.scene.mug.spawn.visual_material = PreviewSurfaceCfg(
-            diffuse_color=(0.85, 0.45, 0.10),  # orange
-            roughness=0.4,
-            metallic=0.0,
-        )
-        self.scene.box.spawn.visual_material = PreviewSurfaceCfg(
-            diffuse_color=(0.55, 0.35, 0.15),  # brown/cardboard
-            roughness=0.5,
-            metallic=0.0,
-        )
+        # self.scene.mug.spawn.visual_material = PreviewSurfaceCfg(
+        #     diffuse_color=(0.85, 0.45, 0.10),  # orange
+        #     roughness=0.4,
+        #     metallic=0.0,
+        # )
+        # self.scene.box.spawn.visual_material = PreviewSurfaceCfg(
+        #     diffuse_color=(0.55, 0.35, 0.15),  # brown/cardboard
+        #     roughness=0.5,
+        #     metallic=0.0,
+        # )
 
+        #####################
         # 视觉随机化
+        #####################
         self.events.randomize_cube_color = EventTerm(
             func=mdp.randomize_visual_color,
             mode="reset",
