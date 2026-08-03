@@ -22,3 +22,13 @@ services:
         source: ../cuda_12.8.0_570.86.10_linux.run
         target: /workspace/isaaclab/cuda_12.8.0_570.86.10_linux.run
         read_only: true
+      # XRoboToolKit
+      # - type: bind
+      #   source: ../external/xrobotoolkit/xrobotoolkit
+      #   target: /workspace/xrobotoolkit
+      # - type: bind
+      #   source: ../external/xrobotoolkit/XRoboToolkit-PC-Service-Pybind
+      #   target: /workspace/XRoboToolkit-PC-Service-Pybind
+      # - type: bind
+      #   source: ../external/xrobotoolkit/XRoboToolkit-PC-Service
+      #   target: /workspace/XRoboToolkit-PC-Service

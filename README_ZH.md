@@ -139,3 +139,16 @@ python scripts/lerobot/merge_lerobot_datasets.py --input1 datasets/lerobot/XXXX/
 ``` bash
 ./isaaclab.sh -p scripts/lerobot/eval_policy.py --checkpoint-dir ./logs/policy/F-SIM-PIPER-GRAB-0721-N30-K-V1-ACT/checkpoints/last/pretrained_model/ --num-episodes 10  --max-steps 1200 --enable_cameras --device cuda:0 --headless --post-success-delay 60
 ```
+
+
+# MSTSC连接无画面
+``` bash
+# 1. 在宿主机设置本地 DISPLAY，然后重启容器
+export DISPLAY=:11
+./docker/container.py stop base
+./docker/container.py start base --files docker-compose-csj.yaml
+# 2. 进容器确认
+./docker/container.py enter base
+echo $DISPLAY
+# 应该输出 :11
+```

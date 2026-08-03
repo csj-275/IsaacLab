@@ -7,8 +7,7 @@ import os
 from dataclasses import MISSING
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.devices.openxr import XrCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -17,27 +16,110 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
-from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.sim.spawners.materials.visual_materials_cfg import PreviewSurfaceCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from . import mdp
 
+# Paths
+_BOX_USD_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "../../../../../../usd/box/box.usd")
+)
+_MUG_USD_PATH = os.path.normpath(
+    os.path.join(os.path.dirname(__file__), "../../../../../../usd/bottle/bottle.usd")
+)
 
-##
+# ---------------------------------------------------------------------------
+# Helper: auto-generate _left / _right observation term pairs
+# ---------------------------------------------------------------------------
+
+
+def _dual_obs_terms(specs: list[tuple[str, callable, dict, dict]]) -> dict[str, ObsTerm]:
+    """Return a flat dict of ``{name}_left`` / ``{name}_right`` :class:`ObsTerm` pairs.
+
+    Each element in *specs* is::
+
+        (base_name, func, left_params, right_params)
+
+    where *left_params* and *right_params* are the keyword-argument dicts passed
+    to :class:`ObsTerm` for the left and right variants respectively.
+
+    Example::
+
+        _dual_obs_terms([
+            ("eef_pos", mdp.ee_frame_pos,
+             {"ee_frame_cfg": SceneEntityCfg("ee_frame_left")},
+             {"ee_frame_cfg": SceneEntityCfg("ee_frame_right")}),
+        ])
+        # → {"eef_pos_left": ObsTerm(...), "eef_pos_right": ObsTerm(...)}
+    """
+    terms: dict[str, ObsTerm] = {}
+    for name, func, left_p, right_p in specs:
+        terms[f"{name}_left"] = ObsTerm(func=func, params=left_p)
+        terms[f"{name}_right"] = ObsTerm(func=func, params=right_p)
+    return terms
+
+
+# Shortcuts so the table below stays compact.
+_R_LEFT = SceneEntityCfg("robot_left")
+_R_RIGHT = SceneEntityCfg("robot_right")
+_EE_LEFT = SceneEntityCfg("ee_frame_left")
+_EE_RIGHT = SceneEntityCfg("ee_frame_right")
+
+# Shared specs reused by both PolicyCfg and SubtaskCfg.
+_SHARED_SPECS: list[tuple[str, callable, dict, dict]] = [
+    ("joint_pos", mdp.joint_pos_rel, {"asset_cfg": _R_LEFT}, {"asset_cfg": _R_RIGHT}),
+    ("joint_vel", mdp.joint_vel_rel, {"asset_cfg": _R_LEFT}, {"asset_cfg": _R_RIGHT}),
+    ("eef_pos", mdp.ee_frame_pos, {"ee_frame_cfg": _EE_LEFT}, {"ee_frame_cfg": _EE_RIGHT}),
+    ("eef_quat", mdp.ee_frame_quat, {"ee_frame_cfg": _EE_LEFT}, {"ee_frame_cfg": _EE_RIGHT}),
+    ("gripper_pos", mdp.gripper_pos, {"robot_cfg": _R_LEFT}, {"robot_cfg": _R_RIGHT}),
+]
+
+_OBJECT_SPECS: list[tuple[str, callable, dict, dict]] = [
+    (
+        "object_1_positions",
+        mdp.object_poses_in_base_frame,
+        {"object_cfg": SceneEntityCfg("object_1"), "robot_cfg": _R_LEFT, "return_key": "pos"},
+        {"object_cfg": SceneEntityCfg("object_1"), "robot_cfg": _R_RIGHT, "return_key": "pos"},
+    ),
+    (
+        "object_1_orientations",
+        mdp.object_poses_in_base_frame,
+        {"object_cfg": SceneEntityCfg("object_1"), "robot_cfg": _R_LEFT, "return_key": "quat"},
+        {"object_cfg": SceneEntityCfg("object_1"), "robot_cfg": _R_RIGHT, "return_key": "quat"},
+    ),
+    (
+        "box_positions",
+        mdp.object_poses_in_base_frame,
+        {"object_cfg": SceneEntityCfg("box"), "robot_cfg": _R_LEFT, "return_key": "pos"},
+        {"object_cfg": SceneEntityCfg("box"), "robot_cfg": _R_RIGHT, "return_key": "pos"},
+    ),
+    (
+        "box_orientations",
+        mdp.object_poses_in_base_frame,
+        {"object_cfg": SceneEntityCfg("box"), "robot_cfg": _R_LEFT, "return_key": "quat"},
+        {"object_cfg": SceneEntityCfg("box"), "robot_cfg": _R_RIGHT, "return_key": "quat"},
+    ),
+]
+
+
+# ---------------------------------------------------------------------------
 # Scene definition
-##
+# ---------------------------------------------------------------------------
+
 @configclass
 class ObjectTableSceneCfg(InteractiveSceneCfg):
-    """Configuration for the lift scene with a robot and a object.
-    This is the abstract base implementation, the exact scene is defined in the derived classes
-    which need to set the target object, robot and end-effector frames
+    """Configuration for a dual-arm tabletop scene.
+
+    Derived classes must set the target robots, end-effector frames, and objects.
     """
 
-    # robots: will be populated by agent env cfg
+    # robots: populated by agent env cfg
     robot_left: ArticulationCfg = MISSING
     robot_right: ArticulationCfg = MISSING
-    # end-effector sensor: will be populated by agent env cfg
+    # end-effector sensors: populated by agent env cfg
     ee_frame_left: FrameTransformerCfg = MISSING
     ee_frame_right: FrameTransformerCfg = MISSING
 
@@ -45,8 +127,10 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     table = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.3, 0, 0), rot=(0.707, 0, 0, 0.707)),
-        spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
-                         scale=(1, 0.6, 1)),
+        spawn=UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Mounts/SeattleLabTable/table_instanceable.usd",
+            scale=(1, 0.6, 1),
+        ),
     )
 
     # Ground plane (invisible physics-only — warehouse provides visual floor)
@@ -54,7 +138,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         prim_path="/World/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0, 0, -1.05)),
         spawn=UsdFileCfg(
-            usd_path=os.path.join(os.path.dirname(__file__), "../../../../../usd/ground/ground.usda"),
+            usd_path=os.path.join(os.path.dirname(__file__), "../../../../../../usd/ground/ground.usda"),
             rigid_props=RigidBodyPropertiesCfg(disable_gravity=True),
         ),
     )
@@ -66,53 +150,42 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Simple_Warehouse/warehouse.usd"),
     )
 
-    
-##
+
+# ---------------------------------------------------------------------------
 # MDP settings
-##
+# ---------------------------------------------------------------------------
+
 @configclass
 class ActionsCfg:
-    """Action specifications for the MDP."""
+    """Action specifications for the dual-arm MDP."""
 
-    # will be set by agent env cfg
-    arm_action: mdp.JointPositionActionCfg = MISSING
-    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
+    # populated by agent env cfg
+    arm_action_left: mdp.JointPositionActionCfg = MISSING
+    arm_action_right: mdp.JointPositionActionCfg = MISSING
+    gripper_action_left: mdp.BinaryJointPositionActionCfg = MISSING
+    gripper_action_right: mdp.BinaryJointPositionActionCfg = MISSING
+
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP."""
+    """Observation specifications for the dual-arm MDP."""
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Observations for policy group with state values."""
+        """Observations for policy group (state)."""
 
         actions = ObsTerm(func=mdp.last_action)
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        eef_pos = ObsTerm(func=mdp.ee_frame_pos, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
-        eef_quat = ObsTerm(func=mdp.ee_frame_quat, params={"ee_frame_cfg": SceneEntityCfg("ee_frame")})
-        gripper_pos = ObsTerm(func=mdp.gripper_pos, params={"robot_cfg": SceneEntityCfg("robot")})
-        object = ObsTerm(func=mdp.object_obs)
-        object_1_positions = ObsTerm(
-            func=mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "pos"},
-        )
-        object_1_orientations = ObsTerm(
-            func=mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("object_1"), "return_key": "quat"},
-        )
-        box_positions = ObsTerm(
-            func=mdp.object_poses_in_base_frame, params={"object_cfg": SceneEntityCfg("box"), "return_key": "pos"}
-        )
-        box_orientations = ObsTerm(
-            func=mdp.object_poses_in_base_frame,
-            params={"object_cfg": SceneEntityCfg("box"), "return_key": "quat"},
-        )
-        
-        
+
+        # Object observations (world-frame, shared across arms; uses left ee as reference)
+        object = ObsTerm(func=mdp.object_obs, params={"ee_frame_cfg": _EE_LEFT})
+
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
+
+            # Auto-generate all _left / _right observation pairs
+            for k, v in _dual_obs_terms(_SHARED_SPECS + _OBJECT_SPECS).items():
+                setattr(self, k, v)
 
     @configclass
     class RGBCameraPolicyCfg(ObsGroup):
@@ -124,19 +197,29 @@ class ObservationsCfg:
 
     @configclass
     class SubtaskCfg(ObsGroup):
-        """Observations for subtask group."""
-        grasp_1 = ObsTerm(
-            func=mdp.object_grasped,
-            params={
-                "robot_cfg": SceneEntityCfg("robot"),
-                "ee_frame_cfg": SceneEntityCfg("ee_frame"),
-                "object_cfg": SceneEntityCfg("object_1"),
-            },
-        )
+        """Observations for subtask group (e.g. grasp detection)."""
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
+
+            # Auto-generate grasp detection for both hands
+            for side, robot_cfg, ee_cfg in [
+                ("left", _R_LEFT, _EE_LEFT),
+                ("right", _R_RIGHT, _EE_RIGHT),
+            ]:
+                setattr(
+                    self,
+                    f"grasp_1_{side}",
+                    ObsTerm(
+                        func=mdp.object_grasped,
+                        params={
+                            "robot_cfg": robot_cfg,
+                            "ee_frame_cfg": ee_cfg,
+                            "object_cfg": SceneEntityCfg("object_1"),
+                        },
+                    ),
+                )
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -145,22 +228,25 @@ class ObservationsCfg:
 
 @configclass
 class TerminationsCfg:
-    """Termination terms for the MDP."""
+    """Termination terms for the dual-arm MDP."""
+
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
-    # -0.85
     object_1_dropping = DoneTerm(
-        func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("object_1")}
+        func=mdp.root_height_below_minimum,
+        params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("object_1")},
     )
 
     box_dropping = DoneTerm(
-        func=mdp.root_height_below_minimum, params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("box")}
+        func=mdp.root_height_below_minimum,
+        params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("box")},
     )
 
+    # Success: object_1 placed into box, left hand released
     success = DoneTerm(
         func=mdp.object_a_is_into_b,
         params={
-            "robot_cfg": SceneEntityCfg("robot"),
+            "robot_cfg": SceneEntityCfg("robot_left"),
             "object_a_cfg": SceneEntityCfg("object_1"),
             "object_b_cfg": SceneEntityCfg("box"),
             "xy_threshold": 0.08,
@@ -170,12 +256,18 @@ class TerminationsCfg:
     )
 
 
+# ---------------------------------------------------------------------------
+# Environment configuration
+# ---------------------------------------------------------------------------
+
 @configclass
 class GrabEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the grabbing environment."""
+    """Base configuration for the dual-arm grabbing environment."""
 
     # Scene settings
-    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(num_envs=4096, env_spacing=2.5, replicate_physics=False)
+    scene: ObjectTableSceneCfg = ObjectTableSceneCfg(
+        num_envs=4096, env_spacing=2.5, replicate_physics=False
+    )
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -204,4 +296,57 @@ class GrabEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physx.gpu_heap_capacity = 32 * 1024 * 1024
         self.sim.physx.gpu_collision_stack_size = 32 * 1024 * 1024
 
-        
+        # Shared box (target container)
+        self.scene.box = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/box",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.1, 0.3, 0.0203), rot=(1.0, 0.0, 0.0, 0.0)),
+            spawn=UsdFileCfg(
+                usd_path=_BOX_USD_PATH,
+                rigid_props=RigidBodyPropertiesCfg(),
+                semantic_tags=[("class", "box")],
+            ),
+        )
+
+        # Shared mug (pickable object, e.g. bottle)
+        _mug_props = RigidBodyPropertiesCfg(
+            solver_position_iteration_count=16,
+            solver_velocity_iteration_count=1,
+            max_angular_velocity=1000.0,
+            max_linear_velocity=1000.0,
+            max_depenetration_velocity=5.0,
+            disable_gravity=False,
+        )
+        self.scene.mug = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/mug",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.15, 0.203), rot=(1, 0, 0, 0)),
+            spawn=UsdFileCfg(
+                usd_path=_MUG_USD_PATH,
+                scale=(1, 1, 1),
+                rigid_props=_mug_props,
+                semantic_tags=[("class", "mug")],
+            ),
+        )
+
+        # Shared cube (pickable blue block — reuses _mug_props, identical settings)
+        self.scene.object_1 = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/object_1",
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.3, 0.0, 0.0203), rot=(1, 0, 0, 0)),
+            spawn=UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/blue_block.usd",
+                scale=(1.0, 1.0, 1.0),
+                rigid_props=_mug_props,
+                semantic_tags=[("class", "cube_1")],
+            ),
+        )
+
+        # ---- Fixed visual materials (alternative to color randomization) --------
+        self.scene.mug.spawn.visual_material = PreviewSurfaceCfg(
+            diffuse_color=(0.85, 0.45, 0.10),  # orange
+            roughness=0.4,
+            metallic=0.0,
+        )
+        self.scene.box.spawn.visual_material = PreviewSurfaceCfg(
+            diffuse_color=(0.55, 0.35, 0.15),  # brown/cardboard
+            roughness=0.5,
+            metallic=0.0,
+        )
