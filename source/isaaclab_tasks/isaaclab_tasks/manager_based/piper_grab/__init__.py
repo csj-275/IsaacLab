@@ -129,6 +129,18 @@ gym.register(
 )
 
 gym.register(
+    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Rewarded-v1",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.V1.grab_ik_rel_visuomotor_rewarded_env_cfg_V1:PiperGrabVisuomotorRewardedEnvCfg_V1"
+        ),
+        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_200.json",
+    },
+)
+
+gym.register(
     id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v1",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,

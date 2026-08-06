@@ -6,13 +6,16 @@ Usage::
 
     # Normal mode — open Isaac Sim with rendering, no video export:
     ./isaaclab.sh -p scripts/lerobot/eval_policy.py \\
-        --checkpoint-dir ./datasets/lerobot/piper_grab_V1_D3_act_checkpoints/checkpoint_step_100000 \\
+        --checkpoint-dir logs/policy/my_policy/checkpoints/checkpoint_step_100000 \\
         --num-episodes 10 --device cuda:0
 
     # Headless + export test videos:
+    #   Video folder name: {策略名}-{checkpoint}
+    #   e.g. logs/policy/my_policy/checkpoints/checkpoint_step_100000
+    #     → videos saved to logs/eval_videos/my_policy-checkpoint_step_100000/
     ./isaaclab.sh -p scripts/lerobot/eval_policy.py \\
-        --checkpoint-dir ./datasets/lerobot/piper_grab_V1_D3_act_checkpoints/checkpoint_step_100000 \\
-        --num-episodes 10 --video ./datasets/eval_videos \\
+        --checkpoint-dir logs/policy/my_policy/checkpoints/checkpoint_step_100000 \\
+        --num-episodes 10 --video logs/eval_videos \\
         --headless --enable_cameras --device cuda:0
 """
 
@@ -426,7 +429,13 @@ def main():
     # 3. Video & plot setup
     video_dir = None
     if args_cli.video:
-        video_dir = Path(args_cli.video)
+        # Derive video folder name: 策略名-checkpoint
+        # e.g. logs/policy/my_policy/checkpoints/checkpoint_step_100000
+        #   → video folder: my_policy-checkpoint_step_100000
+        ckpt_path = Path(args_cli.checkpoint_dir)
+        policy_name = ckpt_path.parent.parent.name if ckpt_path.parent.name == "checkpoints" else ckpt_path.parent.name
+        checkpoint_name = ckpt_path.name
+        video_dir = Path(args_cli.video) / f"{policy_name}-{checkpoint_name}"
         video_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Video output: {video_dir}")
 
@@ -559,10 +568,9 @@ def main():
             episode_steps += 1
             total_steps += 1
 
-            # Per-step progress
-            # s_str = np.array2string(state_np, precision=2, suppress_small=True, max_line_width=60)
-            # a_str = np.array2string(action, precision=2, suppress_small=True, max_line_width=80)
-            print(f"[Ep {ep + 1}/{args_cli.num_episodes}] Step {episode_steps}/{args_cli.max_steps}", flush=True)
+            # Per-step progress (print every 100 steps to reduce noise)
+            if episode_steps % 100 == 0 or episode_steps == 1:
+                print(f"[Ep {ep + 1}/{args_cli.num_episodes}] Step {episode_steps}/{args_cli.max_steps}", flush=True)
 
             # Check termination
             if args_cli.post_success_delay > 0:

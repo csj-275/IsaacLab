@@ -279,13 +279,13 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
             params={
                 "pose_ranges": [
                 # L1
-                    # {"x": (0.3, 0.35), "y": (0.1, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
-                    # {"x": (0.2, 0.25), "y": (0.1, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
-                    # {"x": (0.15, 0.2), "y": (0.25, 0.3), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
+                    {"x": (0.3, 0.35), "y": (0.1, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
+                    {"x": (0.2, 0.25), "y": (0.1, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
+                    {"x": (0.15, 0.2), "y": (0.25, 0.3), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
                 # L2
-                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
-                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
-                    {"x": (0.1, 0.3), "y": (0.05, 0.35), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
+                    # {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
+                    # {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
+                    # {"x": (0.1, 0.3), "y": (0.05, 0.35), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
                 ],
                 "min_separation": 0.12,
                 "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],
@@ -307,38 +307,38 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         #####################
         # 视觉随机化
         #####################
-        self.events.randomize_cube_color = EventTerm(
-            func=mdp.randomize_visual_color,
-            mode="reset",
-            params={
-                "event_name": "randomize_cube_color",
-                "asset_cfg": SceneEntityCfg("object_1"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
-            },
-        )
+        # self.events.randomize_cube_color = EventTerm(
+        #     func=mdp.randomize_visual_color,
+        #     mode="reset",
+        #     params={
+        #         "event_name": "randomize_cube_color",
+        #         "asset_cfg": SceneEntityCfg("object_1"),
+        #         "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+        #         "mesh_name": "",
+        #     },
+        # )
         
-        self.events.randomize_box_color = EventTerm(
-            func=mdp.randomize_visual_color,
-            mode="reset",
-            params={
-                "event_name": "randomize_box_color",
-                "asset_cfg": SceneEntityCfg("box"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
-            },
-        )
+        # self.events.randomize_box_color = EventTerm(
+        #     func=mdp.randomize_visual_color,
+        #     mode="reset",
+        #     params={
+        #         "event_name": "randomize_box_color",
+        #         "asset_cfg": SceneEntityCfg("box"),
+        #         "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+        #         "mesh_name": "",
+        #     },
+        # )
         
-        self.events.randomize_mug_color = EventTerm(
-            func=mdp.randomize_visual_color,
-            mode="reset",
-            params={
-                "event_name": "randomize_mug_color",
-                "asset_cfg": SceneEntityCfg("mug"),
-                "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
-                "mesh_name": "",
-            },
-        )
+        # self.events.randomize_mug_color = EventTerm(
+        #     func=mdp.randomize_visual_color,
+        #     mode="reset",
+        #     params={
+        #         "event_name": "randomize_mug_color",
+        #         "asset_cfg": SceneEntityCfg("mug"),
+        #         "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
+        #         "mesh_name": "",
+        #     },
+        # )
 
         # ---------------------------------------------------------------------
         # Object visual randomization (cube uses color, box/mug use texture)
@@ -422,7 +422,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         self.image_obs_list = ["table_cam", "wrist_cam"]
         self.sim.dt = 1 / 150
         self.decimation = 5
-        self.sim.render_interval = 2
+        self.sim.render_interval = 5
 
         self.teleop_devices = DevicesCfg(
             devices={

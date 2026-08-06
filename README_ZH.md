@@ -111,7 +111,7 @@ scripts/imitation_learning/isaaclab_mimic/generate_dataset_lerobot.py \
 --headless --enable_cameras --device cuda:0 \
 --fps 30
 # 4. 转完整Lerobot
-./isaaclab.sh -p scripts/lerobot/convert_to_lerobot.py --src-dir ./datasets/lerobot/SIM-PIPER-GRAB-XXXX-NX-K-V1 --output-dir ./datasets/lerobot/D-SIM-PIPER-GRAB-XXXX-NX-K-V1 --use-state-as-action
+./isaaclab.sh -p scripts/lerobot/convert_to_lerobot.py --src-dir ./datasets/lerobot/SIM-PIPER-GRAB-XXXX-NX-K-V1 --output-dir ./datasets/lerobot/Test/D-SIM-PIPER-GRAB-XXXX-NX-K-V1 --use-state-as-action
 # 5. 复制Lerobot
 cp -r datasets/lerobot/XXXX /home/dgrlab04/csj_ws/lerobot/datasets/
 

@@ -5,19 +5,29 @@
 用法:
     conda activate lerobot
 
-    # 指定源数据集和输出目录
+    # 方式1（推荐）：--output 只填数据集名称，自动拼接到 --src-dir 的同级目录
     python scripts/lerobot/convert_to_lerobot.py \
-        --src-dir /home/chenshengjia/company/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1 \
-        --output-dir /home/chenshengjia/company/isaaclab/datasets/lerobot/piper_grab_v1
+        --src-dir ./datasets/lerobot/SIM-PIPER-GRAB-0618-N100-IK-K-V1 \
+        --output SIM-PIPER-GRAB-0618-N100-IK-K-V1_V2
+    # 实际输出: ./datasets/lerobot/SIM-PIPER-GRAB-0618-N100-IK-K-V1_V2
+
+    # 方式2：省略 --output，自动取 src-dir 的文件夹名放到 ./datasets/lerobot/ 下
+    python scripts/lerobot/convert_to_lerobot.py \
+        --src-dir /home/chenshengjia/company/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1
+    # 实际输出: ./datasets/lerobot/SIM-PIPER-GRAB-0618-N100-IK-K-V1
+
+    # 方式3：--output 填完整路径，直接使用
+    python scripts/lerobot/convert_to_lerobot.py \
+        --src-dir ... \
+        --output /home/chenshengjia/company/isaaclab/datasets/lerobot/piper_grab_v1
 
     # 跳过视频
-    python scripts/lerobot/convert_to_lerobot.py --skip-videos \
-        --src-dir ... --output-dir ...
+    python scripts/lerobot/convert_to_lerobot.py --skip-videos --src-dir ...
 
     # Docker 容器内
     python scripts/lerobot/convert_to_lerobot.py \
         --src-dir /workspace/isaaclab/datasets/simdata/V1/SIM-PIPER-GRAB-0618-N100-IK-K-V1 \
-        --output-dir /workspace/isaaclab/datasets/lerobot/piper_grab_v1
+        --output piper_grab_v1
 
 数据格式（维度从源数据自动检测，以下仅为示例）:
   - action: 7维 (IK delta pose x/y/z/rx/ry/rz + gripper)
@@ -297,10 +307,11 @@ def main():
         help="Source IsaacLab data directory",
     )
     parser.add_argument(
-        "--output-dir",
+        "--output",
         type=str,
-        default="./datasets/lerobot/D-SIM-PIPER-GRAB-XXXX-NX-K-V1",
-        help="Output LeRobot dataset directory",
+        default=None,
+        help="Output dataset name or path. If a plain name (no /), auto-prepends src-dir's parent directory; "
+             "if omitted, defaults to ./datasets/lerobot/<src-dir-folder-name>",
     )
     parser.add_argument("--symlink", action="store_true", help="Use symlinks instead of copying video files")
     parser.add_argument("--skip-videos", action="store_true", help="Skip video processing")
@@ -309,7 +320,15 @@ def main():
     args = parser.parse_args()
 
     src_dir = Path(args.src_dir)
-    output_dir = Path(args.output_dir)
+
+    # --output 只填数据集名称，自动提取 --src-dir 的父目录拼接完整路径
+    if args.output is None:
+        output_dir = Path("./datasets/lerobot") / src_dir.name
+    elif "/" not in args.output and "\\" not in args.output:
+        # 纯名称（不含路径分隔符），拼接到 src-dir 的父目录下
+        output_dir = src_dir.parent / args.output
+    else:
+        output_dir = Path(args.output)
 
     if not src_dir.exists():
         raise FileNotFoundError(f"Source directory not found: {src_dir}")
