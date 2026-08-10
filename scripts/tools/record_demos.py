@@ -504,6 +504,9 @@ def handle_reset(
     env.sim.reset()
     env.recorder_manager.reset()
     env.reset()
+    # Flush rendering pipeline to avoid visual ghosting from previous episode
+    for _ in range(5):
+        env.sim.render()
     success_step_count = 0
     instruction_display.show_demo(label_text)
     return success_step_count

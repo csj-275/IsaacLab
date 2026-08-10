@@ -111,7 +111,7 @@ scripts/imitation_learning/isaaclab_mimic/generate_dataset_lerobot.py \
 --headless --enable_cameras --device cuda:0 \
 --fps 30
 # 4. 转完整Lerobot
-./isaaclab.sh -p scripts/lerobot/convert_to_lerobot.py --src-dir ./datasets/lerobot/SIM-PIPER-GRAB-XXXX-NX-K-V1 --output-dir ./datasets/lerobot/Test/D-SIM-PIPER-GRAB-XXXX-NX-K-V1 --use-state-as-action
+./isaaclab.sh -p scripts/lerobot/convert_to_lerobot.py --src-dir ./datasets/lerobot/SIM-PIPER-GRAB-0808-N100-L1-V1 --output ./datasets/lerobot/D-SIM-PIPER-GRAB-0808-N100-L1-V1 --use-state-as-action
 # 5. 复制Lerobot
 cp -r datasets/lerobot/XXXX /home/dgrlab04/csj_ws/lerobot/datasets/
 
@@ -151,4 +151,8 @@ export DISPLAY=:11
 ./docker/container.py enter base
 echo $DISPLAY
 # 应该输出 :11
+```
+
+``` bash
+./isaaclab.sh -p scripts/lerobot/eval_policy.py --checkpoint-dir ./logs/policy/D-SIM-PIPER-GRAB-0808-N100-L1-V1-ACT/checkpoints/last/pretrained_model/ --num-episodes 50 --max-steps 1200 --enable_cameras --device cuda:0 --headless --post-success-delay 60  --video logs/eval_videos
 ```

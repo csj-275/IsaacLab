@@ -50,7 +50,7 @@ parser.add_argument("--max-steps", type=int, default=800, help="Max steps per ep
 parser.add_argument(
     "--post-success-delay",
     type=int,
-    default=0,
+    default=60,
     help="Extra frames to continue after success before ending episode. 0 = end immediately.",
 )
 parser.add_argument(
@@ -64,6 +64,11 @@ parser.add_argument(
     type=str,
     default="logs/eval_plots",
     help="Output directory for state/action plots. Default: logs/eval_plots.",
+)
+parser.add_argument(
+    "--deterministic",
+    action="store_true",
+    help="Enable PhysX enhanced determinism for reproducible eval (at slight perf cost).",
 )
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -186,6 +191,11 @@ def create_env(task_name: str, expected_action_dim: int):
     threshold (0.035 = midpoint between open 0.05 and close 0.02 in training data).
     """
     env_cfg = parse_env_cfg(task_name=task_name, device=args_cli.device, num_envs=1)
+
+    # Enable PhysX enhanced determinism for reproducible eval
+    if args_cli.deterministic:
+        env_cfg.sim.physx.enable_enhanced_determinism = True
+        logger.info("PhysX enhanced determinism enabled")
 
     # Override gripper: use absolute binary action with threshold matching training data
     # Open=0.05, Close=0.02, midpoint=0.035
@@ -386,6 +396,58 @@ def check_success(env, obs: dict) -> bool:
     return False
 
 
+def compute_sub_signals(env) -> dict:
+    """Compute per-component sub-signals by directly querying scene objects.
+
+    Returns a dict with individual success components:
+      - a_into_c:  cube (object_1) is inside box
+      - b_into_c:  mug is inside box
+      - gripper_open: robot gripper is released
+      - success:   all three above are True (full success)
+    """
+    import torch
+    result = {"a_into_c": False, "b_into_c": False, "gripper_open": False, "success": False}
+    try:
+        scene = env.scene
+        object_a = scene["object_1"]   # cube
+        object_b = scene["mug"]
+        object_c = scene["box"]
+        robot = scene["robot"]
+
+        xy_threshold = 0.07
+        height_threshold = 0.1
+
+        # a_into_c: cube in box
+        pos_diff_a = object_a.data.root_pos_w - object_c.data.root_pos_w
+        xy_dist_a = torch.linalg.vector_norm(pos_diff_a[:, :2], dim=1)
+        height_dist_a = pos_diff_a[:, 2]
+        a_into_c = torch.logical_and(xy_dist_a < xy_threshold, height_dist_a < height_threshold)
+
+        # b_into_c: mug in box
+        pos_diff_b = object_b.data.root_pos_w - object_c.data.root_pos_w
+        xy_dist_b = torch.linalg.vector_norm(pos_diff_b[:, :2], dim=1)
+        height_dist_b = pos_diff_b[:, 2]
+        b_into_c = torch.logical_and(xy_dist_b < xy_threshold, height_dist_b < height_threshold)
+
+        # gripper_open
+        if hasattr(env.cfg, "gripper_joint_names"):
+            gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
+            gripper_pos = robot.data.joint_pos[:, gripper_joint_ids]
+            # open targets from config
+            open_targets = torch.tensor(env.cfg.gripper_open_vals, device=gripper_pos.device).unsqueeze(0)
+            gripper_open = torch.all(torch.abs(gripper_pos - open_targets) < env.cfg.gripper_threshold, dim=1)
+        else:
+            gripper_open = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+
+        result["a_into_c"] = bool(a_into_c[0].item())
+        result["b_into_c"] = bool(b_into_c[0].item())
+        result["gripper_open"] = bool(gripper_open[0].item())
+        result["success"] = result["a_into_c"] and result["b_into_c"] and result["gripper_open"]
+    except Exception:
+        pass
+    return result
+
+
 def _write_video_cv2(frames: list, video_dir, episode_index: int, fps: int = 30):
     """Write a list of uint8 numpy frames (H, W, 3) to MP4 via OpenCV."""
     import cv2
@@ -430,11 +492,18 @@ def main():
     video_dir = None
     if args_cli.video:
         # Derive video folder name: 策略名-checkpoint
-        # e.g. logs/policy/my_policy/checkpoints/checkpoint_step_100000
-        #   → video folder: my_policy-checkpoint_step_100000
-        ckpt_path = Path(args_cli.checkpoint_dir)
-        policy_name = ckpt_path.parent.parent.name if ckpt_path.parent.name == "checkpoints" else ckpt_path.parent.name
-        checkpoint_name = ckpt_path.name
+        # Handles paths like:
+        #   logs/policy/my_policy/checkpoints/checkpoint_step_100000
+        #   logs/policy/my_policy/checkpoints/last/pretrained_model/
+        #   → video folder: my_policy-checkpoint_step_100000  /  my_policy-last
+        ckpt_parts = Path(args_cli.checkpoint_dir).resolve().parts
+        try:
+            idx = ckpt_parts.index("checkpoints")
+            policy_name = ckpt_parts[idx - 1]
+            checkpoint_name = ckpt_parts[idx + 1]
+        except (ValueError, IndexError):
+            policy_name = Path(args_cli.checkpoint_dir).parent.name
+            checkpoint_name = Path(args_cli.checkpoint_dir).name
         video_dir = Path(args_cli.video) / f"{policy_name}-{checkpoint_name}"
         video_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Video output: {video_dir}")
@@ -446,6 +515,10 @@ def main():
     success_count = 0
     total_steps = 0
     joint_names = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "gripper"]
+
+    # Sub-signal tracking across all episodes
+    sub_signal_names = ["a_into_c", "b_into_c", "gripper_open", "success"]
+    sub_signal_counts = {k: 0 for k in sub_signal_names}  # episodes where this signal was true at end
 
     for ep in range(args_cli.num_episodes):
         logger.info(f"{'='*50}")
@@ -604,9 +677,24 @@ def main():
         # --- Result ---
         if episode_success:
             success_count += 1
-            print(f"  ✅ Episode {ep + 1} SUCCESS ({episode_steps} steps)", flush=True)
+
+        # Compute sub-signals at end of episode
+        sub = compute_sub_signals(env)
+        for k in sub_signal_names:
+            if sub[k]:
+                sub_signal_counts[k] += 1
+
+        # Build sub-signal status string
+        sub_parts = []
+        for k in ["a_into_c", "b_into_c", "gripper_open"]:
+            mark = "✓" if sub[k] else "✗"
+            sub_parts.append(f"{k}={mark}")
+        sub_status = "  ".join(sub_parts)
+
+        if episode_success:
+            print(f"  ✅ Episode {ep + 1} SUCCESS  [{sub_status}] ({episode_steps} steps)", flush=True)
         else:
-            print(f"  ❌ Episode {ep + 1} FAILED ({episode_steps} steps)", flush=True)
+            print(f"  ❌ Episode {ep + 1} FAILED  [{sub_status}] ({episode_steps} steps)", flush=True)
 
         # --- Plot state/action ---
         if ep_states and ep_actions:
@@ -652,6 +740,10 @@ def main():
     print(f"Done: {success_count}/{args_cli.num_episodes} SUCCESS ({100 * success_count / max(1, args_cli.num_episodes):.1f}%)", flush=True)
     print(f"      {failed_count}/{args_cli.num_episodes} FAILED (timeout or early termination)", flush=True)
     print(f"Total steps: {total_steps}", flush=True)
+    print(f"\n--- Sub-signal breakdown (end-of-episode) ---", flush=True)
+    for k in ["a_into_c", "b_into_c", "gripper_open"]:
+        pct = 100 * sub_signal_counts[k] / max(1, args_cli.num_episodes)
+        print(f"  {k}: {sub_signal_counts[k]}/{args_cli.num_episodes} ({pct:.1f}%)", flush=True)
     print(f"Plots saved to: {plot_dir}", flush=True)
     env.close()
 
