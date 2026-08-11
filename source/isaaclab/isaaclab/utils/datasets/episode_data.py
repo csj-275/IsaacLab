@@ -25,6 +25,8 @@ class EpisodeData:
         self._seed = None
         self._env_id = None
         self._success = None
+        self._defer_cpu = False
+        """If True, keep tensors on GPU during recording and batch-transfer to CPU at export time."""
 
     @property
     def data(self):
@@ -112,10 +114,14 @@ class EpisodeData:
             if sub_key_index == len(sub_keys) - 1:
                 # Add value to the final dict layer
                 # Use lists to prevent slow tensor copy during concatenation
-                if sub_keys[sub_key_index] not in current_dataset_pointer:
-                    current_dataset_pointer[sub_keys[sub_key_index]] = [value.clone().cpu()]
+                if self._defer_cpu:
+                    cloned = value.clone()
                 else:
-                    current_dataset_pointer[sub_keys[sub_key_index]].append(value.clone().cpu())
+                    cloned = value.clone().cpu()
+                if sub_keys[sub_key_index] not in current_dataset_pointer:
+                    current_dataset_pointer[sub_keys[sub_key_index]] = [cloned]
+                else:
+                    current_dataset_pointer[sub_keys[sub_key_index]].append(cloned)
                 break
             # key index
             if sub_keys[sub_key_index] not in current_dataset_pointer:
@@ -218,3 +224,4 @@ class EpisodeData:
                     pre_export_helper(value)
 
         pre_export_helper(self._data)
+        self._defer_cpu = False

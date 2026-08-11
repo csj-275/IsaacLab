@@ -181,7 +181,7 @@ class PiperGrabVisuomotorEnvCfg(grab_joint_pos_env_cfg.PiperGrabEnvCfg):
         super().__post_init__()
 
         # Override events
-        self.events = EventCfg()
+        # self.events = EventCfg()
 
         # Override robot to high-PD variant for IK tracking
         self.scene.robot = PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

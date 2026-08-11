@@ -177,7 +177,9 @@ class RecorderManager(ManagerBase):
         # create episode data buffer indexed by environment id
         self._episodes: dict[int, EpisodeData] = dict()
         for env_id in range(env.num_envs):
-            self._episodes[env_id] = EpisodeData()
+            ep = EpisodeData()
+            ep._defer_cpu = True  # batch GPU→CPU at export time to avoid per-step sync
+            self._episodes[env_id] = ep
 
         env_name = getattr(env.cfg, "env_name", None)
 
@@ -334,8 +336,10 @@ class RecorderManager(ManagerBase):
 
         for value_index, env_id in enumerate(env_ids):
             if env_id not in self._episodes:
-                self._episodes[env_id] = EpisodeData()
-                self._episodes[env_id].env_id = env_id
+                ep = EpisodeData()
+                ep._defer_cpu = True  # batch GPU→CPU at export time
+                ep.env_id = env_id
+                self._episodes[env_id] = ep
             self._episodes[env_id].add(key, value[value_index])
 
     def set_success_to_episodes(self, env_ids: Sequence[int] | None, success_values: torch.Tensor):

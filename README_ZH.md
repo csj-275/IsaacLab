@@ -144,13 +144,13 @@ python scripts/lerobot/merge_lerobot_datasets.py --input1 datasets/lerobot/XXXX/
 # MSTSC连接无画面
 ``` bash
 # 1. 在宿主机设置本地 DISPLAY，然后重启容器
-export DISPLAY=:11
+export DISPLAY=:10
 ./docker/container.py stop base
 ./docker/container.py start base --files docker-compose-csj.yaml
 # 2. 进容器确认
 ./docker/container.py enter base
 echo $DISPLAY
-# 应该输出 :11
+# 应该输出 :10
 ```
 
 ``` bash
