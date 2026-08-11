@@ -526,6 +526,16 @@ def main():
         print(f"\n=== Episode {ep + 1}/{args_cli.num_episodes} ===", flush=True)
 
         obs, _ = env.reset()
+
+        # Warmup: step a few frames to flush the rendering pipeline.
+        # Without this, the first few captured frames carry visual ghosting
+        # from the previous episode (temporal AA / frame accumulation).
+        WARMUP_STEPS = 5
+        for _ in range(WARMUP_STEPS):
+            obs, _, _, _, _ = env.step(
+                torch.zeros(env.action_space.shape, device=env.device)
+            )
+
         episode_steps = 0
         episode_frames = [] if video_dir else None
         ep_states: list[np.ndarray] = []
