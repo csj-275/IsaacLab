@@ -271,7 +271,7 @@ def verify(out: Path, expected_ep: int, expected_frames: int, video_keys: list[s
 
 
 def recompute_stats(output_dir: Path) -> dict:
-    """Recompute min, max, mean, std for action and observation.state from merged data."""
+    """Recompute min, max, mean, std, count, and quantiles (q01,q10,q50,q90,q99) from merged data."""
     data_dir = output_dir / "data" / "chunk-000"
     parquet_files = sorted(data_dir.glob("file-*.parquet"))
 
@@ -293,6 +293,12 @@ def recompute_stats(output_dir: Path) -> dict:
             "max": combined.max(axis=0).tolist(),
             "mean": combined.mean(axis=0).tolist(),
             "std": combined.std(axis=0).tolist(),
+            "count": [len(combined)],
+            "q01": np.percentile(combined, 1, axis=0).tolist(),
+            "q10": np.percentile(combined, 10, axis=0).tolist(),
+            "q50": np.percentile(combined, 50, axis=0).tolist(),
+            "q90": np.percentile(combined, 90, axis=0).tolist(),
+            "q99": np.percentile(combined, 99, axis=0).tolist(),
         }
 
     return stats
