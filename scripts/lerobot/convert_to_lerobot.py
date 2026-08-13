@@ -73,6 +73,35 @@ _STATE_NAMES = ["joint1.pos", "joint2.pos", "joint3.pos", "joint4.pos", "joint5.
 """Names for 7D joint position features (state or action)."""
 
 
+def _camera_intrinsics_from_env_cfg() -> dict:
+    """读取 grab_ik_rel_visuomotor_env_cfg 的 PIPER_D435_COLOR_INTRINSIC_1280X720 并转成 LeRobot 格式。
+
+    环境配置里定义的是行主序 3x3 内参矩阵 [fx, 0, ppx, 0, fy, ppy, 0, 0, 1]，
+    这里提取 fx/fy/ppx/ppy 组装成 LeRobot 的 ``camera_intrinsics`` 字典。
+    若 Isaac Lab 环境不可导入（如独立 ``lerobot`` conda 环境），回退到与当前
+    配置一致的硬编码值，避免两处定义漂移。
+    """
+    try:
+        from isaaclab_tasks.manager_based.piper_grab.grab_ik_rel_visuomotor_env_cfg import (
+            PIPER_D435_COLOR_INTRINSIC_1280X720 as K,
+        )
+        fx, fy, ppx, ppy = K[0], K[4], K[2], K[5]
+    except ImportError:
+        fx, fy, ppx, ppy = 908.0, 908.0, 640.0, 360.0
+
+    return {
+        "width": 1280,
+        "height": 720,
+        "fx": fx,
+        "fy": fy,
+        "ppx": ppx,
+        "ppy": ppy,
+        "model": "inverse_brown_conrady",
+        "coeffs": [0.0, 0.0, 0.0, 0.0, 0.0],
+        "stream": "color",
+    }
+
+
 def build_features(full_df: pd.DataFrame, video_keys: list[str] | None = None) -> dict:
     """构建 LeRobot features 字典，自动从数据检测维度."""
     sample = full_df.iloc[0]
@@ -100,17 +129,7 @@ def build_features(full_df: pd.DataFrame, video_keys: list[str] | None = None) -
     }
 
     # Camera intrinsics from grab_ik_rel_visuomotor_env_cfg (PIPER_D435_COLOR_INTRINSIC_1280X720)
-    _CAMERA_INTRINSICS = {
-        "width": 1280,
-        "height": 720,
-        "fx": 1211.038757324218,
-        "fy": 908.279067993164,
-        "ppx": 640.0,
-        "ppy": 360.0,
-        "model": "inverse_brown_conrady",
-        "coeffs": [0.0, 0.0, 0.0, 0.0, 0.0],
-        "stream": "color",
-    }
+    _CAMERA_INTRINSICS = _camera_intrinsics_from_env_cfg()
 
     if video_keys is None:
         video_keys = ["observation.images.front", "observation.images.wrist"]

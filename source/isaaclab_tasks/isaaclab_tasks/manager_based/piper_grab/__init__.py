@@ -51,16 +51,6 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.grab_ik_rel_visuomotor_cosmos_env_cfg:PiperGrabVisuomotorCosmosEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_cosmos.json",
-    },
-    disable_env_checker=True,
-)
-
-gym.register(
     id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Depth-v0",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
@@ -140,15 +130,6 @@ gym.register(
     },
 )
 
-gym.register(
-    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v1",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.V1.grab_ik_rel_visuomotor_cosmos_env_cfg:PiperGrabVisuomotorCosmosEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_cosmos.json",
-    },
-)
 
 gym.register(
     id="Isaac-Piper-Grab-IK-Abs-Visuomotor-v1",
@@ -194,12 +175,3 @@ gym.register(
     },
 )
 
-gym.register(
-    id="Isaac-Piper-Grab-IK-Rel-Visuomotor-Cosmos-v2",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.V2.grab_ik_rel_visuomotor_cosmos_env_cfg:PiperGrabVisuomotorCosmosEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_cosmos.json",
-    },
-)
