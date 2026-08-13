@@ -14,24 +14,20 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils import configclass
 
 from . import mdp
-from .grab_env_cfg import _dual_obs_terms, _R_LEFT, _R_RIGHT, _SHARED_SPECS
-from .dual_piper_grab_ik_rel_env_cfg import (
-    DualPiperGrabIkRelEnvCfg,
-    SubtaskCfg,
-    TerminationsCfg,
+from .grab_env_cfg import (
+    ObservationsCfg as BaseObservationsCfg,
+    _dual_obs_terms,
+    _R_LEFT,
+    _R_RIGHT,
+    _SHARED_SPECS,
     _MUG_SPECS,
 )
+from .dual_piper_grab_ik_rel_env_cfg import DualPiperGrabIkRelEnvCfg
 
 # D435 camera intrinsic matrices
-PIPER_D435_COLOR_INTRINSIC_640X480 = [
-    605.519378662109, 0.0, 320.0,
-    0.0, 605.519378662109, 240.0,
-    0.0, 0.0, 1.0,
-]
-
 PIPER_D435_COLOR_INTRINSIC_1280X720 = [
-    1211.038757324218, 0.0, 640.0,
-    0.0, 908.279067993164, 360.0,
+    908.0, 0.0, 640.0,
+    0.0, 908.0, 360.0,
     0.0, 0.0, 1.0,
 ]
 
@@ -134,8 +130,12 @@ def _image_cpu(env, sensor_cfg, data_type, convert_perspective_to_orthogonal=Fal
 # ---------------------------------------------------------------------------
 
 @configclass
-class ObservationsCfg:
-    """Observation specifications for dual-arm visuomotor task."""
+class ObservationsCfg(BaseObservationsCfg):
+    """Observation specifications for dual-arm visuomotor task.
+
+    Inherits the base ``subtask_terms`` group (two-stage cube→box, mug→box);
+    replaces the ``policy`` group with state + image observations.
+    """
 
     @configclass
     class PolicyCfg(ObsGroup):
@@ -182,7 +182,6 @@ class ObservationsCfg:
                 setattr(self, k, v)
 
     policy: PolicyCfg = PolicyCfg()
-    subtask_terms: SubtaskCfg = SubtaskCfg()
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +198,6 @@ class DualPiperGrabIkRelVisuomotorEnvCfg(DualPiperGrabIkRelEnvCfg):
     """
 
     observations: ObservationsCfg = ObservationsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
 
     eval_mode = False
     eval_type = None
@@ -266,23 +264,6 @@ class DualPiperGrabIkRelVisuomotorEnvCfg(DualPiperGrabIkRelEnvCfg):
                 rot=(-0.1269, 0.6437, -0.7150, 0.2414),
                 convention="ros",
             ),
-        )
-
-        # ---- Override events: swap IK's pose ranges for visuomotor variant -----
-        del self.events.randomize_cube_and_mug_and_box_poses
-
-        self.events.randomize_cube_and_mug_and_box_poses = EventTerm(
-            func=mdp.randomize_object_pose,
-            mode="reset",
-            params={
-                "pose_ranges": [
-                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
-                    {"x": (0.2, 0.35), "y": (-0.05, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
-                    {"x": (0.1, 0.3), "y": (0.05, 0.35), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
-                ],
-                "min_separation": 0.12,
-                "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],
-            },
         )
 
         # ---- Visual color randomization ---------------------------------------

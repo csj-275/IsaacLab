@@ -9,6 +9,7 @@ from dataclasses import MISSING
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
@@ -104,6 +105,21 @@ _OBJECT_SPECS: list[tuple[str, callable, dict, dict]] = [
     ),
 ]
 
+_MUG_SPECS: list[tuple[str, callable, dict, dict]] = [
+    (
+        "mug_positions",
+        mdp.object_poses_in_base_frame,
+        {"object_cfg": SceneEntityCfg("mug"), "robot_cfg": _R_LEFT, "return_key": "pos"},
+        {"object_cfg": SceneEntityCfg("mug"), "robot_cfg": _R_RIGHT, "return_key": "pos"},
+    ),
+    (
+        "mug_orientations",
+        mdp.object_poses_in_base_frame,
+        {"object_cfg": SceneEntityCfg("mug"), "robot_cfg": _R_LEFT, "return_key": "quat"},
+        {"object_cfg": SceneEntityCfg("mug"), "robot_cfg": _R_RIGHT, "return_key": "quat"},
+    ),
+]
+
 
 # ---------------------------------------------------------------------------
 # Scene definition
@@ -184,7 +200,7 @@ class ObservationsCfg:
             self.concatenate_terms = False
 
             # Auto-generate all _left / _right observation pairs
-            for k, v in _dual_obs_terms(_SHARED_SPECS + _OBJECT_SPECS).items():
+            for k, v in _dual_obs_terms(_SHARED_SPECS + _OBJECT_SPECS + _MUG_SPECS).items():
                 setattr(self, k, v)
 
     @configclass
@@ -197,29 +213,49 @@ class ObservationsCfg:
 
     @configclass
     class SubtaskCfg(ObsGroup):
-        """Observations for subtask group (e.g. grasp detection)."""
+        """Observations for two-stage subtask group (cube→box, mug→box)."""
 
         def __post_init__(self):
             self.enable_corruption = False
             self.concatenate_terms = False
 
-            # Auto-generate grasp detection for both hands
             for side, robot_cfg, ee_cfg in [
                 ("left", _R_LEFT, _EE_LEFT),
                 ("right", _R_RIGHT, _EE_RIGHT),
             ]:
-                setattr(
-                    self,
-                    f"grasp_1_{side}",
-                    ObsTerm(
-                        func=mdp.object_grasped,
-                        params={
-                            "robot_cfg": robot_cfg,
-                            "ee_frame_cfg": ee_cfg,
-                            "object_cfg": SceneEntityCfg("object_1"),
-                        },
-                    ),
-                )
+                # grasp cube
+                setattr(self, f"grasp_cube_{side}", ObsTerm(
+                    func=mdp.object_grasped,
+                    params={
+                        "robot_cfg": robot_cfg,
+                        "ee_frame_cfg": ee_cfg,
+                        "object_cfg": SceneEntityCfg("object_1"),
+                        "diff_threshold": 0.05,
+                    },
+                ))
+                # placed cube into box
+                setattr(self, f"placed_cube_{side}", ObsTerm(
+                    func=mdp.object_a_is_into_b,
+                    params={
+                        "robot_cfg": robot_cfg,
+                        "object_a_cfg": SceneEntityCfg("object_1"),
+                        "object_b_cfg": SceneEntityCfg("box"),
+                        "xy_threshold": 0.05,
+                        "height_diff": 0.0,
+                        "height_threshold": 0.05,
+                        "gripper_threshold": 0.03,
+                    },
+                ))
+                # grasp mug
+                setattr(self, f"grasp_mug_{side}", ObsTerm(
+                    func=mdp.object_grasped,
+                    params={
+                        "robot_cfg": robot_cfg,
+                        "ee_frame_cfg": ee_cfg,
+                        "object_cfg": SceneEntityCfg("mug"),
+                        "diff_threshold": 0.05,
+                    },
+                ))
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -237,21 +273,46 @@ class TerminationsCfg:
         params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("object_1")},
     )
 
+    mug_dropping = DoneTerm(
+        func=mdp.root_height_below_minimum,
+        params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("mug")},
+    )
+
     box_dropping = DoneTerm(
         func=mdp.root_height_below_minimum,
         params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("box")},
     )
 
-    # Success: object_1 placed into box, left hand released
+    # Success: both object_1 (cube) and mug placed into box, gripper released
     success = DoneTerm(
-        func=mdp.object_a_is_into_b,
+        func=mdp.objects_a_and_b_are_into_c,
         params={
             "robot_cfg": SceneEntityCfg("robot_left"),
             "object_a_cfg": SceneEntityCfg("object_1"),
-            "object_b_cfg": SceneEntityCfg("box"),
-            "xy_threshold": 0.08,
-            "height_diff": 0.0,
-            "height_threshold": 0.08,
+            "object_b_cfg": SceneEntityCfg("mug"),
+            "object_c_cfg": SceneEntityCfg("box"),
+        },
+    )
+
+
+@configclass
+class EventCfg:
+    """Configuration for dual-arm reset events (objects)."""
+
+    # Combined cube + mug + box randomization in a single randomize_object_pose
+    # call with per-object pose ranges and a min_separation constraint
+    # (reference: piper_grab/V1).
+    randomize_cube_and_mug_and_box_poses = EventTerm(
+        func=mdp.randomize_object_pose,
+        mode="reset",
+        params={
+            "pose_ranges": [
+                {"x": (0.3, 0.35), "y": (0.1, 0.15), "z": (0.0203, 0.0203), "yaw": (-0.785, 0.785)},  # cube
+                {"x": (0.2, 0.25), "y": (0.1, 0.15), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # mug
+                {"x": (0.15, 0.2), "y": (0.25, 0.3), "z": (0.0000, 0.0000), "yaw": (-0.785, 0.785)},  # box
+            ],
+            "min_separation": 0.12,
+            "asset_cfgs": [SceneEntityCfg("object_1"), SceneEntityCfg("mug"), SceneEntityCfg("box")],
         },
     )
 
@@ -273,9 +334,9 @@ class GrabEnvCfg(ManagerBasedRLEnvCfg):
     actions: ActionsCfg = ActionsCfg()
     # MDP settings
     terminations: TerminationsCfg = TerminationsCfg()
+    events: EventCfg = EventCfg()
 
     # Unused managers
-    events = None
     rewards = None
 
     def __post_init__(self):
@@ -339,7 +400,7 @@ class GrabEnvCfg(ManagerBasedRLEnvCfg):
             ),
         )
 
-        # ---- Fixed visual materials (alternative to color randomization) --------
+        # ---- Fixed visual materials--------
         self.scene.mug.spawn.visual_material = PreviewSurfaceCfg(
             diffuse_color=(0.85, 0.45, 0.10),  # orange
             roughness=0.4,
@@ -350,3 +411,9 @@ class GrabEnvCfg(ManagerBasedRLEnvCfg):
             roughness=0.5,
             metallic=0.0,
         )
+
+        # ------------------------------------------------------------
+        # Scene semantics
+        # ------------------------------------------------------------
+        self.scene.table.spawn.semantic_tags = [("class", "table")]
+        self.scene.plane.spawn.semantic_tags = [("class", "ground")]

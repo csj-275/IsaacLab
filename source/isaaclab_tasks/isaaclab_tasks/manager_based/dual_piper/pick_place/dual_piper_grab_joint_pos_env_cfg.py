@@ -16,8 +16,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from isaaclab_assets.robots.piper import PIPER_STANDARD_WITH_GRIPPER_HIGH_PD_CFG  # isort: skip
 
 from . import mdp
-from .grab_env_cfg import GrabEnvCfg
-
+from .grab_env_cfg import EventCfg as BaseEventCfg, GrabEnvCfg
 
 # ---------------------------------------------------------------------------
 # Helper: build a FrameTransformerCfg for one arm
@@ -58,8 +57,12 @@ def _make_ee_frame(robot_prim: str, side: str) -> FrameTransformerCfg:
 # ---------------------------------------------------------------------------
 
 @configclass
-class EventCfg:
-    """Configuration for dual-arm reset events."""
+class EventCfg(BaseEventCfg):
+    """Configuration for dual-arm reset events.
+
+    Inherits object pose randomization from :class:`grab_env_cfg.EventCfg`;
+    adds per-arm init and joint-state jitter.
+    """
 
     # -- left arm -----------------------------------------------------------
     init_left_arm_pose = EventTerm(
@@ -101,27 +104,6 @@ class EventCfg:
         },
     )
 
-    # -- objects ------------------------------------------------------------
-    randomize_cube_positions = EventTerm(
-        func=mdp.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {"x": (0.25, 0.5), "y": (-0.2, 0.2), "z": (0.0203, 0.0203), "yaw": (-1.0, 1.0)},
-            "min_separation": 0.1,
-            "asset_cfgs": [SceneEntityCfg("object_1")],
-        },
-    )
-
-    randomize_box_positions = EventTerm(
-        func=mdp.randomize_object_pose,
-        mode="reset",
-        params={
-            "pose_range": {"x": (0.05, 0.3), "y": (0.15, 0.35), "z": (0.2203, 0.2203), "yaw": (-1.0, 1.0)},
-            "min_separation": 0.1,
-            "asset_cfgs": [SceneEntityCfg("box")],
-        },
-    )
-
 
 # ---------------------------------------------------------------------------
 # Environment config
@@ -137,8 +119,8 @@ class DualPiperGrabJointPosEnvCfg(GrabEnvCfg):
         # -- Shared gripper parameters (identical Piper arms) --------------
         self.gripper_joint_names = ["joint7", "joint8"]
         self.gripper_open_vals = [0.05, -0.05]
-        self.gripper_threshold = 0.01
-
+        self.gripper_threshold = 0.015
+        
         # -- Events --------------------------------------------------------
         self.events = EventCfg()
 
@@ -195,9 +177,3 @@ class DualPiperGrabJointPosEnvCfg(GrabEnvCfg):
             mimic_multiplier=-1.0,
             max_speed_per_step=0.01,
         )
-
-        # ------------------------------------------------------------------
-        # Scene semantics
-        # ------------------------------------------------------------------
-        self.scene.table.spawn.semantic_tags = [("class", "table")]
-        self.scene.plane.semantic_tags = [("class", "ground")]
