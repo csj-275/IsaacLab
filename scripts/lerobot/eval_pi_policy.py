@@ -2,17 +2,28 @@
 """
 Evaluate a trained PI0.5 (pi05) policy in the Piper Grab Visuomotor environment.
 
-Usage::
+This script runs the Isaac Lab simulation and calls a remote PI0.5 inference
+server (hosted by the training environment, Python 3.13 + new lerobot) over
+HTTP. The container's lerobot 0.4.4 cannot load new-repo pi05 checkpoints
+(model architecture mismatch), so policy inference happens on the host.
 
-    # Headless + export test videos:
+Start the server first (on the host)::
+
+    cd ~/csj_ws/lerobot
+    CUDA_VISIBLE_DEVICES=3 uv run python scripts/pi05_eval_server.py \\
+        --device cuda:0 --port 8701
+
+Then run this script (inside the Isaac Lab container)::
+
     ./isaaclab.sh -p scripts/lerobot/eval_pi_policy.py \\
         --checkpoint-dir logs/PI/checkpoints/010000/pretrained_model \\
+        --server-url http://127.0.0.1:8701 \\
         --num-episodes 10 --video logs/eval_videos \\
         --headless --enable_cameras --device cuda:0
 """
 
 import argparse
-import json
+import base64
 import logging
 from pathlib import Path
 
@@ -20,16 +31,36 @@ import matplotlib
 matplotlib.use("Agg")  # non-interactive backend for headless/sim
 import matplotlib.pyplot as plt
 import numpy as np
+import requests
 import torch
 
 from isaaclab.app import AppLauncher
 
-parser = argparse.ArgumentParser(description="Evaluate PI0.5 policy on Piper Grab.")
+parser = argparse.ArgumentParser(description="Evaluate PI0.5 policy on Piper Grab (remote inference).")
 parser.add_argument(
     "--checkpoint-dir",
     type=str,
     required=True,
-    help="Path to PI checkpoint directory (e.g., .../pretrained_model).",
+    help="Path to PI checkpoint directory (used for naming only; inference runs on the server).",
+)
+parser.add_argument(
+    "--server-url",
+    type=str,
+    default="http://127.0.0.1:8701",
+    help="Base URL of the PI0.5 inference server (host network: 127.0.0.1 works inside the container).",
+)
+parser.add_argument(
+    "--task-description",
+    type=str,
+    default="pick cube then grab bottle",
+    help="Natural language task description (must match the training dataset).",
+)
+parser.add_argument(
+    "--chunk-exec-steps",
+    type=int,
+    default=50,
+    help="How many actions from each predicted chunk to execute before re-inferring. "
+    "Smaller values give tighter closed-loop control (e.g. 10) at the cost of more inference calls.",
 )
 parser.add_argument(
     "--task",
@@ -74,8 +105,6 @@ simulation_app = app_launcher.app
 EVAL_SEED = 42
 
 import gymnasium as gym
-from lerobot.policies.pi0 import PI0Policy
-from lerobot.policies.factory import make_pre_post_processors
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -87,8 +116,8 @@ logger = logging.getLogger(__name__)
 # Constants (must match training setup)
 # ---------------------------------------------------------------------------
 CAM_KEY_MAP = {
-    "table_cam": "observation.images.front",
-    "wrist_cam": "observation.images.wrist",
+    "table_cam": "front",
+    "wrist_cam": "wrist",
 }
 STATE_KEY = "observation.state"
 
@@ -98,31 +127,61 @@ STATE_KEY_ORDER = [
     # "joint_pos_target_7d",
 ]
 
-def _build_relative_mask(exclude_joints: list[str], action_names: list[str] | None, action_dim: int) -> list[bool]:
-    """Build a boolean mask: True = use relative action, False = absolute (excluded)."""
-    if not exclude_joints or action_names is None:
-        return [True] * action_dim
-    exclude_tokens = [str(name).lower() for name in exclude_joints if name]
-    if not exclude_tokens:
-        return [True] * action_dim
-    mask = []
-    for name in action_names[:action_dim]:
-        action_name = str(name).lower()
-        is_excluded = any(token == action_name or token in action_name for token in exclude_tokens)
-        mask.append(not is_excluded)
-    if len(mask) < action_dim:
-        mask.extend([True] * (action_dim - len(mask)))
-    return mask
+
+# ---------------------------------------------------------------------------
+# Policy client (remote inference server)
+# ---------------------------------------------------------------------------
+class PolicyClient:
+    """Thin HTTP client for the host-side PI0.5 inference server."""
+
+    def __init__(self, server_url: str, task: str):
+        self.url = server_url.rstrip("/")
+        self.task = task
+        try:
+            r = requests.get(f"{self.url}/ping", timeout=10)
+            r.raise_for_status()
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(
+                f"Cannot reach PI0.5 inference server at {self.url}. "
+                "Start it on the host first (scripts/pi05_eval_server.py)."
+            ) from exc
+        info = requests.get(f"{self.url}/info", timeout=10).json()
+        self.state_dim = info["state_dim"]
+        self.action_dim = info["action_dim"]
+        self.relative_mask = list(info["relative_mask"])
+        logger.info(
+            "Policy server OK: state_dim=%d action_dim=%d rel_mask=%s",
+            self.state_dim, self.action_dim, self.relative_mask,
+        )
+
+    def predict_chunk(
+        self,
+        images: dict[str, np.ndarray],
+        state: np.ndarray,
+    ) -> tuple[np.ndarray, list[bool]]:
+        """Run one inference; returns (actions (chunk_len, action_dim), relative_mask)."""
+        h, w = images["front"].shape[:2]
+        payload = {
+            "images": {
+                key: base64.b64encode(img.astype(np.uint8).tobytes()).decode()
+                for key, img in images.items()
+            },
+            "state": state.reshape(-1).tolist(),
+            "task": self.task,
+            "img_shape": [int(h), int(w)],
+        }
+        r = requests.post(f"{self.url}/infer", json=payload, timeout=180)
+        if r.status_code != 200:
+            raise RuntimeError(f"Inference server error {r.status_code}: {r.text[:500]}")
+        out = r.json()
+        if not out.get("ok"):
+            raise RuntimeError(f"Inference failed: {out.get('error')}")
+        actions = np.asarray(out["actions"], dtype=np.float32)
+        return actions, list(out.get("relative_mask", self.relative_mask))
 
 
 def to_absolute_actions(actions: torch.Tensor, state: torch.Tensor, mask: list[bool]) -> torch.Tensor:
-    """Convert relative actions back to absolute: absolute = relative + state (for masked dims).
-
-    Args:
-        actions: (*, action_dim).
-        state: (*, state_dim).
-        mask: Which dims are relative (True = relative → add state offset).
-    """
+    """Convert relative actions back to absolute: absolute = relative + state (for masked dims)."""
     mask_t = torch.tensor(mask, dtype=actions.dtype, device=actions.device)
     dims = mask_t.shape[0]
     if state.device != actions.device or state.dtype != actions.dtype:
@@ -131,118 +190,6 @@ def to_absolute_actions(actions: torch.Tensor, state: torch.Tensor, mask: list[b
     actions = actions.clone()
     actions[..., :dims] += state_offset
     return actions
-
-
-# ---------------------------------------------------------------------------
-# Policy loading
-# ---------------------------------------------------------------------------
-def _patch_transformers_siglip_check():
-    """Monkey-patch the missing transformers siglip check for PI0 inference.
-
-    The installed transformers package lacks the ``check`` module that lerobot's
-    PI0/PI05 expects (it comes from a custom ``transformers_replace`` package).
-    Since the check only verifies that training-time patches are installed and
-    does not affect inference, we inject a dummy pass-through.
-    """
-    import transformers.models.siglip as siglip_module
-    import types
-    if not hasattr(siglip_module, "check"):
-        dummy = types.ModuleType("check")
-        dummy.check_whether_transformers_replace_is_installed_correctly = lambda: True
-        siglip_module.check = dummy
-
-
-def load_unnormalizer(checkpoint_dir: str, device: torch.device):
-    """Load the action unnormalizer from the checkpoint's postprocessor weights."""
-    import safetensors.torch as sft
-    ckpt_path = Path(checkpoint_dir)
-    # The postprocessor unnormalizer is in policy_postprocessor_step_0_unnormalizer_processor.safetensors
-    postproc_path = ckpt_path / "policy_postprocessor_step_0_unnormalizer_processor.safetensors"
-    if postproc_path.exists():
-        return sft.load_file(str(postproc_path), device=str(device))
-    return None
-
-
-def unnormalize_action(action: torch.Tensor, unnorm_params: dict | None) -> torch.Tensor:
-    """Apply QUANTILES unnormalization: action * std + mean."""
-    if unnorm_params is None:
-        return action
-    # The safetensors contains quantile stats; for QUANTILES it's typically
-    # action = action * action_std + action_mean
-    mean = unnorm_params.get("action_mean") or unnorm_params.get("mean")
-    std = unnorm_params.get("action_std") or unnorm_params.get("std")
-    if mean is not None and std is not None:
-        action = action * std.to(action.device) + mean.to(action.device)
-    return action
-
-
-def load_policy(checkpoint_dir: str, device: torch.device):
-    """Load a PI0.5 policy from the given checkpoint directory."""
-    import tempfile, shutil, os
-
-    ckpt_path = Path(checkpoint_dir)
-    if not ckpt_path.exists():
-        raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
-
-    # Monkey-patch the transformers siglip check — lerobot requires a patched
-    # transformers that isn't available on PyPI. The check itself is not needed
-    # for inference; it only validates that the right patches are installed.
-    _patch_transformers_siglip_check()
-
-    # Clean training-only fields from config.json that aren't recognized by
-    # the installed lerobot's PI05Config (version mismatch between training and deployment).
-    config_path = ckpt_path / "config.json"
-    with open(config_path) as f:
-        raw_config = json.load(f)
-
-    _PI_INVALID_KEYS = {
-        "pretrained_revision", "use_relative_actions", "relative_exclude_joints",
-        "action_feature_names", "use_amp", "use_peft", "push_to_hub", "repo_id",
-        "private", "tags", "license",
-    }
-    cleaned_config = {k: v for k, v in raw_config.items() if k not in _PI_INVALID_KEYS}
-
-    # Write cleaned config to a temp directory alongside the model weights
-    tmp_dir = tempfile.mkdtemp(prefix="pi_cleaned_")
-    try:
-        with open(os.path.join(tmp_dir, "config.json"), "w") as f:
-            json.dump(cleaned_config, f, indent=2)
-        # Copy model + processor weights to temp dir
-        for fname in ckpt_path.glob("*.safetensors"):
-            shutil.copy(str(fname), os.path.join(tmp_dir, fname.name))
-
-        policy = PI0Policy.from_pretrained(tmp_dir)
-        policy.to(device)
-        policy.eval()
-        logger.info(f"PI0.5 policy loaded, device={device}")
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    # Pre/post processors from lerobot.
-    # The checkpoint was trained with relative_actions_processor / absolute_actions_processor
-    # steps which are only in bleeding-edge lerobot. We disable them and handle the
-    # relative→absolute conversion manually via `to_absolute_actions()`.
-    preprocessor, postprocessor = make_pre_post_processors(
-        policy.config, pretrained_path=checkpoint_dir,
-        preprocessor_overrides={"relative_actions_processor": {"enabled": False}},
-        postprocessor_overrides={"absolute_actions_processor": {"enabled": False}},
-    )
-    logger.info("Pre/post processors created")
-
-    # Build the relative→absolute mask from config
-    exclude_joints = policy.config.__dict__.get("relative_exclude_joints", ["gripper"])
-    action_names = policy.config.__dict__.get("action_feature_names", None)
-    expected_action_dim = policy.config.output_features["action"].shape[0]
-    _rel_mask = _build_relative_mask(exclude_joints, action_names, expected_action_dim)
-    logger.info(f"Relative action mask: {_rel_mask} (exclude={exclude_joints})")
-
-    # Extract expected dims from config
-    state_ft = policy.config.input_features.get(STATE_KEY)
-    expected_state_dim = state_ft.shape[0] if state_ft is not None else 7
-    action_ft = policy.config.output_features.get("action")
-    expected_action_dim = action_ft.shape[0] if action_ft is not None else 7
-
-    return policy, preprocessor, postprocessor, expected_state_dim, expected_action_dim, _rel_mask
 
 
 # ---------------------------------------------------------------------------
@@ -309,76 +256,6 @@ def build_state_tensor(obs_group: dict, expected_dim: int, device: torch.device)
         state = state[:expected_dim]
 
     return state.unsqueeze(0)
-
-
-# ---------------------------------------------------------------------------
-# Build image batch — PI0.5 version
-# ---------------------------------------------------------------------------
-# PI0.5 uses IDENTITY normalization for VISUAL features, meaning the preprocessor
-# passes images through as-is. The actual normalization (resize to 224x224,
-# ImageNet mean/std) is done by the vision encoder's image processor internally.
-# We still simulate MP4 roundtrip to match training data pipeline.
-
-def _simulate_mp4_roundtrip(img_uint8: np.ndarray) -> np.ndarray:
-    """Encode a single uint8 RGB frame as MP4 then decode back."""
-    import subprocess, tempfile, os, cv2
-    h, w = img_uint8.shape[:2]
-    fd, tmppath = tempfile.mkstemp(suffix=".mp4")
-    os.close(fd)
-    try:
-        try:
-            cmd = [
-                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-                "-f", "rawvideo", "-vcodec", "rawvideo",
-                "-s", f"{w}x{h}", "-pix_fmt", "rgb24", "-r", "30",
-                "-i", "-",
-                "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-                "-pix_fmt", "yuv420p", "-frames:v", "1", tmppath,
-            ]
-            subprocess.run(cmd, input=img_uint8.tobytes(), capture_output=True, timeout=10, check=True)
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            writer = cv2.VideoWriter(tmppath, fourcc, 30.0, (w, h))
-            writer.write(cv2.cvtColor(img_uint8, cv2.COLOR_RGB2BGR))
-            writer.release()
-        cap = cv2.VideoCapture(tmppath)
-        ret, frame_bgr = cap.read()
-        cap.release()
-        if ret:
-            return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        return img_uint8
-    except Exception:
-        return img_uint8
-    finally:
-        try:
-            os.unlink(tmppath)
-        except OSError:
-            pass
-
-
-def build_image_batch(obs_group: dict, device: torch.device):
-    """Build image batch for PI0.5 policy.
-
-    PI0.5 preprocessor handles resize + normalization internally.
-    We just extract uint8 images, simulate MP4 roundtrip, and convert to float32
-    in [0, 255] range (IDENTITY normalization mapping).
-    """
-    batch = {}
-    for obs_key, feat_key in CAM_KEY_MAP.items():
-        val = obs_group.get(obs_key)
-        if val is not None and isinstance(val, torch.Tensor):
-            img_u8 = val.squeeze(0).cpu().numpy().astype(np.uint8)
-            img_u8 = _simulate_mp4_roundtrip(img_u8)
-            # PI0.5: keep in [0, 255] float — preprocessor handles normalization
-            img = torch.from_numpy(img_u8).float()
-            img = img.unsqueeze(0)  # (1, H, W, 3)
-            if img.ndim == 4 and img.shape[-1] == 3:
-                img = img.permute(0, 3, 1, 2)  # (1, 3, H, W)
-            img = img.to(device)
-            batch[feat_key] = img
-        else:
-            batch[feat_key] = torch.zeros(1, 3, 720, 1280, device=device)
-    return batch
 
 
 # ---------------------------------------------------------------------------
@@ -482,17 +359,11 @@ def _write_video_cv2(frames: list, video_dir, episode_index: int, fps: int = 30)
 def main():
     device = torch.device(args_cli.device)
 
-    # 0. Register missing processor steps (relative_actions/absolute_actions)
-    _register_missing_processor_steps()
-
-    # 1. Load policy
-    policy, preprocessor, postprocessor, expected_state_dim, expected_action_dim, rel_mask = load_policy(
-        args_cli.checkpoint_dir, device
-    )
-    logger.info(f"Expected dims from config: state={expected_state_dim}, action={expected_action_dim}")
+    # 1. Connect to the remote inference server
+    client = PolicyClient(args_cli.server_url, args_cli.task_description)
 
     # 2. Create env
-    env = create_env(args_cli.task, expected_action_dim)
+    env = create_env(args_cli.task, client.action_dim)
     env.seed(EVAL_SEED)
 
     # 3. Video & plot setup
@@ -531,9 +402,16 @@ def main():
         # Warmup: flush rendering pipeline to avoid visual ghosting
         WARMUP_STEPS = 5
         for _ in range(WARMUP_STEPS):
-            obs, _, _, _, _ = env.step(
-                torch.zeros(env.action_space.shape, device=env.device)
-            )
+            # Hold the current pose: with JointPositionActionCfg(use_default_offset=False),
+            # a zero action commands the arm to ZERO and drags it away from the training
+            # init pose. Use the observed joint positions so the arm stays put while the
+            # rendering pipeline flushes.
+            hold = obs.get("policy", obs).get("joint_pos_7d")
+            if hold is None:
+                hold = torch.zeros(env.action_space.shape, device=env.device)
+            else:
+                hold = hold.float().to(env.device).reshape(env.action_space.shape)
+            obs, _, _, _, _ = env.step(hold)
 
         episode_steps = 0
         episode_frames = [] if video_dir else None
@@ -555,7 +433,7 @@ def main():
             print(f"[DEBUG] env.action_space.shape={env.action_space.shape}", flush=True)
 
         # PI0.5 chunk execution
-        CHUNK_EXEC_STEPS = 50  # Execute full chunk before re-inferring
+        CHUNK_EXEC_STEPS = args_cli.chunk_exec_steps  # Execute N actions before re-inferring
 
         action_chunk = None
         chunk_pos = 0
@@ -576,57 +454,37 @@ def main():
                     f = front.squeeze(0).cpu().numpy().astype(np.uint8)
                     episode_frames.append(f)
 
-            # --- Build policy input ---
-            batch = build_image_batch(obs_group, device)
-
-            # One-time check
-            if ep == 0 and episode_steps == 0:
-                for k in ["observation.images.front", "observation.images.wrist"]:
-                    img = batch.get(k)
-                    if img is not None and isinstance(img, torch.Tensor):
-                        print(f"[DEBUG] raw {k}: shape={list(img.shape)}, min={img.min().item():.1f}, "
-                              f"max={img.max().item():.1f}, mean={img.mean().item():.1f}", flush=True)
-                        if img.max().item() == 0.0:
-                            print(f"[WARN] ⚠️  {k} is ALL ZEROS — cameras may not be rendering! Use --enable_cameras.", flush=True)
-
-            raw_state = build_state_tensor(obs_group, expected_state_dim, device)
-            batch[STATE_KEY] = raw_state
-
-            # Preprocess (handles resize to 224x224, normalization, etc.)
-            batch = preprocessor(batch)
-
-            if ep == 0 and episode_steps == 0:
-                ns = batch.get(STATE_KEY)
-                if ns is not None:
-                    print(f"[DEBUG] normalized state: shape={list(ns.shape)}, values={ns.squeeze().tolist()[:10]}", flush=True)
-                for imgk in policy.config.image_features:
-                    img = batch.get(imgk)
-                    if img is not None and isinstance(img, torch.Tensor):
-                        print(f"[DEBUG] preprocessed {imgk}: shape={list(img.shape)}, min={img.min().item():.4f}, "
-                              f"max={img.max().item():.4f}, mean={img.mean().item():.4f}", flush=True)
+            raw_state = build_state_tensor(obs_group, client.state_dim, device)
 
             # --- Re-infer when chunk exhausted ---
             need_reinfer = action_chunk is None or chunk_pos >= chunk_len
             if CHUNK_EXEC_STEPS is not None and chunk_pos >= CHUNK_EXEC_STEPS:
                 need_reinfer = True
             if need_reinfer:
-                with torch.inference_mode():
-                    action_chunk = policy.predict_action_chunk(batch)  # (1, n_action_steps, 7)
-                action_chunk = action_chunk.cpu()
-                chunk_len = action_chunk.shape[1]
+                images = {}
+                for obs_key, feat_key in CAM_KEY_MAP.items():
+                    val = obs_group.get(obs_key)
+                    if val is not None and isinstance(val, torch.Tensor):
+                        images[feat_key] = val.squeeze(0).cpu().numpy().astype(np.uint8)
+                    else:
+                        images[feat_key] = np.zeros((720, 1280, 3), dtype=np.uint8)
+
+                # One-time all-zeros camera check
+                if ep == 0 and episode_steps == 0:
+                    for key, img in images.items():
+                        if img.max() == 0:
+                            print(f"[WARN] ⚠️  {key} is ALL ZEROS — cameras may not be rendering! Use --enable_cameras.", flush=True)
+
+                action_chunk, rel_mask = client.predict_chunk(
+                    images, raw_state[0].cpu().numpy()
+                )
+                chunk_len = action_chunk.shape[0]
                 chunk_pos = 0
 
             # Take next action from chunk
-            action = action_chunk[:, chunk_pos, :].clone()
-
-            # Postprocess: unnormalize (normalizer_processor handles this)
-            action = postprocessor(action)
-            action = action.squeeze(0)  # (action_dim,)
+            action = torch.from_numpy(action_chunk[chunk_pos].copy())
 
             # Convert relative actions to absolute using current state.
-            # PI0.5 was trained with use_relative_actions=True (joint1-6 are delta,
-            # gripper is absolute). The postprocessor's absolute_actions_processor was
-            # disabled, so we do this manually.
             if any(rel_mask):
                 action = to_absolute_actions(action, raw_state[0], rel_mask)
 
@@ -705,6 +563,17 @@ def main():
             states_arr = np.array(ep_states)
             actions_arr = np.array(ep_actions)
             steps = np.arange(len(ep_states))
+
+            # Dump raw trajectories for offline analysis
+            try:
+                np.savez(
+                    plot_dir / f"ep_{ep:03d}.npz",
+                    states=states_arr,
+                    actions=actions_arr,
+                    success=episode_success,
+                )
+            except Exception:
+                pass
 
             fig, axes = plt.subplots(4, 2, figsize=(16, 14))
             axes = axes.flatten()

@@ -22,11 +22,6 @@ docker restart isaac-lab-base`
 export CUDA_VISIBLE_DEVICES=3
 ```
 
-# 容器中安装Lerobo（5090）
-``` bash
-pip install lerobot
-pip install numpy==1.26.4
-```
 # 容器中安装Lerobo（4090）
 ``` bash
 pip install lerobot
@@ -50,9 +45,6 @@ export SETUPTOOLS_SCM_PRETEND_VERSION=0.7.7
 
 -----------------------------------------
 # Curobo安装(4090)
-
-> 适用于 RTX 4090 (CUDA 12.8)，解决 `libcusparseLt.so.0: cannot open shared object file` 错误。
-
 ## 1. 安装 CUDA 12.8 Toolkit
 ``` bash
 sh /workspace/isaaclab/cuda_12.8.0_570.86.10_linux.run --silent --toolkit --override --toolkitpath=/usr/local/cuda-12.8
@@ -64,7 +56,6 @@ TORCH_LIB="/isaac-sim/kit/python/lib/python3.11/site-packages/torch/lib"
 CUSPARSELT_SO="/isaac-sim/kit/python/lib/python3.11/site-packages/nvidia/cusparselt/lib/libcusparseLt.so.0"
 ln -sf "$CUSPARSELT_SO" "$TORCH_LIB/libcusparseLt.so.0"
 ```
-
 ## 3. 安装 curobo
 ``` bash
 export CUDA_HOME=/usr/local/cuda-12.8
@@ -74,7 +65,6 @@ export SETUPTOOLS_SCM_PRETEND_VERSION=0.7.7
 ./_isaac_sim/python.sh -m pip install -e src/nvidia-curobo --no-build-isolation
 ./_isaac_sim/python.sh -m pip install rerun-sdk==0.23
 ```
-
 ## 4. 验证
 ``` bash
 # 验证 curobo torch正常
@@ -119,27 +109,6 @@ cp -r datasets/lerobot/XXXX /home/dgrlab04/csj_ws/lerobot/datasets/
 python scripts/lerobot/merge_lerobot_datasets.py --input1 datasets/lerobot/XXXX/ --input2 datasets/lerobot/XXXX/ --output /home/dgrlab04/csj_ws/lerobot/datasets/XXXX
 
 ```
------------------------------------------------------
-
-# Skillgen
-``` bash
-
-# 3. 数据生成
-./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
---generation_num_trials 10 \
---input_file ./datasets/hdf5/annotated_dataset_skillgen.hdf5 \
---output_file ./datasets/hdf5/generated_dataset_skillgen.hdf5 \
---task Isaac-Piper-Grab-IK-Rel-Skillgen-v1 \
---use_skillgen \
---headless
-```
-
------------------------------------------------------
-# ACT策略测试
-``` bash
-./isaaclab.sh -p scripts/lerobot/eval_policy.py --checkpoint-dir ./logs/policy/F-SIM-PIPER-GRAB-0721-N30-K-V1-ACT/checkpoints/last/pretrained_model/ --num-episodes 10  --max-steps 1200 --enable_cameras --device cuda:0 --headless --post-success-delay 60
-```
-
 
 # MSTSC连接无画面
 ``` bash
@@ -153,6 +122,7 @@ echo $DISPLAY
 # 应该输出 :10
 ```
 
+# ACT策略测试
 ``` bash
 ./isaaclab.sh -p scripts/lerobot/eval_policy.py --checkpoint-dir ./logs/policy/D-SIM-PIPER-GRAB-0808-N100-L1-V1-ACT/checkpoints/last/pretrained_model/ --num-episodes 50 --max-steps 1200 --enable_cameras --device cuda:0 --headless --post-success-delay 60  --video logs/eval_videos
 ```

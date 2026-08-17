@@ -532,9 +532,16 @@ def main():
         # from the previous episode (temporal AA / frame accumulation).
         WARMUP_STEPS = 5
         for _ in range(WARMUP_STEPS):
-            obs, _, _, _, _ = env.step(
-                torch.zeros(env.action_space.shape, device=env.device)
-            )
+            # Hold the current pose: with JointPositionActionCfg(use_default_offset=False),
+            # a zero action commands the arm to ZERO and drags it away from the training
+            # init pose. Use the observed joint positions so the arm stays put while the
+            # rendering pipeline flushes.
+            hold = obs.get("policy", obs).get("joint_pos_7d")
+            if hold is None:
+                hold = torch.zeros(env.action_space.shape, device=env.device)
+            else:
+                hold = hold.float().to(env.device).reshape(env.action_space.shape)
+            obs, _, _, _, _ = env.step(hold)
 
         episode_steps = 0
         episode_frames = [] if video_dir else None
