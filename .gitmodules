@@ -9,4 +9,4 @@
 	url = https://github.com/XR-Robotics/XRoboToolkit-PC-Service.git
 [submodule "src/nvidia-curobo"]
 	path = src/nvidia-curobo
-	url = git@github.com:csj-275/nvidia-curobo.git
+	url = https://github.com/csj-275/nvidia-curobo.git

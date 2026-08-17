@@ -4,6 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """V1 IK-absolute config — same as IK-rel but with absolute IK controller."""
+# xrobotool
+from isaaclab.devices.xrobotoolkit import XRoboToolkitDeviceCfg
+from isaaclab.devices import DevicesCfg
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
@@ -28,3 +31,15 @@ class PiperGrabEnvCfg(IKRelEnvCfg):
             scale=1.0,
             body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=(0.0, 0.0, 0.0)),
         )
+        self.teleop_devices = DevicesCfg(
+                    devices={
+                        "xrobotoolkit": XRoboToolkitDeviceCfg(
+                            control_mode="absolute",
+                            mapping_mode="world_frame_calibrated",
+                            pos_sensitivity=1.0,
+                            rot_sensitivity=1.0,
+                            sim_device=self.sim.device,
+                        ),
+                    }
+                )
+        

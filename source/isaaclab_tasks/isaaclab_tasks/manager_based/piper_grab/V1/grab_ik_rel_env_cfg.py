@@ -4,8 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import os
-# xrobotool
-from isaaclab.devices.xrobotoolkit import XRoboToolkitDeviceCfg
 
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
